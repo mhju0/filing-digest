@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     sec_user_agent: str = "filing-digest/0.1.0 your-contact@example.com"
 
     database_url: str = (
-        "postgresql+psycopg://haeksim:haeksim-dev@localhost:5432/haeksim"
+        "postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5432/filing_digest"
     )
 
     # [Inferred] 1536 dims: embedding model not finalized (Phase 2 decision).

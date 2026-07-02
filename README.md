@@ -18,7 +18,7 @@ filing-digest/
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── .env.example         #   copy to backend/.env and fill in placeholders
-├── ios/                     # SwiftUI client (Haeksim.xcodeproj, iOS 17+, no 3rd-party deps)
+├── ios/                     # SwiftUI client (FilingDigest.xcodeproj, iOS 17+, no 3rd-party deps)
 ├── docs/                    # architecture & decision log (docs/ARCHITECTURE.md)
 ├── docker-compose.yml       # local dev stack (postgres+pgvector, backend)
 └── README.md
@@ -61,7 +61,7 @@ docker compose up --build
 
 Secrets are injected from the host environment via compose variable
 substitution — nothing is hardcoded in `docker-compose.yml`. The default
-postgres credentials (`haeksim` / `haeksim-dev`) are local-development-only
+postgres credentials (`filing_digest` / `filing_digest_dev`) are local-development-only
 defaults, not production passwords.
 
 ## iOS Build
@@ -69,7 +69,7 @@ defaults, not production passwords.
 Requires Xcode with the iOS 17 SDK:
 
 ```bash
-xcodebuild -project ios/Haeksim.xcodeproj -scheme Haeksim -sdk iphonesimulator build
+xcodebuild -project ios/FilingDigest.xcodeproj -scheme FilingDigest -sdk iphonesimulator build
 ```
 
 The app targets iOS 17+, uses no third-party dependencies, and points at
@@ -89,7 +89,7 @@ cp backend/.env.example backend/.env
 | `DART_BASE_URL` | `https://opendart.fss.or.kr/api` | DART Open API base URL. |
 | `SEC_BASE_URL` | `https://data.sec.gov` | SEC EDGAR base URL. |
 | `SEC_USER_AGENT` | placeholder | SEC requires a User-Agent that includes contact info — set your own. |
-| `DATABASE_URL` | `postgresql+psycopg://haeksim:haeksim-dev@localhost:5432/haeksim` | psycopg3 driver; docker compose overrides host to `db`. |
+| `DATABASE_URL` | `postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5432/filing_digest` | psycopg3 driver; docker compose overrides host to `db`. |
 | `EMBEDDING_DIM` | `1536` | Inferred default; embedding model is fixed in Phase 2. |
 
 Do not commit real secrets. `backend/.env` is git-ignored; only

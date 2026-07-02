@@ -50,7 +50,7 @@ filing-digest/
 │   ├── tests/               #   pytest
 │   ├── Dockerfile
 │   └── requirements.txt
-├── ios/                     # SwiftUI 클라이언트 (Haeksim.xcodeproj)
+├── ios/                     # SwiftUI 클라이언트 (FilingDigest.xcodeproj)
 ├── docs/                    # 아키텍처·결정사항 문서 (본 문서)
 ├── docker-compose.yml       # 로컬 개발 스택 (db + backend)
 └── README.md
@@ -119,7 +119,7 @@ POST /ingest -> 202
 - ENV 변수 (pydantic-settings, `.env`): `DART_API_KEY`(secret, placeholder만 커밋),
   `DART_BASE_URL`(default `https://opendart.fss.or.kr/api`), `SEC_BASE_URL`(default `https://data.sec.gov`),
   `SEC_USER_AGENT`(SEC는 연락처 포함 UA 요구 - placeholder),
-  `DATABASE_URL`(default `postgresql+psycopg://haeksim:haeksim-dev@localhost:5432/haeksim`),
+  `DATABASE_URL`(default `postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5432/filing_digest`),
   `EMBEDDING_DIM`(default 1536)
 
 ## 6. DB 스키마 v0.1 요약
