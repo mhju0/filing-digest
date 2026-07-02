@@ -1,4 +1,4 @@
-"""DART (OpenDART) client -- corpCode resolution + filing list (Phase 2).
+"""DART (OpenDART) client -- corpCode / filing list / financials / document.xml.
 
 Implements:
 - ``corpCode.xml`` flow: fetch the ZIP, unzip in memory, parse ``CORPCODE.xml``
@@ -9,33 +9,40 @@ Implements:
   statements and return cleaned ``FinancialItem`` records (docs §3). This is the
   *single source of numbers* in the system: financial values come only from this
   structured API, never from LLM/document text.
+- ``document.xml`` flow: fetch a filing's original document ZIP, decode its bytes
+  (encoding trap -- see :func:`decode_dart_bytes`), detect its format
+  (:func:`detect_document_format`), and extract *prose only* from the DSD format
+  (:func:`extract_dsd_prose`). Numeric tables are excluded -- numbers come solely
+  from the financials API (§3). This step stops at "raw bytes -> clean prose
+  sections"; chunking / embedding / DB writes are the NEXT step (Phase 2 ingest).
 
-``search_company`` remains a stub. ``document.xml`` ingest (chunking / DB writes)
-is the next step and is intentionally not touched here.
+``search_company`` remains a stub.
 
 SECURITY:
 - The API key lives in ``settings.dart_api_key`` as a SecretStr. Only call
   ``.get_secret_value()`` when building outgoing request params -- never log it,
   never put it in exceptions, and mask it as ``***`` in any logged URL/params.
 
-Design source of truth: docs/dart-api-notes.md, §1 (corpCode.xml) and §2
-(list.json). Status codes follow §5.
+Design source of truth: docs/dart-api-notes.md, §1 (corpCode.xml), §2
+(list.json), §3 (financials), §4 (document.xml). Status codes follow §5.
 """
 
 import datetime
 import io
 import json
 import logging
+import re
 import zipfile
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from defusedxml.ElementTree import fromstring as _defused_fromstring
 
 from app.config import Settings
+from app.logging_config import install_source_logger_masking_filter
 
 logger = logging.getLogger(__name__)
 
@@ -450,6 +457,334 @@ def _dedup_profit_loss(items: list[FinancialItem]) -> list[FinancialItem]:
     return result
 
 
+# -- document.xml (원문 -> 산문 텍스트) ---------------------------------------
+#
+# document.xml is the source of filing_chunks.content (docs/dart-api-notes.md §4).
+# ★ CORE RULE: only *prose* (narrative) text is embedded. Numbers live solely in
+# the financials API (§3), so numeric tables are excluded here -- we never mix a
+# figure into prose. This step stops at "raw bytes -> clean prose sections";
+# chunking / embedding / DB writes are the next step (Phase 2 ingest).
+
+# How much of the document head to sniff for a format marker. The DSD root
+# (<DOCUMENT ... dart4.xsd>) or the xforms root (<html>) always appears well
+# within the first few KB, even after an <?xml?> declaration (docs §4).
+_SNIFF_LEN = 4096
+
+# DSD (정기보고서) markers: the custom DART schema reference and DSD-only tags
+# (docs §4 [Verified]). dart4.xsd is the single most reliable marker.
+_DSD_MARKERS = ("dart4.xsd", "<document-name", "nonamespaceschemalocation")
+# Root <DOCUMENT ...> as a real tag (the trailing class guards against matching
+# an unrelated word like <documentation>).
+_DSD_ROOT_RE = re.compile(r"<document[\s>/]")
+
+# DSD element tags. DSD is a no-namespace schema (noNamespaceSchemaLocation,
+# docs §4), so tags are plain -- SECTION-1/SECTION-2/TITLE/P/TABLE.
+_SECTION_PREFIX = "SECTION"  # SECTION-1 / SECTION-2 (nested); chunk boundaries.
+_TITLE_TAG = "TITLE"  # section header -> ProseSection.section_title (§4).
+_PROSE_TAG = "P"  # narrative paragraph -> ProseSection.content (§4).
+_TABLE_TAG = "TABLE"  # numeric/XBRL table -> EXCLUDED from prose (§3/§4 rule).
+
+# Defensive: warn (do not fail) if a document is far larger than the observed
+# ~6MB 사업보고서 (docs §4). We parse the whole string for correctness; a
+# streaming/section-wise parse is a TODO (see extract_dsd_prose).
+_LARGE_DOCUMENT_WARN_CHARS = 20_000_000
+
+# Leading noise to skip before sniffing the root tag: a UTF-8 BOM (decode keeps
+# it -- we use "utf-8", not "utf-8-sig") plus ordinary whitespace.
+_LEADING_SKIP = chr(0xFEFF) + " \t\r\n"
+
+# DART DSD documents are NOT strictly well-formed XML: prose carries literal '&'
+# (e.g. "R&D") and literal '<' (e.g. "< TV 시장점유율 추이 >") that expat rejects
+# (docs §4 [Verified] -- the 삼성 2023 사업보고서 body has 529 bare '&' + 8 bare
+# '<'). We conservatively escape ONLY the clearly-non-markup cases so the genuine
+# tag structure is left untouched:
+#   - '&' not starting a valid XML entity              -> '&amp;'
+#   - '<' not starting a tag/comment/PI (name, /, !, ?) -> '&lt;'
+# This lets the XXE-safe defusedxml parser read the whole 6MB body; the recovered
+# SECTION/TITLE/P counts then match the docs §4 measurements [Verified].
+_BARE_AMP_RE = re.compile(r"&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)")
+_BARE_LT_RE = re.compile(r"<(?![a-zA-Z/!?])")
+
+
+@dataclass(frozen=True)
+class ProseSection:
+    """One narrative section extracted from a DSD document (docs §4).
+
+    The raw-ish source object the *next* step (Phase 2 chunking) maps onto the
+    ``filing_chunks`` table (docs/dart-api-notes.md §4, §6):
+        filing_chunks.content     <- content      (prose only; tables excluded)
+        filing_chunks.meta        <- {rcept_no, section_title}   (citation anchor)
+        filing_chunks.chunk_index <- order  (section order within the document)
+    ``section_title`` is the ``<TITLE>`` text (a natural chunk header) or ``None``
+    when a section carries no title. No number ever appears here: numeric tables
+    (``<TABLE>``) are dropped so figures come only from the financials API (§3).
+    """
+
+    section_title: str | None
+    content: str
+    order: int
+
+
+@dataclass(frozen=True)
+class DocumentPayload:
+    """The selected body document from a ``document.xml`` ZIP (docs §4).
+
+    ``content`` is the *raw, undecoded* bytes of the chosen member so the caller
+    normalizes encoding explicitly via :func:`decode_dart_bytes` (the DART
+    encoding trap -- euc-kr declared but UTF-8 bytes -- means we never trust the
+    declaration; docs §4). ``member_names`` lists every ZIP member so attachments
+    (``{rcept_no}_NNNNN.xml``) are visible; whether to ingest them is a Phase 2
+    decision (TODO), so only the body member is returned as ``content`` here.
+    """
+
+    rcept_no: str
+    filename: str  # chosen body member (usually "{rcept_no}.xml")
+    content: bytes  # raw bytes of the body member (decode via decode_dart_bytes)
+    member_names: tuple[str, ...]  # all ZIP members (body + attachments)
+
+
+def decode_dart_bytes(raw: bytes) -> str:
+    """Decode DART document bytes to ``str``, ignoring any charset declaration.
+
+    The DART encoding trap (docs §4 [Verified]): xforms documents declare
+    ``<meta charset=euc-kr>`` but the actual bytes are UTF-8, and DSD documents
+    carry no charset at all. So we never trust the declaration -- we decode by
+    trying the bytes, UTF-8 first:
+
+    1. UTF-8 strict -- if it succeeds, the bytes *are* UTF-8 (this covers both the
+       DSD case and the mislabelled-euc-kr xforms case). Real cp949/euc-kr Korean
+       bytes almost always fail UTF-8 strict, so a success is trustworthy.
+    2. cp949 fallback -- a superset of euc-kr; covers a genuinely legacy-encoded
+       document.
+
+    A charset-detection library would be over-engineering for a two-format,
+    two-encoding corpus -- the ordered strict attempts are sufficient [Inferred].
+    If *both* strict decodes fail (not observed in the wild), we log and fall back
+    to a lossy UTF-8 decode rather than crash the whole ingest for one bad file.
+
+    Pure (no network) so the encoding trap is unit-tested directly.
+    """
+    for encoding in ("utf-8", "cp949"):
+        try:
+            text = raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+        logger.debug("decode_dart_bytes: decoded %d bytes as %s", len(raw), encoding)
+        return text
+    # Neither strict decode worked -> never crash/fabricate: lossy utf-8 + warn.
+    logger.warning(
+        "decode_dart_bytes: %d bytes decoded as neither utf-8 nor cp949; falling "
+        "back to lossy utf-8 (some characters replaced)",
+        len(raw),
+    )
+    return raw.decode("utf-8", errors="replace")
+
+
+def detect_document_format(text: str) -> Literal["dsd", "xforms", "unknown"]:
+    """Sniff a decoded document's format from its head (docs §4 [Verified]).
+
+    - ``"dsd"``    -- 정기보고서(사업보고서 등): DART custom XML whose root
+      ``<DOCUMENT ... noNamespaceSchemaLocation="dart4.xsd">`` and ``<DOCUMENT-NAME>``
+      are DSD-only markers.
+    - ``"xforms"`` -- 자율/수시공시: an ``<html>`` root with xforms styling.
+    - ``"unknown"``-- neither marker found. We do NOT guess a parser for it; the
+      caller logs and skips (project rule: when ambiguous, skip -- never invent).
+
+    Only ``"dsd"`` is parsed downstream in this step; the xforms branch is
+    detection-only (its parser is a Phase 2 TODO). Pure -> unit-tested.
+    """
+    head = text[:_SNIFF_LEN].lstrip(_LEADING_SKIP).lower()
+    if any(marker in head for marker in _DSD_MARKERS) or _DSD_ROOT_RE.search(head):
+        return "dsd"
+    if "<html" in head:
+        return "xforms"
+    return "unknown"
+
+
+def _strip_xml_declaration(text: str) -> str:
+    """Drop a leading ``<?xml ... ?>`` declaration from a decoded document.
+
+    We have already normalized the bytes to ``str`` (:func:`decode_dart_bytes`),
+    but a leftover declaration carrying ``encoding="euc-kr"`` makes ``ElementTree``
+    reject a ``str`` input ("Unicode strings with encoding declaration are not
+    supported"). Removing the declaration lets us parse the already-correct
+    ``str`` directly, sidestepping the declaration/bytes mismatch (docs §4). No
+    declaration -> returned unchanged.
+    """
+    head = text.lstrip(_LEADING_SKIP)
+    if head.startswith("<?xml"):
+        end = head.find("?>")
+        if end != -1:
+            return head[end + 2 :]
+    return text
+
+
+def _repair_dsd_markup(text: str) -> str:
+    """Escape DART's literal ``&``/``<`` in prose so defusedxml can parse (docs §4).
+
+    DART DSD bodies embed unescaped ``&`` and ``<`` in narrative text, which is
+    not well-formed XML. Only the clearly-non-markup occurrences are escaped (see
+    :data:`_BARE_AMP_RE` / :data:`_BARE_LT_RE`), leaving real tags intact. Pure ->
+    unit-tested (indirectly, via :func:`extract_dsd_prose`).
+    """
+    text = _BARE_AMP_RE.sub("&amp;", text)
+    return _BARE_LT_RE.sub("&lt;", text)
+
+
+def _localname(tag: object) -> str:
+    """Return an element's local tag name (namespace stripped; '' if non-string).
+
+    ElementTree yields a callable ``tag`` for comments/PIs -- those coerce to ''.
+    DSD is a no-namespace schema, but we strip any ``{ns}`` prefix defensively.
+    """
+    if not isinstance(tag, str):
+        return ""
+    return tag.rsplit("}", 1)[-1] if tag.startswith("{") else tag
+
+
+def _is_section_tag(tag: object) -> bool:
+    """True for a DSD section element (``SECTION-1``/``SECTION-2``/... ; §4)."""
+    return _localname(tag).upper().startswith(_SECTION_PREFIX)
+
+
+def _normalize_ws(text: str) -> str:
+    """Collapse whitespace/newline runs to single spaces; strip the ends.
+
+    Deliberately light (docs §4: "과하지 않게") -- it tidies tag-stripped text
+    without altering meaning, and drops empty ``<P>`` (``"".split() == []``).
+    """
+    return " ".join(text.split())
+
+
+def _collect_section_prose(section_el: Any) -> tuple[str | None, str, int]:
+    """Collect ``(title, prose, tables_skipped)`` for ONE section, not its kids.
+
+    Walks the section's subtree but STOPS at nested ``SECTION-*`` boundaries (each
+    nested section becomes its own :class:`ProseSection`), so prose is never
+    double-counted. Rules (docs §4):
+    - first ``<TITLE>`` text -> ``section_title`` (a natural chunk header).
+    - each ``<P>`` -> one normalized prose paragraph (its ``<SPAN>`` text included).
+    - every ``<TABLE>`` -> skipped and counted. Tables (esp. ``ACLASS="EXTRACTION"``)
+      are numeric/XBRL; numbers come only from the financials API (§3), so no table
+      text is mixed into prose -- even a table sitting mid-narrative.
+    """
+    title: str | None = None
+    prose_parts: list[str] = []
+    tables_skipped = 0
+
+    def _walk(node: Any) -> None:
+        nonlocal title, tables_skipped
+        for child in node:
+            tag = _localname(child.tag)
+            if _is_section_tag(tag):
+                continue  # nested section -> handled as its own ProseSection
+            if tag == _TITLE_TAG:
+                if title is None:
+                    candidate = _normalize_ws("".join(child.itertext()))
+                    if candidate:
+                        title = candidate
+                continue  # itertext already captured the title's text
+            if tag == _TABLE_TAG:
+                tables_skipped += 1  # numeric table -> excluded from prose (§3/§4)
+                continue
+            if tag == _PROSE_TAG:
+                paragraph = _normalize_ws("".join(child.itertext()))
+                if paragraph:
+                    prose_parts.append(paragraph)
+                continue
+            _walk(child)  # wrapper element -> descend to find TITLE/P/TABLE
+
+    _walk(section_el)
+    return title, "\n".join(prose_parts), tables_skipped
+
+
+def extract_dsd_prose(text: str) -> list[ProseSection]:
+    """Extract prose (narrative) sections from a DSD document (docs §4).
+
+    Parses the decoded DSD XML (defusedxml -- XXE/billion-laughs safe) and returns
+    one :class:`ProseSection` per ``SECTION-*`` element in document order,
+    carrying its ``<TITLE>`` and concatenated ``<P>`` prose. Numeric tables are
+    dropped (see :func:`_collect_section_prose`) so figures come only from the
+    financials API (§3). Empty sections -- no title *and* no prose (e.g. a shell
+    holding only nested sub-sections whose content is emitted separately) -- are
+    omitted; a title-only section is kept (it is a meaningful TOC header).
+
+    ProseSection -> filing_chunks mapping (the NEXT step wires this to the DB):
+        content <- content, meta <- {rcept_no, section_title}, chunk_index <- order.
+
+    Whole-string parse for correctness on the ~6MB 사업보고서 (docs §4); a
+    streaming/section-wise parse is a TODO. Pure (no network) -> unit-tested.
+    """
+    if len(text) > _LARGE_DOCUMENT_WARN_CHARS:
+        logger.warning(
+            "extract_dsd_prose: unusually large document (%d chars); parsing the "
+            "whole string (streaming is a TODO)",
+            len(text),
+        )
+    # defusedxml on the decoded str: strip the declaration (so ElementTree accepts
+    # a str even when the original declared euc-kr) and repair DART's literal
+    # &/< in prose (docs §4). Both are pure string ops -- no XXE surface.
+    root = _defused_fromstring(_repair_dsd_markup(_strip_xml_declaration(text)))
+
+    sections: list[ProseSection] = []
+    tables_skipped = 0
+    for el in root.iter():
+        if not _is_section_tag(el.tag):
+            continue
+        title, content, dropped = _collect_section_prose(el)
+        tables_skipped += dropped
+        if title is None and not content:
+            continue  # empty section -> nothing to embed
+        sections.append(
+            ProseSection(section_title=title, content=content, order=len(sections))
+        )
+
+    logger.info(
+        "extract_dsd_prose: %d prose section(s), %d numeric table(s) excluded",
+        len(sections),
+        tables_skipped,
+    )
+    return sections
+
+
+def _select_document_member(names: list[str], rcept_no: str) -> str:
+    """Pick the body-document member from a ``document.xml`` ZIP (docs §4).
+
+    The body is ``{rcept_no}.xml``; attachments are ``{rcept_no}_NNNNN.xml``
+    (docs §4 [Verified]). Preference: exact ``{rcept_no}.xml`` -> an ``.xml`` member
+    whose stem has no ``_`` attachment suffix -> the first candidate. Raises
+    :class:`DartApiError` on an empty ZIP. Pure -> unit-tested.
+    """
+    if not names:
+        raise DartApiError("document.xml ZIP contained no members")
+
+    def _base(name: str) -> str:
+        return name.rsplit("/", 1)[-1]
+
+    xml_members = [n for n in names if _base(n).lower().endswith(".xml")]
+    candidates = xml_members or names
+
+    target = f"{rcept_no}.xml".lower()
+    for name in candidates:
+        if _base(name).lower() == target:
+            return name
+    for name in candidates:
+        stem = _base(name).rsplit(".", 1)[0]
+        if "_" not in stem:  # attachments carry a "_NNNNN" suffix
+            return name
+    return candidates[0]
+
+
+def _extract_document_member(
+    zip_bytes: bytes, rcept_no: str
+) -> tuple[str, bytes, tuple[str, ...]]:
+    """Open the document ZIP in memory; return (member, raw_bytes, all_names)."""
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        names = zf.namelist()
+        member = _select_document_member(names, rcept_no)
+        return member, zf.read(member), tuple(names)
+
+
 class DartClient:
     """Client for the OpenDART API (https://opendart.fss.or.kr).
 
@@ -470,6 +805,10 @@ class DartClient:
         self._cache_path = cache_path or DEFAULT_CACHE_PATH
         # In-process memo of parsed listed-company records (list of dicts).
         self._records: list[dict[str, str]] | None = None
+        # Guarantee the crtfc_key is masked out of httpx's request-URL logs even
+        # when the app entry point (app.main -> configure_logging) was not run --
+        # e.g. a live test that constructs the client directly. Idempotent.
+        install_source_logger_masking_filter()
 
     # -- corpCode.xml -------------------------------------------------------
 
@@ -764,6 +1103,56 @@ class DartClient:
             len(deduped),
         )
         return deduped
+
+    async def fetch_document(self, rcept_no: str) -> DocumentPayload:
+        """Fetch a filing's original document via ``document.xml`` (§4).
+
+        Returns the *body* member of the response ZIP as raw bytes. The caller
+        normalizes it explicitly: :func:`decode_dart_bytes` (encoding trap) ->
+        :func:`detect_document_format` -> :func:`extract_dsd_prose` (DSD only).
+        No DB write happens here -- persistence is the later ingest step.
+
+        Error handling mirrors the corpCode ZIP endpoint (docs §5): a normal
+        response is a ZIP (magic ``PK``); an error is a ``<result><status>`` XML,
+        surfaced as :class:`DartApiError` (the API key is never referenced).
+
+        TODO(next step): attachments (``{rcept_no}_NNNNN.xml``) are listed in
+        ``member_names`` but not returned as content; xforms documents are
+        detected but not yet parsed; 6MB bodies are parsed whole (streaming TODO).
+        """
+        content = await self._fetch_document_zip(rcept_no)
+        if content[:2] != _ZIP_MAGIC:
+            status = _error_status_from_xml(content)
+            raise DartApiError(f"document.xml returned status {status}")
+        member, body, names = _extract_document_member(content, rcept_no)
+        logger.info(
+            "document.xml: rcept_no=%s, %d member(s), body=%s (%d bytes)",
+            rcept_no,
+            len(names),
+            member,
+            len(body),
+        )
+        return DocumentPayload(
+            rcept_no=rcept_no,
+            filename=member,
+            content=body,
+            member_names=names,
+        )
+
+    async def _fetch_document_zip(self, rcept_no: str) -> bytes:
+        client = self._get_client()
+        # crtfc_key is masked; log only the non-secret query shape.
+        logger.info(
+            "fetching %s/document.xml (crtfc_key=***, rcept_no=%s)",
+            self._base_url,
+            rcept_no,
+        )
+        resp = await client.get(
+            f"{self._base_url}/document.xml",
+            params={"crtfc_key": self._api_key(), "rcept_no": rcept_no},
+        )
+        resp.raise_for_status()
+        return resp.content
 
     async def aclose(self) -> None:
         """Close the underlying httpx client if this instance created it."""
