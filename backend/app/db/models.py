@@ -6,8 +6,8 @@ Schema is applied via init.sql (docker-entrypoint-initdb.d) -- no Alembic.
 Notes:
 - filing_chunks column is named "meta" because 'metadata' is a reserved
   attribute name on SQLAlchemy Declarative models.
-- embedding vector(1536) is [Inferred]: embedding model not finalized;
-  dimension to be confirmed in Phase 2.
+- embedding vector(1024) is [Verified]: KURE-v1 (nlpai-lab/KURE-v1) dense
+  dimension (HuggingFace config.json hidden_size=1024).
 - TODO(Phase 2): vector index (hnsw or ivfflat) on filing_chunks.embedding --
   do not create it now; it cannot be tuned without real data.
 """
@@ -35,8 +35,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 logger = logging.getLogger(__name__)
 
-# Matches vector(1536) in init.sql. [Inferred] -- see module docstring.
-EMBEDDING_DIM = 1536
+# Matches vector(1024) in init.sql. [Verified] -- see module docstring.
+EMBEDDING_DIM = 1024
 
 
 class Base(DeclarativeBase):
@@ -112,7 +112,7 @@ class FilingChunk(Base):
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    # [Inferred] 1536 dims -- embedding model TBD in Phase 2.
+    # [Verified] 1024 dims -- KURE-v1 dense dimension (see module docstring).
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
     # Named "meta": 'metadata' is reserved on Declarative models.
     meta: Mapped[dict] = mapped_column(

@@ -90,7 +90,7 @@ cp backend/.env.example backend/.env
 | `SEC_BASE_URL` | `https://data.sec.gov` | SEC EDGAR base URL. |
 | `SEC_USER_AGENT` | placeholder | SEC requires a User-Agent that includes contact info — set your own. |
 | `DATABASE_URL` | `postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5432/filing_digest` | psycopg3 driver; docker compose overrides host to `db`. |
-| `EMBEDDING_DIM` | `1536` | Inferred default; embedding model is fixed in Phase 2. |
+| `EMBEDDING_DIM` | `1024` | KURE-v1 (nlpai-lab/KURE-v1) dense dimension (Verified). |
 
 Do not commit real secrets. `backend/.env` is git-ignored; only
 `backend/.env.example` (placeholders) is tracked.

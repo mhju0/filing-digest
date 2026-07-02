@@ -38,9 +38,9 @@ CREATE TABLE IF NOT EXISTS filing_chunks (
     filing_id uuid NOT NULL REFERENCES filings(id) ON DELETE CASCADE,
     chunk_index int NOT NULL,
     content text NOT NULL,
-    -- [Inferred] vector(1536): embedding model not finalized; dimension to be
-    -- confirmed in Phase 2.
-    embedding vector(1536),
+    -- [Verified] vector(1024): KURE-v1 (nlpai-lab/KURE-v1) dense dimension.
+    -- Source: HuggingFace config.json hidden_size=1024 (bge-m3 / XLM-RoBERTa base).
+    embedding vector(1024),
     meta jsonb NOT NULL DEFAULT '{}',
     created_at timestamptz NOT NULL DEFAULT now(),
     UNIQUE (filing_id, chunk_index)

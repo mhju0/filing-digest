@@ -74,7 +74,7 @@ filing-digest/
 | # | 결정 | 태그 | 근거 |
 |---|------|------|------|
 | D1 | **Alembic 대신 `backend/db/init.sql` 단일 스크립트 채택** | [Verified] | v0.1은 테이블 4개(companies, filings, filing_chunks, financials)뿐이고 운영 데이터가 없어 마이그레이션 이력 관리가 불필요. `docker-entrypoint-initdb.d`에 read-only 마운트하면 compose up만으로 재현 가능한 스키마가 보장된다. 스키마가 진화하기 시작하는 Phase 2에서 Alembic 도입을 재검토한다. |
-| D2 | **pgvector embedding 차원 1536** | [Inferred] | 임베딩 모델이 아직 미확정이라 확정 근거 없음. 주요 상용 임베딩 모델의 보편적 차원을 가정한 값이며, `EMBEDDING_DIM` 환경변수(default 1536)와 `filing_chunks.embedding vector(1536)`에 반영. Phase 2에서 모델 확정 시 재조정. |
+| D2 | **pgvector embedding 차원 1024** | [Verified] | 임베딩 모델을 KURE-v1(nlpai-lab/KURE-v1)로 확정. dense 차원은 HuggingFace `config.json`의 `hidden_size=1024`(bge-m3 기반 XLM-RoBERTa) 및 `1_Pooling/config.json`의 `word_embedding_dimension=1024`로 교차 확인. `EMBEDDING_DIM` 환경변수(default 1024)와 `filing_chunks.embedding vector(1024)`에 반영. |
 | D3 | **DART/SEC 실제 응답 포맷** | [Unknown] | Phase 2에서 실연동 전까지 실측 불가. v0.1은 외부 호출 없이 스텁으로만 동작하며, `DART_BASE_URL`/`SEC_BASE_URL`/`SEC_USER_AGENT`만 설정으로 예약해 둔다. (SEC는 연락처 포함 User-Agent를 요구 - placeholder만 커밋) |
 | D4 | **psycopg3 선택** (`postgresql+psycopg://` 드라이버) | [Verified] | psycopg2는 유지보수 모드, psycopg3(패키지명 `psycopg`)가 현행 권장 드라이버이며 SQLAlchemy 2.x가 `postgresql+psycopg` dialect로 공식 지원. `DATABASE_URL` 기본값과 docker-compose의 접속 문자열에 반영됨. |
 | D5 | **iOS 17 타깃 + 서드파티 의존성 없음** | [Verified] | SwiftUI + URLSession + Codable(async/await)만으로 v0.1 API 소비가 충분하다. 의존성 0개는 빌드 재현성과 리뷰 범위를 최소화한다. 기본 baseURL은 `http://127.0.0.1:8000` (시뮬레이터 로컬 개발). |
@@ -120,7 +120,7 @@ POST /ingest -> 202
   `DART_BASE_URL`(default `https://opendart.fss.or.kr/api`), `SEC_BASE_URL`(default `https://data.sec.gov`),
   `SEC_USER_AGENT`(SEC는 연락처 포함 UA 요구 - placeholder),
   `DATABASE_URL`(default `postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5432/filing_digest`),
-  `EMBEDDING_DIM`(default 1536)
+  `EMBEDDING_DIM`(default 1024)
 
 ## 6. DB 스키마 v0.1 요약
 
@@ -132,7 +132,7 @@ pg16 내장 `gen_random_uuid()` 사용)
 - **filings**: id(uuid PK), company_id FK→companies ON DELETE CASCADE, source, filing_type,
   title, period, filed_at(date), url, created_at; `idx_filings_company` 인덱스
 - **filing_chunks**: id(uuid PK), filing_id FK→filings ON DELETE CASCADE, chunk_index,
-  content, embedding `vector(1536)` [Inferred - D2], meta(jsonb, `metadata`는 예약어라 회피 - D9),
+  content, embedding `vector(1024)` [Verified - D2], meta(jsonb, `metadata`는 예약어라 회피 - D9),
   created_at; UNIQUE(filing_id, chunk_index)
 - **financials**: id(uuid PK), company_id FK→companies ON DELETE CASCADE,
   filing_id FK→filings ON DELETE SET NULL, fiscal_year, fiscal_quarter, period, metric,

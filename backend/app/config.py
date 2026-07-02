@@ -38,11 +38,11 @@ class Settings(BaseSettings):
         "postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5432/filing_digest"
     )
 
-    # [Inferred] 1536 dims: embedding model not finalized (Phase 2 decision).
+    # [Verified] 1024 dims: KURE-v1 (nlpai-lab/KURE-v1) dense dimension.
     # Reserved, not consumed yet: the actual schema dimension is fixed by
-    # vector(1536) in backend/db/init.sql (single source of truth). Wire this
+    # vector(1024) in backend/db/init.sql (single source of truth). Wire this
     # up in Phase 2; changing the env var alone has no effect today.
-    embedding_dim: int = 1536
+    embedding_dim: int = 1024
 
 
 @lru_cache

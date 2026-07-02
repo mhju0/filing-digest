@@ -40,8 +40,8 @@ services:
       SEC_BASE_URL: ${SEC_BASE_URL:-https://data.sec.gov}
       # SEC는 연락처가 포함된 User-Agent를 요구한다. 아래 기본값은 placeholder이며 실제 연락처로 덮어쓸 것.
       SEC_USER_AGENT: ${SEC_USER_AGENT:-filing-digest/0.1.0 your-contact@example.com}
-      # 예약값(아직 미소비): 실제 차원은 backend/db/init.sql의 vector(1536)이 단일 소스. Phase 2에서 배선.
-      EMBEDDING_DIM: ${EMBEDDING_DIM:-1536}
+      # 예약값(아직 미소비): 실제 차원은 backend/db/init.sql의 vector(1024)이 단일 소스. Phase 2에서 배선.
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
     depends_on:
       db:
         condition: service_healthy
