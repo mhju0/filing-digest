@@ -1,6 +1,6 @@
 //
 //  APIModels.swift
-//  Haeksim
+//  FilingDigest
 //
 //  Codable mirror of API CONTRACT v0.1.
 //  JSON on the wire is snake_case; Swift properties are camelCase and rely on

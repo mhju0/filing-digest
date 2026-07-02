@@ -1,6 +1,6 @@
 //
-//  HaeksimTests.swift
-//  HaeksimTests
+//  FilingDigestTests.swift
+//  FilingDigestTests
 //
 //  Swift Testing (import Testing) — no XCTest.
 //  Covers: snake_case JSON decoding of CompanyDigest / ChatResponse, and
@@ -9,7 +9,7 @@
 
 import Foundation
 import Testing
-@testable import Haeksim
+@testable import FilingDigest
 
 // MARK: - Sample payloads (snake_case, mirroring API CONTRACT v0.1)
 

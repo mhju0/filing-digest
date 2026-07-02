@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A10000000000000000000002"
-               BuildableName = "Haeksim.app"
-               BlueprintName = "Haeksim"
-               ReferencedContainer = "container:Haeksim.xcodeproj">
+               BuildableName = "FilingDigest.app"
+               BlueprintName = "FilingDigest"
+               ReferencedContainer = "container:FilingDigest.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -35,9 +35,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A10000000000000000000003"
-               BuildableName = "HaeksimTests.xctest"
-               BlueprintName = "HaeksimTests"
-               ReferencedContainer = "container:Haeksim.xcodeproj">
+               BuildableName = "FilingDigestTests.xctest"
+               BlueprintName = "FilingDigestTests"
+               ReferencedContainer = "container:FilingDigest.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -57,9 +57,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000000000000000000002"
-            BuildableName = "Haeksim.app"
-            BlueprintName = "Haeksim"
-            ReferencedContainer = "container:Haeksim.xcodeproj">
+            BuildableName = "FilingDigest.app"
+            BlueprintName = "FilingDigest"
+            ReferencedContainer = "container:FilingDigest.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -74,9 +74,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000000000000000000002"
-            BuildableName = "Haeksim.app"
-            BlueprintName = "Haeksim"
-            ReferencedContainer = "container:Haeksim.xcodeproj">
+            BuildableName = "FilingDigest.app"
+            BlueprintName = "FilingDigest"
+            ReferencedContainer = "container:FilingDigest.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

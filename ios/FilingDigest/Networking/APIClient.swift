@@ -1,6 +1,6 @@
 //
 //  APIClient.swift
-//  Haeksim
+//  FilingDigest
 //
 //  Minimal URLSession-based client for API CONTRACT v0.1.
 //  - async/await only, no third-party dependencies.

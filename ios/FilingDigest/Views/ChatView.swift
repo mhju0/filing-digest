@@ -1,6 +1,6 @@
 //
 //  ChatView.swift
-//  Haeksim
+//  FilingDigest
 //
 //  Chat tab: message list + input bar + send. Assistant messages show their
 //  citations (title + source) underneath — every claim carries a citation.

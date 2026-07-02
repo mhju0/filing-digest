@@ -1,6 +1,6 @@
 //
 //  DigestView.swift
-//  Haeksim
+//  FilingDigest
 //
 //  Company digest: metric card grid (LazyVGrid) + KO/EN segmented toggle +
 //  summary + citations. Metric values are structured-API numbers only; every

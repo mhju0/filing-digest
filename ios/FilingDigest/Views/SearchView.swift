@@ -1,6 +1,6 @@
 //
 //  SearchView.swift
-//  Haeksim
+//  FilingDigest
 //
 //  Company search: search field + result list; selecting a row pushes
 //  DigestView. Handles loading / error / empty states explicitly.

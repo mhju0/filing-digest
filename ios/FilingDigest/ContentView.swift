@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  Haeksim
+//  FilingDigest
 //
 //  Root tab layout: company search (-> digest) and chat.
 //  State management is intentionally simple: one shared APIClient value is
