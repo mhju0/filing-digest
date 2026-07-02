@@ -1,0 +1,11 @@
+# Never bake env files (real secrets) into the image; compose injects env vars at runtime.
+.env
+.env.*
+!.env.example
+
+# Local artifacts not needed in the image.
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+tests/
