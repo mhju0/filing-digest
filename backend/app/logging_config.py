@@ -7,17 +7,35 @@ not know the key is a secret: httpx logs every request at INFO level as
 which leaks the key past our own masking.
 
 Fix (preferred over silencing httpx): a reusable ``logging.Filter`` that masks
-the ``crtfc_key`` value in *any* log record's final message. It is attached to
-the root logger's handlers, so it fires for every record that reaches them --
-httpx's request logs, our own logs, and anything else that happens to log a URL
-containing the key. httpx keeps logging (useful for debugging); only the secret
-value is redacted.
+the ``crtfc_key`` value in *any* log record's final message. The filter is
+attached at the **source logger** (``httpx``/``httpcore``) -- i.e. the logger
+that actually emits the leaking record. A filter on a logger runs inside
+``Logger.handle`` *before* ``callHandlers``, so it mutates the record in place
+once and every handler that later sees the record (root handlers, and crucially
+pytest's dynamically-added live-log handler ``_LiveLoggingStreamHandler``) emits
+the already-redacted text. httpx keeps logging (useful for debugging); only the
+secret value is redacted.
+
+Why not the root logger's *handlers* alone (the previous approach): a handler
+filter only covers the specific handler instances present when it was attached,
+so any handler added later -- pytest live-log among them -- bypasses it. And a
+filter on the root *logger* would not help either: ancestor-logger filters do
+NOT run for records propagated up from a child logger such as ``httpx`` (only
+the originating logger's own filters run). Masking at the source logger is the
+one point that covers every downstream output path. Root-handler attachment is
+kept as defence-in-depth.
 """
 
 import logging
 import re
 
 logger = logging.getLogger(__name__)
+
+# Loggers known to emit the DART API key in cleartext (the full request URL is
+# logged at INFO). Masking is installed on these at logger level so the record
+# itself is redacted before any handler -- including pytest's live-log handler --
+# renders it. httpcore is included defensively (it can log connection URLs too).
+_SECRET_LEAKING_LOGGERS = ("httpx", "httpcore")
 
 # Match ``crtfc_key=<value>`` and capture only the value. The value is URL-safe
 # and ends at the next ``&`` (further param), ``#`` (fragment), whitespace, or a
@@ -61,14 +79,31 @@ class CrtfcKeyMaskingFilter(logging.Filter):
         return True
 
 
+def install_source_logger_masking_filter() -> None:
+    """Attach :class:`CrtfcKeyMaskingFilter` to each secret-leaking source logger.
+
+    This is the primary defence. A filter on the *originating* logger runs in
+    ``Logger.handle`` before the record is dispatched to any handler, so it
+    redacts the record in place once and every downstream handler -- root
+    handlers *and* pytest's dynamically-added live-log handler -- emits masked
+    text. Idempotent: skips loggers that already carry the filter, so it is safe
+    to call on every app start or client construction.
+    """
+    for name in _SECRET_LEAKING_LOGGERS:
+        src = logging.getLogger(name)
+        if not any(isinstance(f, CrtfcKeyMaskingFilter) for f in src.filters):
+            src.addFilter(CrtfcKeyMaskingFilter())
+
+
 def install_secret_masking_filter() -> None:
     """Attach :class:`CrtfcKeyMaskingFilter` to every root-logger handler.
 
-    Handler-level attachment (not logger-level) is deliberate: a filter on the
-    root *logger* would not see records propagated from child loggers such as
-    ``httpx``, whereas every propagated record still passes through the root
-    *handlers*. Idempotent -- skips handlers that already carry the filter, so
-    it is safe to call more than once.
+    Defence-in-depth on top of :func:`install_source_logger_masking_filter`:
+    covers records that reach the root handlers from loggers not in
+    ``_SECRET_LEAKING_LOGGERS``. Note this cannot cover handlers added after the
+    call (e.g. pytest live-log) -- that gap is exactly why the source-logger
+    filter above is the primary mechanism. Idempotent -- skips handlers that
+    already carry the filter, so it is safe to call more than once.
     """
     root = logging.getLogger()
     for handler in root.handlers:
@@ -77,12 +112,14 @@ def install_secret_masking_filter() -> None:
 
 
 def configure_logging(level: int = logging.INFO) -> None:
-    """Initialise application logging and install the secret-masking filter.
+    """Initialise application logging and install the secret-masking filters.
 
     Single logging entry point for the app: sets up the root handler via
-    ``basicConfig`` (a no-op if handlers already exist) and then installs the
-    ``crtfc_key`` masking filter so no secret can leak through httpx's or any
-    other library's URL logging.
+    ``basicConfig`` (a no-op if handlers already exist), then installs the
+    ``crtfc_key`` masking filter at the source loggers (primary) and on the root
+    handlers (defence-in-depth) so no secret can leak through httpx's or any
+    other library's URL logging, on any output path. Idempotent.
     """
     logging.basicConfig(level=level, format=_LOG_FORMAT)
+    install_source_logger_masking_filter()
     install_secret_masking_filter()

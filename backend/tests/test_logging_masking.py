@@ -5,12 +5,14 @@ which would otherwise leak the API key that our own dart.py logs already mask.
 No network and no real key -- a fake ``SECRET123`` value stands in for the key.
 """
 
+import io
 import logging
 
 from app.logging_config import (
     CrtfcKeyMaskingFilter,
     configure_logging,
     install_secret_masking_filter,
+    install_source_logger_masking_filter,
     mask_crtfc_key,
 )
 
@@ -92,3 +94,86 @@ def test_caplog_sees_only_masked_httpx_style_log(caplog) -> None:
         test_logger.info("HTTP Request: %s %s", "GET", _SAMPLE_URL)
     assert _FAKE_KEY not in caplog.text
     assert "crtfc_key=***" in caplog.text
+
+
+# -- live-log path regression: mask at the SOURCE logger, not the handler -----
+#
+# The bug this guards: `pytest --log-cli-level=INFO` leaked the real key. The old
+# fix attached the filter only to the root *handlers* present at install time.
+# pytest's live-log handler (_LiveLoggingStreamHandler) is added dynamically per
+# test and never carried that filter, so httpx's URL log escaped unmasked. caplog
+# could not catch this either: it uses its own handler, so a handler-scoped test
+# passed while the real live-log path leaked (see the caplog test above -- it
+# only proves the filter works IF a handler carries it).
+#
+# The fix masks at the httpx *source logger*: Logger.handle runs logger filters
+# before callHandlers, mutating the record in place, so EVERY handler that later
+# renders it -- including one added afterwards -- sees masked text. The tests
+# below assert that record-level guarantee independently of any handler.
+
+
+def test_source_logger_filter_mutates_record_for_late_added_handler() -> None:
+    """Reproduce the live-log path: a handler added AFTER the filter still sees
+    masked text, because the source-logger filter redacts the record itself."""
+    install_source_logger_masking_filter()
+    httpx_logger = logging.getLogger("httpx")
+
+    # A fresh StreamHandler attached directly to httpx AFTER the filter exists,
+    # standing in for pytest's dynamically-added live-log handler. It carries no
+    # filter of its own -- masking must come from the record, not the handler.
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    httpx_logger.addHandler(handler)
+    prev_level, prev_propagate = httpx_logger.level, httpx_logger.propagate
+    httpx_logger.setLevel(logging.INFO)
+    httpx_logger.propagate = False  # isolate: only our handler renders the record
+    try:
+        httpx_logger.info("HTTP Request: %s %s", "GET", _SAMPLE_URL)
+    finally:
+        httpx_logger.removeHandler(handler)
+        httpx_logger.setLevel(prev_level)
+        httpx_logger.propagate = prev_propagate
+
+    output = stream.getvalue()
+    assert _FAKE_KEY not in output
+    assert "crtfc_key=***" in output
+    assert "corp_code=x" in output  # non-secret params survive
+
+
+def test_source_logger_filter_redacts_record_object_itself() -> None:
+    """Handler-independent guarantee: getMessage() on the emitted record is
+    already masked, so any downstream formatter/handler emits redacted text."""
+    install_source_logger_masking_filter()
+    captured: list[logging.LogRecord] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            captured.append(record)
+
+    httpx_logger = logging.getLogger("httpx")
+    sink = _Capture()
+    httpx_logger.addHandler(sink)
+    prev_level, prev_propagate = httpx_logger.level, httpx_logger.propagate
+    httpx_logger.setLevel(logging.INFO)
+    httpx_logger.propagate = False
+    try:
+        httpx_logger.info("HTTP Request: %s %s", "GET", _SAMPLE_URL)
+    finally:
+        httpx_logger.removeHandler(sink)
+        httpx_logger.setLevel(prev_level)
+        httpx_logger.propagate = prev_propagate
+
+    assert len(captured) == 1
+    message = captured[0].getMessage()
+    assert _FAKE_KEY not in message
+    assert "crtfc_key=***" in message
+
+
+def test_install_source_logger_filter_is_idempotent() -> None:
+    install_source_logger_masking_filter()
+    install_source_logger_masking_filter()  # second call must not double-attach
+    for name in ("httpx", "httpcore"):
+        src = logging.getLogger(name)
+        count = sum(isinstance(f, CrtfcKeyMaskingFilter) for f in src.filters)
+        assert count == 1
