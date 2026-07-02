@@ -8,11 +8,11 @@ import logging
 from fastapi import FastAPI
 
 from app.api.routes import router
+from app.logging_config import configure_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-)
+# Central logging setup: root handler + a filter that masks the DART API key
+# (crtfc_key) out of every log line, including httpx's own request-URL logs.
+configure_logging()
 
 logger = logging.getLogger(__name__)
 
