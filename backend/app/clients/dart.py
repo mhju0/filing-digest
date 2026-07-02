@@ -1,24 +1,29 @@
-"""DART (OpenDART) client -- corpCode resolution (Phase 2, step 1).
+"""DART (OpenDART) client -- corpCode resolution + filing list (Phase 2).
 
-Implements the ``corpCode.xml`` flow only: fetch the ZIP, unzip in memory,
-parse ``CORPCODE.xml`` with defusedxml, cache the parsed result on disk, and
-resolve a listed company's ticker (stock_code) -> DART ``corp_code``.
+Implements:
+- ``corpCode.xml`` flow: fetch the ZIP, unzip in memory, parse ``CORPCODE.xml``
+  with defusedxml, cache on disk, resolve ticker (stock_code) -> ``corp_code``.
+- ``list.json`` flow: query the filing (공시) list for a corp_code + date range
+  and return cleaned ``FilingItem`` records (see docs/dart-api-notes.md §2).
 
-``list_filings`` / ``fetch_financials`` / ``search_company`` remain stubs; they
-are implemented in the next steps (see docs/dart-api-notes.md).
+``fetch_financials`` / ``search_company`` remain stubs; they are implemented in
+the next steps (see docs/dart-api-notes.md §3).
 
 SECURITY:
 - The API key lives in ``settings.dart_api_key`` as a SecretStr. Only call
   ``.get_secret_value()`` when building outgoing request params -- never log it,
   never put it in exceptions, and mask it as ``***`` in any logged URL/params.
 
-Design source of truth: docs/dart-api-notes.md, section 1 (corpCode.xml).
+Design source of truth: docs/dart-api-notes.md, §1 (corpCode.xml) and §2
+(list.json). Status codes follow §5.
 """
 
+import datetime
 import io
 import json
 import logging
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -42,13 +47,96 @@ _ZIP_MAGIC = b"PK"
 # Generous timeouts: the corpCode ZIP is ~3.5MB (see docs/dart-api-notes.md §1).
 _TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
+# JSON status codes (docs/dart-api-notes.md §5). Only these two are non-fatal;
+# any other code is surfaced as a DartApiError.
+_STATUS_OK = "000"  # 정상 [Verified]
+_STATUS_NO_DATA = "013"  # 조회된 데이터 없음(무자료) -> empty result, not an error
+
+# DART filing viewer link. rcept_no is the natural join key to document.xml and
+# financials; filings.url is built from it (docs/dart-api-notes.md §2, §6).
+_VIEWER_URL = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"
+
 
 class DartClientError(RuntimeError):
     """Raised for client-side misconfiguration (e.g. missing API key)."""
 
 
 class DartApiError(RuntimeError):
-    """Raised when the DART API returns a non-OK ``status`` code."""
+    """Raised when the DART API returns a non-OK ``status`` code.
+
+    The DART ``status`` code and ``message`` are included, but the API key is
+    never referenced -- keys live only in request params (masked in logs).
+    """
+
+
+@dataclass(frozen=True)
+class FilingItem:
+    """One cleaned filing from ``list.json`` (docs/dart-api-notes.md §2).
+
+    This is the raw-ish source object the later ingest step maps onto the
+    ``filings`` table. Mapping (see docs/dart-api-notes.md §6):
+        filings.title   <- report_nm  (already right-trimmed here)
+        filings.filed_at<- rcept_dt   (parsed YYYYMMDD -> date)
+        filings.url     <- viewer_url (derived from rcept_no)
+    ``rcept_no`` / ``corp_code`` are the join keys the next steps (financials,
+    document.xml) consume.
+    """
+
+    rcept_no: str
+    corp_code: str
+    corp_name: str
+    report_nm: str  # right-trimmed: report_nm has trailing space padding [Verified]
+    flr_nm: str
+    rcept_dt: datetime.date | None  # parsed from YYYYMMDD; None if unparseable
+    rm: str
+    stock_code: str
+    corp_cls: str
+
+    @property
+    def viewer_url(self) -> str:
+        """DART original-document viewer link for this filing (filings.url)."""
+        return _VIEWER_URL.format(rcept_no=self.rcept_no)
+
+
+def _parse_rcept_dt(raw: str) -> datetime.date | None:
+    """Parse a DART ``rcept_dt`` (``YYYYMMDD`` string) into a ``date``.
+
+    Returns ``None`` (and logs) on empty/malformed input rather than raising --
+    a single odd date must not abort a whole list fetch.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.datetime.strptime(raw, "%Y%m%d").date()
+    except ValueError:
+        logger.warning("list.json: unparseable rcept_dt %r; storing None", raw)
+        return None
+
+
+def _filing_item_from_row(row: dict[str, Any]) -> FilingItem:
+    """Build a :class:`FilingItem` from one raw ``list[]`` element.
+
+    Defensive against missing keys / non-string values (JSON is trusted less
+    than the notes imply): every field is coerced to ``str`` before cleaning.
+    """
+
+    def _s(key: str) -> str:
+        val = row.get(key)
+        return val.strip() if isinstance(val, str) else ""
+
+    return FilingItem(
+        rcept_no=_s("rcept_no"),
+        corp_code=_s("corp_code"),
+        corp_name=_s("corp_name"),
+        # report_nm carries trailing space padding in DART responses [Verified].
+        report_nm=_s("report_nm"),
+        flr_nm=_s("flr_nm"),
+        rcept_dt=_parse_rcept_dt(_s("rcept_dt")),
+        rm=_s("rm"),
+        stock_code=_s("stock_code"),
+        corp_cls=_s("corp_cls"),
+    )
 
 
 def parse_corpcode_xml(xml_bytes: bytes) -> list[dict[str, str]]:
@@ -222,13 +310,99 @@ class DartClient:
         raise NotImplementedError("DartClient.search_company: TODO(next step)")
 
     async def list_filings(
-        self, corp_code: str, filing_types: list[str] | None = None
-    ) -> Any:
-        """List filings (공시) for a corp_code via list.json.
+        self,
+        corp_code: str,
+        bgn_de: str,
+        end_de: str,
+        pblntf_ty: str | None = None,
+        page_no: int = 1,
+        page_count: int = 100,
+    ) -> list[FilingItem]:
+        """List filings (공시) for ``corp_code`` via ``list.json`` (§2).
 
-        TODO(next step): call the list.json endpoint (docs/dart-api-notes.md §2).
+        ``bgn_de`` / ``end_de`` are ``YYYYMMDD`` receipt-date bounds. ``pblntf_ty``
+        is the coarse disclosure type (e.g. ``"A"`` = 정기공시). ``page_count`` is
+        capped at 100 by DART.
+
+        Returns cleaned :class:`FilingItem` records for a single page. No DB
+        write happens here -- persistence is handled by the later ingest step.
+
+        Status handling (docs/dart-api-notes.md §5):
+        - ``000`` -> parse ``list`` into FilingItems.
+        - ``013`` (무자료/no data) -> return ``[]`` (not an error).
+        - anything else (``010`` bad key, ``020`` rate limit, ...) -> DartApiError.
+
+        TODO(next step): iterate all pages using ``total_page`` when the caller
+        needs the full history; this step intentionally fetches one page only.
         """
-        raise NotImplementedError("DartClient.list_filings: TODO(next step)")
+        params: dict[str, str] = {
+            "crtfc_key": self._api_key(),
+            "corp_code": corp_code,
+            "bgn_de": bgn_de,
+            "end_de": end_de,
+            "page_no": str(page_no),
+            "page_count": str(page_count),
+        }
+        if pblntf_ty:
+            params["pblntf_ty"] = pblntf_ty
+
+        client = self._get_client()
+        # crtfc_key is masked; log only the non-secret query shape.
+        logger.info(
+            "fetching %s/list.json (crtfc_key=***, corp_code=%s, bgn_de=%s, "
+            "end_de=%s, pblntf_ty=%s, page_no=%d)",
+            self._base_url,
+            corp_code,
+            bgn_de,
+            end_de,
+            pblntf_ty or "-",
+            page_no,
+        )
+        resp = await client.get(f"{self._base_url}/list.json", params=params)
+        resp.raise_for_status()
+        payload = resp.json()
+        return self._parse_list_payload(payload)
+
+    @staticmethod
+    def _parse_list_payload(payload: Any) -> list[FilingItem]:
+        """Turn a ``list.json`` response body into cleaned FilingItems.
+
+        Split out from network I/O so offline fixtures exercise status branching
+        and field cleaning without a live call.
+        """
+        if not isinstance(payload, dict):
+            raise DartApiError("list.json: unexpected response (not a JSON object)")
+
+        status = str(payload.get("status", "")).strip()
+        message = str(payload.get("message", "")).strip()
+
+        if status == _STATUS_NO_DATA:
+            # 무자료: a valid "nothing in range" answer, not a failure.
+            logger.info("list.json: no data (status 013); returning empty list")
+            return []
+        if status != _STATUS_OK:
+            # Includes unmapped codes; the docs are the SSOT for meaning, and
+            # anything absent there is treated as [Inferred]/fatal here.
+            raise DartApiError(f"list.json returned status {status}: {message}")
+
+        # Paging fields are JSON ints [Verified]. We only fetch page_no; surface
+        # the totals so callers/logs can tell whether more pages exist.
+        total_page = payload.get("total_page")
+        total_count = payload.get("total_count")
+        logger.info(
+            "list.json: status 000, %s items on page %s/%s (total_count=%s)",
+            payload.get("page_count"),
+            payload.get("page_no"),
+            total_page,
+            total_count,
+        )
+
+        rows = payload.get("list")
+        if not isinstance(rows, list):
+            # status 000 with no/blank list -> treat as empty (defensive).
+            logger.warning("list.json: status 000 but 'list' missing/not an array")
+            return []
+        return [_filing_item_from_row(r) for r in rows if isinstance(r, dict)]
 
     async def fetch_financials(self, corp_code: str, year: int, quarter: int) -> Any:
         """Fetch structured financial statements (재무제표).
