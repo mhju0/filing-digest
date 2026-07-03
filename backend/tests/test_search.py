@@ -10,8 +10,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.search.constants import MAX_TOP_K
 from app.search.service import (
-    MAX_TOP_K,
     SearchResult,
     _distance_to_similarity,
     _row_to_result,

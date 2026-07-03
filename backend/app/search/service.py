@@ -34,14 +34,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Filing, FilingChunk
 from app.embeddings.kure import embed_texts
+from app.search.constants import DEFAULT_TOP_K, MAX_TOP_K
 
 logger = logging.getLogger(__name__)
-
-# Hard upper bound on top_k: a caller-supplied value is clamped, never trusted,
-# so search_chunks can't be made to sort/return an unbounded result set.
-MAX_TOP_K = 50
-
-DEFAULT_TOP_K = 5
 
 
 @dataclass(frozen=True)

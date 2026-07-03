@@ -15,6 +15,7 @@ FastAPI request handlers.
 
 import logging
 from functools import lru_cache
+from typing import AsyncIterator
 
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.ext.asyncio import (
@@ -95,3 +96,17 @@ def get_async_session() -> AsyncSession:
             await ingest_filing(session, ...)
     """
     return get_async_session_factory()()
+
+
+async def get_db_session() -> AsyncIterator[AsyncSession]:
+    """FastAPI dependency: yield a request-scoped AsyncSession, then close it.
+
+        @router.post("/search")
+        async def search(session: AsyncSession = Depends(get_db_session)): ...
+
+    TODO(Phase 2): no explicit commit/rollback here -- harmless while every
+    consumer is read-only (/search), but a write endpoint reusing this
+    dependency needs an explicit transaction convention decided first.
+    """
+    async with get_async_session() as session:
+        yield session

@@ -6,9 +6,12 @@ citation.
 """
 
 import logging
+import uuid
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.search.constants import DEFAULT_TOP_K, MAX_TOP_K
 
 logger = logging.getLogger(__name__)
 
@@ -109,3 +112,38 @@ class IngestResponse(BaseModel):
 
     job_id: str
     status: Literal["queued"] = "queued"
+
+
+class SearchRequest(BaseModel):
+    """POST /search request body."""
+
+    query: str = Field(min_length=1)
+    top_k: int = Field(default=DEFAULT_TOP_K, ge=1, le=MAX_TOP_K)
+    company_id: uuid.UUID | None = None
+
+
+class SearchHit(BaseModel):
+    """One semantic search hit -- mirrors app.search.service.SearchResult 1:1
+    so every field needed to trace a claim back to its source filing/section/
+    paragraph is exposed (citation anchor: rcept_no, section_title,
+    section_order, part_index, chunk_index, filing_id).
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    chunk_id: uuid.UUID
+    filing_id: uuid.UUID
+    text: str
+    score: float
+    rcept_no: str | None = None
+    section_title: str | None = None
+    section_order: int | None = None
+    part_index: int | None = None
+    chunk_index: int
+
+
+class SearchResponse(BaseModel):
+    """POST /search response."""
+
+    items: list[SearchHit]
+    total: int
