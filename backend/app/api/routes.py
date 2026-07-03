@@ -7,9 +7,11 @@ the LLM narrates only; every claim carries a citation.
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import stub_data
+from app.db.session import get_db_session
 from app.schemas import (
     ChatRequest,
     ChatResponse,
@@ -19,7 +21,11 @@ from app.schemas import (
     IngestRequest,
     IngestResponse,
     Language,
+    SearchHit,
+    SearchRequest,
+    SearchResponse,
 )
+from app.search.service import search_chunks
 
 logger = logging.getLogger(__name__)
 
@@ -78,3 +84,23 @@ def ingest(request: IngestRequest) -> IngestResponse:
         request.source,
     )
     return IngestResponse(job_id=job_id, status="queued")
+
+
+@router.post("/search", response_model=SearchResponse)
+async def search(
+    request: SearchRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> SearchResponse:
+    """Semantic search over filing_chunks (KO/EN cross-lingual via KURE-v1).
+
+    Thin routing layer over app.search.service.search_chunks; every hit
+    carries its citation anchor. Zero results is a valid 200, not an error.
+    """
+    results = await search_chunks(
+        session,
+        query=request.query,
+        top_k=request.top_k,
+        company_id=request.company_id,
+    )
+    items = [SearchHit.model_validate(r) for r in results]
+    return SearchResponse(items=items, total=len(items))
