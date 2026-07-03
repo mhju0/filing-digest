@@ -17,8 +17,8 @@ Design (locked):
   list used to format the prompt, so citations remap and the guard's
   ``retrieved_ids`` cannot drift apart.
 - Numbers policy (CLAUDE.md: "수치 환각은 절대 금지"): the system prompt forbids
-  producing/inventing numbers. Regex enforcement of that is intentionally out of
-  scope here; only the instruction is present.
+  producing/inventing numbers, and the deterministic number guard
+  (:func:`app.llm.number_guard.assert_number_free`) enforces it on the result.
 """
 
 import logging
@@ -29,6 +29,7 @@ from typing import Protocol
 from app.llm.answer import Answer, AnswerSegment, build_answer_json_schema
 from app.llm.base import ChatMessage, LLMClient
 from app.llm.citation_guard import assert_citations
+from app.llm.number_guard import assert_number_free
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +154,7 @@ async def generate_narrative(
     assert_citations(
         remapped, retrieved_ids, allow_empty_citations=allow_empty_citations
     )
+    assert_number_free(remapped)
     logger.info(
         "narrative generated: %d segment(s) from %d chunk(s)",
         len(remapped.answer_segments),

@@ -7,6 +7,7 @@ citation.
 
 import logging
 import uuid
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -147,3 +148,29 @@ class SearchResponse(BaseModel):
 
     items: list[SearchHit]
     total: int
+
+
+class Figure(BaseModel):
+    """One authoritative financial figure pulled from the structured filing API.
+
+    Mirror of :class:`SearchHit`'s tone for the figures track: where a search hit
+    anchors a NARRATED claim to its source, a Figure IS the number -- pulled
+    deterministically from ``financials`` (never through the LLM), carrying its
+    own ``filing_id`` so each value is a self-contained citation anchor
+    (CLAUDE.md: "숫자는 구조화 filing API에서만 온다").
+
+    ``value`` is a :class:`~decimal.Decimal`, never ``float`` -- ``financials.value``
+    is ``numeric(24,4)`` and its full precision (e.g. EPS ``2131.0000``, KRW
+    revenue in the hundreds of trillions) must survive intact.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    metric: str
+    value: Decimal
+    unit: str
+    currency: str | None = None
+    period: str
+    fiscal_year: int
+    fiscal_quarter: int | None = None
+    filing_id: uuid.UUID

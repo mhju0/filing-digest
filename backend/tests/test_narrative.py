@@ -20,6 +20,7 @@ from app.config import Settings
 from app.llm.answer import build_answer_json_schema
 from app.llm.citation_guard import CitationError
 from app.llm.narrative import NarrativeError, generate_narrative
+from app.llm.number_guard import NumberInNarrativeError
 from app.llm.solar import SolarClient
 
 _FAKE_SETTINGS = Settings(solar_api_key=SecretStr("SOLARKEY123"))
@@ -138,6 +139,17 @@ def test_empty_citations_allowed_when_opted_in() -> None:
     }
     answer = _run(answer_obj, allow_empty_citations=True)
     assert answer.answer_segments[0].citations == []
+
+
+def test_number_in_narrative_fails_loud() -> None:
+    # Valid citation label ([1] remaps against the injected chunk) so the
+    # citation guard passes cleanly -- only the number guard should fire on
+    # the currency token embedded in the segment text.
+    answer_obj = {
+        "answer_segments": [{"text": "매출은 279조원이다.", "citations": ["[1]"]}]
+    }
+    with pytest.raises(NumberInNarrativeError):
+        _run(answer_obj)
 
 
 def test_prompt_passes_response_format_and_hides_raw_uuids() -> None:
