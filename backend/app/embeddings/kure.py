@@ -23,7 +23,9 @@ test suite can import app code with no model download.
 """
 
 import logging
+import os
 from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Sequence
 
 from app.config import get_settings
@@ -44,6 +46,70 @@ for _noisy in ("sentence_transformers", "transformers", "huggingface_hub"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 
+def _hf_cache_root() -> Path:
+    """Resolve the HF Hub cache root the same way huggingface_hub does.
+
+    Reimplemented from env vars rather than imported, because huggingface_hub
+    must not be imported until *after* HF_HUB_OFFLINE is decided (see
+    :func:`_configure_offline_mode`) -- it reads that env var into a
+    module-level constant at import time.
+    """
+    if cache := os.environ.get("HF_HUB_CACHE"):
+        return Path(cache)
+    home = os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
+    return Path(home) / "hub"
+
+
+def _model_snapshot_dir(model_name: str, cache_root: Path) -> Path:
+    """The on-disk snapshots dir huggingface_hub would use for ``model_name``."""
+    return cache_root / f"models--{model_name.replace('/', '--')}" / "snapshots"
+
+
+def _is_model_cached(model_name: str, cache_root: Path) -> bool:
+    """True if a complete local snapshot of ``model_name`` already exists.
+
+    A snapshot revision dir with no files (partial/interrupted download)
+    does not count -- treating that as cached would force an offline load
+    that then fails to find the actual weight files.
+
+    TODO: this only checks that the revision dir is non-empty, not that the
+    required weight file (e.g. model.safetensors) is present -- a partially
+    corrupted cache could still pass. Tighten if that's ever observed.
+    """
+    snapshots = _model_snapshot_dir(model_name, cache_root)
+    if not snapshots.is_dir():
+        return False
+    return any(
+        revision.is_dir() and any(revision.iterdir()) for revision in snapshots.iterdir()
+    )
+
+
+def _configure_offline_mode() -> None:
+    """Set HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE before the first HF Hub import.
+
+    Must run before ``from sentence_transformers import SentenceTransformer``:
+    huggingface_hub reads these env vars into module-level constants at
+    import time, so setting them afterwards has no effect. Uses
+    ``setdefault`` so an operator-supplied HF_HUB_OFFLINE always wins.
+
+    When the model is not yet cached (first run on a clean machine/CI), both
+    are left unset so the initial download can still happen --
+    ``embedding_offline_first=False`` skips this check entirely for
+    environments that always want a network freshness check.
+    """
+    settings = get_settings()
+    if not settings.embedding_offline_first:
+        return
+    if _is_model_cached(settings.embedding_model, _hf_cache_root()):
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+        logger.info("embedding model cache found locally; HF Hub offline mode enabled")
+    else:
+        logger.info(
+            "embedding model not cached locally; allowing network for initial download"
+        )
+
+
 @lru_cache(maxsize=1)
 def _load_model() -> "SentenceTransformer":
     """Load KURE-v1 once (cold load is seconds) and cache it for the process.
@@ -52,6 +118,7 @@ def _load_model() -> "SentenceTransformer":
     importing this module must not pull in torch or reach the network, so tests
     and lightweight callers stay fast and offline.
     """
+    _configure_offline_mode()
     from sentence_transformers import SentenceTransformer
 
     model_name = get_settings().embedding_model

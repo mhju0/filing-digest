@@ -10,6 +10,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 
 from app.api.routes import router
+from app.config import get_settings
 from app.logging_config import configure_logging
 
 # Central logging setup: root handler + a filter that masks the DART API key
@@ -25,9 +26,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     load (torch graph + weights) on whichever request hits /search first.
     Trade-off: adds that same delay to server startup instead -- acceptable
     since startup happens once, off the request path.
+
+    Set EMBEDDING_WARMUP_ENABLED=false to skip this (CI/health-check
+    contexts that never call /search); the model then lazy-loads on first use.
     """
-    # TODO(Phase 2): env switch to skip this warm-up in CI/health-check
-    # contexts (bundle with the HF_HUB_OFFLINE production handling).
+    if not get_settings().embedding_warmup_enabled:
+        logger.info("embedding warm-up skipped (EMBEDDING_WARMUP_ENABLED=false)")
+        yield
+        return
+
     from app.embeddings.kure import embed_texts
 
     embed_texts(["warm-up"])

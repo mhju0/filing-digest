@@ -49,6 +49,17 @@ class Settings(BaseSettings):
     # it would change the embedding space, so it is pinned here as the one knob.
     embedding_model: str = "nlpai-lab/KURE-v1"
 
+    # When the model is already in the local HF cache, skip HF Hub's network
+    # freshness checks at load time (see app.embeddings.kure._configure_offline_mode).
+    # Turn off to force a network check even when cached (e.g. to pick up a
+    # newly pushed revision).
+    embedding_offline_first: bool = True
+
+    # Skip the KURE-v1 warm-up in FastAPI's lifespan (app.main.lifespan) so
+    # CI/health-check startups don't pay the multi-second model load. The
+    # model then lazy-loads on the first /search request instead.
+    embedding_warmup_enabled: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:
