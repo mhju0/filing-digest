@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     # up in Phase 2; changing the env var alone has no effect today.
     embedding_dim: int = 1024
 
+    # KURE-v1 (nlpai-lab/KURE-v1): the cross-lingual (KO/EN) 1024-dim model whose
+    # vectors backfill filing_chunks.embedding. A HuggingFace model id; overriding
+    # it would change the embedding space, so it is pinned here as the one knob.
+    embedding_model: str = "nlpai-lab/KURE-v1"
+
 
 @lru_cache
 def get_settings() -> Settings:
