@@ -81,6 +81,10 @@ class Filing(Base):
         nullable=False,
     )
     source: Mapped[str] = mapped_column(Text, nullable=False)
+    # DART 접수번호: DART filing의 자연키 / financials/document 조인키.
+    # SEC filing은 없으므로 nullable. UNIQUE는 ON CONFLICT (rcept_no) 멱등 upsert의
+    # inference target; NULL은 서로 distinct라 SEC row끼리는 충돌하지 않는다.
+    rcept_no: Mapped[str | None] = mapped_column(Text, unique=True)
     filing_type: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     period: Mapped[str | None] = mapped_column(Text)

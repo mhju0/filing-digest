@@ -21,6 +21,11 @@ CREATE TABLE IF NOT EXISTS filings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     source text NOT NULL,
+    -- DART 접수번호. DART filing의 자연키이자 financials/document 조인키.
+    -- SEC filing은 rcept_no가 없으므로 nullable. Postgres는 NULL을 서로 distinct로
+    -- 취급하므로 UNIQUE 아래에서도 여러 SEC(NULL) row는 충돌하지 않고, DART rcept_no
+    -- 끼리만 dedup된다. 이 UNIQUE가 ON CONFLICT (rcept_no) DO UPDATE의 inference target.
+    rcept_no text UNIQUE,
     filing_type text NOT NULL,
     title text NOT NULL,
     period text,
