@@ -1,7 +1,7 @@
 # filing-digest 로컬 개발 스택 (Compose Spec v2 스타일 - 최상위 `version:` 키는 사용하지 않음)
 #
 # 실행: docker compose up --build
-# 포트: backend 8000, postgres 5432
+# 포트: backend 8001, postgres 5432
 
 services:
   db:
@@ -29,7 +29,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       # db 서비스명을 호스트로 사용 (compose 내부 네트워크). 기본값 미변경 시:
       # postgresql+psycopg://filing_digest:filing_digest_dev@db:5432/filing_digest

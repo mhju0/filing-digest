@@ -38,22 +38,22 @@ Uses the repo-root virtualenv at `.venv` (Python 3.11):
 # 2) run tests
 cd backend && ../.venv/bin/python -m pytest
 
-# 3) run the API server (http://127.0.0.1:8000)
-cd backend && ../.venv/bin/python -m uvicorn app.main:app --reload
+# 3) run the API server (http://127.0.0.1:8001)
+cd backend && ../.venv/bin/python -m uvicorn app.main:app --reload --port 8001
 ```
 
 v0.1 serves deterministic stub data (Samsung Electronics / Apple Inc.), so the
 API works without a database or external API keys. Smoke test:
 
 ```bash
-curl http://127.0.0.1:8000/health
-curl "http://127.0.0.1:8000/companies?q=samsung"
+curl http://127.0.0.1:8001/health
+curl "http://127.0.0.1:8001/companies?q=samsung"
 ```
 
 ## Docker Compose
 
 Brings up postgres 16 + pgvector (port 5433, schema from `backend/db/init.sql`)
-and the backend (port 8000):
+and the backend (port 8001):
 
 ```bash
 docker compose up --build
@@ -73,7 +73,7 @@ xcodebuild -project ios/FilingDigest.xcodeproj -scheme FilingDigest -sdk iphones
 ```
 
 The app targets iOS 17+, uses no third-party dependencies, and points at
-`http://127.0.0.1:8000` by default (run the backend locally first).
+`http://127.0.0.1:8001` by default (run the backend locally first).
 
 ## .env Configuration
 

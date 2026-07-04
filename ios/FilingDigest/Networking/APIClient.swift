@@ -42,7 +42,7 @@ enum APIError: Error, LocalizedError {
         case .decoding:
             return "서버 응답을 해석할 수 없습니다."
         case .transport:
-            return "서버에 연결할 수 없습니다. 백엔드(127.0.0.1:8000)가 실행 중인지 확인하세요."
+            return "서버에 연결할 수 없습니다. 백엔드(127.0.0.1:8001)가 실행 중인지 확인하세요."
         }
     }
 }
@@ -51,7 +51,7 @@ enum APIError: Error, LocalizedError {
 
 struct APIClient {
     /// Default local dev backend (see repo docker-compose / API contract).
-    static let defaultBaseURL = URL(string: "http://127.0.0.1:8000")!
+    static let defaultBaseURL = URL(string: "http://127.0.0.1:8001")!
 
     let baseURL: URL
     private let session: URLSession

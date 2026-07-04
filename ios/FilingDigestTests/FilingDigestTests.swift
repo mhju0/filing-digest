@@ -272,7 +272,7 @@ struct AnswerResponseDecodingTests {
 @Suite("APIClient URLRequest construction")
 struct APIClientRequestTests {
 
-    private let client = APIClient(baseURL: URL(string: "http://127.0.0.1:8000")!)
+    private let client = APIClient(baseURL: URL(string: "http://127.0.0.1:8001")!)
 
     @Test("Company search: GET /companies?q=")
     func companySearchRequest() throws {

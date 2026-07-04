@@ -13,7 +13,7 @@
                  │  iOS 17+, 서드파티 의존성 없음 │
                  └──────────────┬──────────────┘
                                 │ HTTP (JSON, snake_case)
-                                │ baseURL: http://127.0.0.1:8000
+                                │ baseURL: http://127.0.0.1:8001
                                 ▼
 ┌───────────────────────────────────────────────────────────────┐
 │                  Backend (FastAPI, Python 3.11)                │
@@ -77,7 +77,7 @@ filing-digest/
 | D2 | **pgvector embedding 차원 1024** | [Verified] | 임베딩 모델을 KURE-v1(nlpai-lab/KURE-v1)로 확정. dense 차원은 HuggingFace `config.json`의 `hidden_size=1024`(bge-m3 기반 XLM-RoBERTa) 및 `1_Pooling/config.json`의 `word_embedding_dimension=1024`로 교차 확인. `EMBEDDING_DIM` 환경변수(default 1024)와 `filing_chunks.embedding vector(1024)`에 반영. |
 | D3 | **DART/SEC 실제 응답 포맷** | [Unknown] | Phase 2에서 실연동 전까지 실측 불가. v0.1은 외부 호출 없이 스텁으로만 동작하며, `DART_BASE_URL`/`SEC_BASE_URL`/`SEC_USER_AGENT`만 설정으로 예약해 둔다. (SEC는 연락처 포함 User-Agent를 요구 - placeholder만 커밋) |
 | D4 | **psycopg3 선택** (`postgresql+psycopg://` 드라이버) | [Verified] | psycopg2는 유지보수 모드, psycopg3(패키지명 `psycopg`)가 현행 권장 드라이버이며 SQLAlchemy 2.x가 `postgresql+psycopg` dialect로 공식 지원. `DATABASE_URL` 기본값과 docker-compose의 접속 문자열에 반영됨. |
-| D5 | **iOS 17 타깃 + 서드파티 의존성 없음** | [Verified] | SwiftUI + URLSession + Codable(async/await)만으로 v0.1 API 소비가 충분하다. 의존성 0개는 빌드 재현성과 리뷰 범위를 최소화한다. 기본 baseURL은 `http://127.0.0.1:8000` (시뮬레이터 로컬 개발). |
+| D5 | **iOS 17 타깃 + 서드파티 의존성 없음** | [Verified] | SwiftUI + URLSession + Codable(async/await)만으로 v0.1 API 소비가 충분하다. 의존성 0개는 빌드 재현성과 리뷰 범위를 최소화한다. 기본 baseURL은 `http://127.0.0.1:8001` (시뮬레이터 로컬 개발). |
 | D6 | **스텁 데이터 범위: 삼성전자 + Apple Inc. 2개사** | [Verified] | 삼성전자(dart, KOSPI, 005930)와 Apple Inc.(sec, NASDAQ, AAPL)를 고정 UUID로 in-memory 보유. DART/SEC 양쪽 소스, KO/EN 양쪽 언어 경로를 최소 셋으로 커버한다. digest/chat은 이 스텁에서 결정적 응답을 반환하고, 모든 `MetricCard.value`는 스텁 숫자라도 `citation_id`로 스텁 `Citation`과 연결된다(핵심 원칙 강제). |
 | D7 | **API CONTRACT v0.1 고정** (아래 5절 전문) | [Verified] | backend·iOS가 병렬 개발되므로 계약을 먼저 동결. JSON 필드는 snake_case. |
 | D8 | **벡터 인덱스(hnsw/ivfflat) 미생성** | [Verified] | 실데이터가 없어 인덱스 파라미터 튜닝이 불가능. init.sql에 Phase 2 TODO 주석으로만 남긴다. |
@@ -115,7 +115,7 @@ POST /ingest -> 202
   response IngestResponse = {"job_id": str(uuid), "status": "queued"}
 ```
 
-- 포트: backend **8000**, postgres **5432**. iOS 기본 baseURL: `http://127.0.0.1:8000`
+- 포트: backend **8001**, postgres **5432**. iOS 기본 baseURL: `http://127.0.0.1:8001`
 - ENV 변수 (pydantic-settings, `.env`): `DART_API_KEY`(secret, placeholder만 커밋),
   `DART_BASE_URL`(default `https://opendart.fss.or.kr/api`), `SEC_BASE_URL`(default `https://data.sec.gov`),
   `SEC_USER_AGENT`(SEC는 연락처 포함 UA 요구 - placeholder),
