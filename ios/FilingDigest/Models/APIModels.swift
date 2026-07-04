@@ -108,14 +108,15 @@ struct CompanyDigest: Codable, Hashable, Sendable {
     /// e.g. "2026Q1"
     let period: String
     let metrics: [MetricCard]
-    let summaryKo: String
-    let summaryEn: String
+    /// nil when no narrative has been generated for this digest yet.
+    let summaryKo: String?
+    let summaryEn: String?
     let citations: [Citation]
     /// ISO8601 string; displayed verbatim.
     let generatedAt: String
 
-    /// Localized summary following the KO/EN toggle.
-    func summary(for language: Language) -> String {
+    /// Localized summary following the KO/EN toggle. nil if not yet generated.
+    func summary(for language: Language) -> String? {
         language == .ko ? summaryKo : summaryEn
     }
 }

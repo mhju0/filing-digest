@@ -6,9 +6,9 @@
 //  summary + citations. Metric values are structured-API numbers only; every
 //  card links to a citation via citationId. value == nil renders as a dash.
 //
-//  The digest payload always contains both label_ko/label_en and
-//  summary_ko/summary_en, so the language toggle switches locally without
-//  refetching.
+//  The digest payload always contains both label_ko/label_en, so metric labels
+//  switch locally without refetching. summary_ko/summary_en may be nil (no
+//  narrative generated yet); the summary section is hidden in that case.
 //
 
 import SwiftUI
@@ -87,10 +87,12 @@ struct DigestView: View {
             }
         }
 
-        Text(language == .ko ? "요약" : "Summary")
-            .font(.headline)
-        Text(digest.summary(for: language))
-            .font(.body)
+        if let summary = digest.summary(for: language) {
+            Text(language == .ko ? "요약" : "Summary")
+                .font(.headline)
+            Text(summary)
+                .font(.body)
+        }
 
         Text(language == .ko ? "인용" : "Citations")
             .font(.headline)
