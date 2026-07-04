@@ -58,6 +58,15 @@ struct DigestView: View {
         }
         .navigationTitle(company.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    AnswerView(client: client, company: company)
+                } label: {
+                    Label("질문", systemImage: "questionmark.bubble")
+                }
+            }
+        }
         .task {
             await load()
         }

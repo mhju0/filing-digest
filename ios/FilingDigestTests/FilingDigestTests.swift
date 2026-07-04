@@ -73,6 +73,78 @@ private let chatResponseJSON = """
 }
 """
 
+// MARK: - POST /answer sample payloads (3-state narrative_status)
+
+private let answerOKJSON = """
+{
+  "answer": {
+    "answer_segments": [
+      {
+        "text": "매출은 전년 동기 대비 증가했습니다.",
+        "citations": ["chunk-aaaa", "chunk-bbbb"]
+      },
+      {
+        "text": "환율 영향은 제한적이었습니다.",
+        "citations": []
+      }
+    ]
+  },
+  "figures": [
+    {
+      "metric": "revenue",
+      "value": "258935494000000.0000",
+      "unit": "KRW",
+      "currency": "KRW",
+      "period": "2025Q4",
+      "fiscal_year": 2025,
+      "fiscal_quarter": 4,
+      "filing_id": "33333333-3333-3333-3333-333333333333"
+    },
+    {
+      "metric": "eps",
+      "value": "2131.0000",
+      "unit": "KRW",
+      "currency": null,
+      "period": "FY2025",
+      "fiscal_year": 2025,
+      "fiscal_quarter": null,
+      "filing_id": "33333333-3333-3333-3333-333333333333"
+    }
+  ],
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "narrative_status": "ok"
+}
+"""
+
+private let answerBlockedJSON = """
+{
+  "answer": null,
+  "figures": [
+    {
+      "metric": "revenue",
+      "value": "1234567890123456789.0001",
+      "unit": "KRW",
+      "currency": "KRW",
+      "period": "2025Q4",
+      "fiscal_year": 2025,
+      "fiscal_quarter": 4,
+      "filing_id": "33333333-3333-3333-3333-333333333333"
+    }
+  ],
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "narrative_status": "blocked"
+}
+"""
+
+private let answerNoResultsJSON = """
+{
+  "answer": null,
+  "figures": [],
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "narrative_status": "no_results"
+}
+"""
+
 // MARK: - Decoding tests
 
 @Suite("API model decoding (snake_case)")
@@ -125,6 +197,73 @@ struct APIModelDecodingTests {
         #expect(citation.source == .sec)
         #expect(citation.excerpt == nil)
         #expect(citation.filedAt == nil)
+    }
+}
+
+// MARK: - POST /answer decoding tests
+
+@Suite("AnswerResponse decoding (3-state narrative_status)")
+struct AnswerResponseDecodingTests {
+
+    private let decoder = APIClient.makeJSONDecoder()
+
+    @Test("ok: segments with citations plus lossless Decimal figures")
+    func decodesOK() throws {
+        let response = try decoder.decode(AnswerResponse.self, from: Data(answerOKJSON.utf8))
+
+        #expect(response.narrativeStatus == .ok)
+        #expect(response.companyId == UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
+
+        let answer = try #require(response.answer)
+        #expect(answer.answerSegments.count == 2)
+        let first = try #require(answer.answerSegments.first)
+        #expect(first.text == "매출은 전년 동기 대비 증가했습니다.")
+        #expect(first.citations == ["chunk-aaaa", "chunk-bbbb"])
+        let second = try #require(answer.answerSegments.last)
+        #expect(second.citations.isEmpty)
+
+        #expect(response.figures.count == 2)
+        let revenue = try #require(response.figures.first)
+        #expect(revenue.metric == "revenue")
+        let expectedRevenue = try #require(Decimal(string: "258935494000000.0000"))
+        #expect(revenue.value == expectedRevenue)
+        #expect(revenue.unit == "KRW")
+        #expect(revenue.currency == "KRW")
+        #expect(revenue.period == "2025Q4")
+        #expect(revenue.fiscalYear == 2025)
+        #expect(revenue.fiscalQuarter == 4)
+        #expect(revenue.filingId == UUID(uuidString: "33333333-3333-3333-3333-333333333333"))
+
+        let eps = try #require(response.figures.last)
+        #expect(eps.metric == "eps")
+        let expectedEPS = try #require(Decimal(string: "2131.0000"))
+        #expect(eps.value == expectedEPS)
+        #expect(eps.currency == nil)
+        #expect(eps.fiscalQuarter == nil)
+    }
+
+    @Test("blocked: answer withheld, figures track survives")
+    func decodesBlocked() throws {
+        let response = try decoder.decode(AnswerResponse.self, from: Data(answerBlockedJSON.utf8))
+
+        #expect(response.narrativeStatus == .blocked)
+        #expect(response.answer == nil)
+        #expect(response.figures.count == 1)
+
+        // 19 significant digits: a Double round trip would corrupt this value,
+        // so equality here proves the string -> Decimal path is lossless.
+        let figure = try #require(response.figures.first)
+        let exact = try #require(Decimal(string: "1234567890123456789.0001"))
+        #expect(figure.value == exact)
+    }
+
+    @Test("no_results: raw enum value maps to .noResults despite key strategy")
+    func decodesNoResults() throws {
+        let response = try decoder.decode(AnswerResponse.self, from: Data(answerNoResultsJSON.utf8))
+
+        #expect(response.narrativeStatus == .noResults)
+        #expect(response.answer == nil)
+        #expect(response.figures.isEmpty)
     }
 }
 
@@ -203,6 +342,37 @@ struct APIClientRequestTests {
         #expect(object["company_id"] as? String == "22222222-2222-2222-2222-222222222222")
         #expect(object["source"] as? String == "sec")
         #expect(object["filing_types"] as? [String] == ["10-Q", "10-K"])
+    }
+
+    @Test("Answer: POST /answer with snake_case body; nil period omitted")
+    func answerRequest() throws {
+        let companyId = try #require(UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
+        let request = try client.makeAnswerRequest(
+            AnswerRequest(query: "최근 분기 매출은?", companyId: companyId)
+        )
+        let url = try #require(request.url)
+
+        #expect(request.httpMethod == "POST")
+        #expect(url.path() == "/answer")
+        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+
+        let body = try #require(request.httpBody)
+        let object = try #require(
+            try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        )
+        #expect(object["query"] as? String == "최근 분기 매출은?")
+        #expect(object["company_id"] as? String == "11111111-1111-1111-1111-111111111111")
+        // Optional period == nil is encoded with encodeIfPresent -> key omitted.
+        #expect(object["period"] == nil)
+
+        let withPeriod = try client.makeAnswerRequest(
+            AnswerRequest(query: "매출은?", companyId: companyId, period: "2025Q4")
+        )
+        let periodBody = try #require(withPeriod.httpBody)
+        let periodObject = try #require(
+            try JSONSerialization.jsonObject(with: periodBody) as? [String: Any]
+        )
+        #expect(periodObject["period"] as? String == "2025Q4")
     }
 
     @Test("Custom baseURL is honored")

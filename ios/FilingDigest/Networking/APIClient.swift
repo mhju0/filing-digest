@@ -136,6 +136,11 @@ struct APIClient {
         try makeRequest(path: "/ingest", method: "POST", body: encoder.encode(body))
     }
 
+    /// POST /answer
+    func makeAnswerRequest(_ body: AnswerRequest) throws -> URLRequest {
+        try makeRequest(path: "/answer", method: "POST", body: encoder.encode(body))
+    }
+
     // MARK: Endpoints
 
     /// GET /companies?q=
@@ -158,6 +163,11 @@ struct APIClient {
     /// POST /ingest (backend answers 202 with a queued job id).
     func startIngest(_ request: IngestRequest) async throws -> IngestResponse {
         try await send(makeIngestRequest(request))
+    }
+
+    /// POST /answer — citation-bearing narrative plus authoritative figures.
+    func sendAnswer(query: String, companyId: UUID, period: String? = nil) async throws -> AnswerResponse {
+        try await send(makeAnswerRequest(AnswerRequest(query: query, companyId: companyId, period: period)))
     }
 
     // MARK: Transport
