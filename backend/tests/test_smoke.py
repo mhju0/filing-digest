@@ -1,15 +1,21 @@
 """Smoke tests for all 5 stub endpoints (API CONTRACT v0.1).
 
-Runs without a database -- only in-memory stub data is exercised.
-Run from backend/: pytest
+Runs without a database -- only in-memory stub data is exercised, EXCEPT
+/companies and /companies/{id}/digest, which are DB-backed (they query the real
+``companies`` / ``financials`` / ``filings`` tables); their tests below only
+assert response shape, not specific rows/counts, since those depend on live DB
+content (mirrors the /search, /answer convention: DB-backed behavior is verified
+live, not pinned in pytest -- CLAUDE.md "테스트 PASSED만으로 실연동 스텝을 완료로
+치지 않는다"). Run from backend/: pytest
 """
 
 import logging
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.stub_data import APPLE_ID, SAMSUNG_ID
+from app.stub_data import SAMSUNG_ID
 
 logger = logging.getLogger(__name__)
 
@@ -28,30 +34,35 @@ def test_companies_search_all() -> None:
     resp = client.get("/companies", params={"q": ""})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["total"] == 2
-    assert len(body["items"]) == 2
+    assert body["total"] == len(body["items"])
     for company in body["items"]:
         assert set(company) == {"id", "name", "name_en", "ticker", "market", "source"}
         assert company["source"] in ("dart", "sec")
 
 
 def test_companies_search_filter() -> None:
-    resp = client.get("/companies", params={"q": "삼성"})
+    resp = client.get("/companies", params={"q": "zzz-no-such-company"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["total"] == 1
-    assert body["items"][0]["id"] == SAMSUNG_ID
-    assert body["items"][0]["ticker"] == "005930"
+    assert body == {"items": [], "total": 0}
 
-    resp = client.get("/companies", params={"q": "aapl"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["total"] == 1
-    assert body["items"][0]["id"] == APPLE_ID
+
+def _first_company_id() -> str | None:
+    """A real company id from the live DB, or None if the table is empty.
+
+    Digest is DB-backed now, so its 200-path tests need a company that actually
+    exists rather than a hardcoded stub id (mirrors the /companies convention).
+    """
+    body = client.get("/companies", params={"q": ""}).json()
+    items = body["items"]
+    return items[0]["id"] if items else None
 
 
 def test_digest_ok() -> None:
-    resp = client.get(f"/companies/{SAMSUNG_ID}/digest")
+    company_id = _first_company_id()
+    if company_id is None:
+        pytest.skip("no companies in the live DB to build a digest from")
+    resp = client.get(f"/companies/{company_id}/digest")
     assert resp.status_code == 200
     body = resp.json()
     assert set(body) == {
@@ -64,23 +75,35 @@ def test_digest_ok() -> None:
         "citations",
         "generated_at",
     }
-    assert body["company_id"] == SAMSUNG_ID
-    assert body["period"] == "2026Q1"
-    assert len(body["citations"]) >= 1
-    assert len(body["metrics"]) == 5
-    citation_ids = {c["id"] for c in body["citations"]}
+    assert body["company_id"] == company_id
+    # MVP DB-backed digest: numbers only, narrative deferred to /answer.
+    assert body["summary_ko"] is None
+    assert body["summary_en"] is None
+    assert isinstance(body["metrics"], list)
     for metric in body["metrics"]:
-        # Every stub value links to a stub citation.
-        assert metric["citation_id"] in citation_ids
+        assert set(metric) == {
+            "key",
+            "label_ko",
+            "label_en",
+            "value",
+            "unit",
+            "yoy_delta_pct",
+            "source",
+            "citation_id",
+        }
 
 
 def test_digest_lang_en() -> None:
-    resp = client.get(f"/companies/{APPLE_ID}/digest", params={"lang": "en"})
+    company_id = _first_company_id()
+    if company_id is None:
+        pytest.skip("no companies in the live DB to build a digest from")
+    resp = client.get(f"/companies/{company_id}/digest", params={"lang": "en"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["company_id"] == APPLE_ID
-    assert body["summary_ko"]
-    assert body["summary_en"]
+    assert body["company_id"] == company_id
+    # `lang` is a display hint only; both summaries are None in the MVP digest.
+    assert body["summary_ko"] is None
+    assert body["summary_en"] is None
 
 
 def test_digest_unknown_company_404() -> None:

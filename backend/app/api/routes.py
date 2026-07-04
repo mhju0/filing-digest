@@ -6,11 +6,15 @@ the LLM narrates only; every claim carries a citation.
 
 import logging
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import stub_data
+from app.db.models import Company as CompanyModel
+from app.db.models import Filing as FilingModel
 from app.db.session import get_db_session
 from app.figures.service import build_figures, fetch_financials
 from app.llm.base import LLMClient
@@ -22,12 +26,15 @@ from app.schemas import (
     AnswerResponse,
     ChatRequest,
     ChatResponse,
+    Citation,
+    Company,
     CompanyDigest,
     CompanySearchResponse,
     HealthResponse,
     IngestRequest,
     IngestResponse,
     Language,
+    MetricCard,
     NarrativeStatus,
     SearchHit,
     SearchRequest,
@@ -46,26 +53,131 @@ def health() -> HealthResponse:
 
 
 @router.get("/companies", response_model=CompanySearchResponse)
-def search_companies(q: str = Query(default="")) -> CompanySearchResponse:
-    items = stub_data.search_companies(q)
+async def search_companies(
+    q: str = Query(default=""),
+    session: AsyncSession = Depends(get_db_session),
+) -> CompanySearchResponse:
+    """Case-insensitive substring search over companies (name/name_en/ticker).
+
+    Mirrors app.search.service.search_chunks's session/query pattern
+    (session-first, select().where(), await session.execute()). Empty ``q``
+    matches every row (``ilike("%%")``), same as the stub it replaces.
+    """
+    pattern = f"%{q}%"
+    stmt = select(CompanyModel).where(
+        CompanyModel.name.ilike(pattern)
+        | CompanyModel.name_en.ilike(pattern)
+        | CompanyModel.ticker.ilike(pattern)
+    )
+    rows = (await session.execute(stmt)).scalars().all()
+    items = [
+        Company(
+            id=str(row.id),
+            name=row.name,
+            name_en=row.name_en,
+            ticker=row.ticker,
+            market=row.market,
+            source=row.source,
+        )
+        for row in rows
+    ]
     return CompanySearchResponse(items=items, total=len(items))
 
 
-@router.get("/companies/{company_id}/digest", response_model=CompanyDigest)
-def get_company_digest(
-    company_id: str, lang: Language = Query(default="ko")
-) -> CompanyDigest:
-    """Return the deterministic stub digest; 404 for unknown company ids.
+# Static KO/EN labels for the four contract MetricKey rows a digest surfaces.
+# DB financials also carry eps_diluted / net_income_attributable, which are NOT
+# MetricKey values (schemas.py) -- they are intentionally omitted here, not
+# mapped. Iteration order fixes the card order (revenue -> operating_income ->
+# net_income -> eps). operating_margin is a MetricKey but is not stored, so it
+# simply never appears.
+_DIGEST_METRIC_LABELS: dict[str, dict[str, str]] = {
+    "revenue": {"ko": "매출액", "en": "Revenue"},
+    "operating_income": {"ko": "영업이익", "en": "Operating Income"},
+    "net_income": {"ko": "당기순이익", "en": "Net Income"},
+    "eps": {"ko": "주당순이익", "en": "EPS"},
+}
 
-    `lang` is accepted per the contract (default "ko"); the digest always
-    contains both summary_ko and summary_en, so in Phase 1 it acts as a
-    display hint only.
+
+@router.get("/companies/{company_id}/digest", response_model=CompanyDigest)
+async def get_company_digest(
+    company_id: str,
+    lang: Language = Query(default="ko"),
+    session: AsyncSession = Depends(get_db_session),
+) -> CompanyDigest:
+    """Real DB-backed digest for one company; 404 for unknown/malformed ids.
+
+    Numbers come only from the structured ``financials`` table, never the LLM
+    (CLAUDE.md): each stored row whose metric is a contract ``MetricKey`` becomes
+    one MetricCard, linked to its filing's Citation. summary_ko/summary_en are
+    None in this MVP -- the narrative pipeline lives on /answer, not here.
+    ``yoy_delta_pct`` is None because only a single period is stored, so there is
+    nothing to compare against. ``lang`` is accepted per the contract but the
+    payload carries both label languages, so it stays a display hint only.
     """
-    digest = stub_data.build_digest(company_id)
-    if digest is None:
+    try:
+        company_uuid = uuid.UUID(company_id)
+    except ValueError:
+        logger.info("digest requested for malformed company_id=%s", company_id)
+        raise HTTPException(status_code=404, detail="company not found")
+
+    company = (
+        await session.execute(
+            select(CompanyModel).where(CompanyModel.id == company_uuid)
+        )
+    ).scalar_one_or_none()
+    if company is None:
         logger.info("digest requested for unknown company_id=%s", company_id)
         raise HTTPException(status_code=404, detail="company not found")
-    return digest
+
+    rows = await fetch_financials(session, company_id=company_uuid)
+    by_metric = {row.metric: row for row in rows}
+
+    metrics = [
+        MetricCard(
+            key=key,
+            label_ko=labels["ko"],
+            label_en=labels["en"],
+            value=float(row.value),
+            unit=row.unit,
+            yoy_delta_pct=None,
+            source=row.source,
+            citation_id=str(row.filing_id) if row.filing_id else None,
+        )
+        for key, labels in _DIGEST_METRIC_LABELS.items()
+        if (row := by_metric.get(key)) is not None
+    ]
+
+    # One Citation per filing referenced by the stored financials.
+    filing_ids = {row.filing_id for row in rows if row.filing_id is not None}
+    citations: list[Citation] = []
+    if filing_ids:
+        filings = (
+            await session.execute(
+                select(FilingModel).where(FilingModel.id.in_(filing_ids))
+            )
+        ).scalars().all()
+        citations = [
+            Citation(
+                id=str(f.id),
+                source=f.source,
+                title=f.title,
+                url=f.url or "",
+                excerpt=None,
+                filed_at=f.filed_at.isoformat() if f.filed_at else None,
+            )
+            for f in filings
+        ]
+
+    return CompanyDigest(
+        company_id=str(company.id),
+        company_name=company.name,
+        period=next((row.period for row in rows), ""),
+        metrics=metrics,
+        summary_ko=None,
+        summary_en=None,
+        citations=citations,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+    )
 
 
 @router.post("/chat", response_model=ChatResponse)

@@ -80,8 +80,10 @@ class CompanyDigest(BaseModel):
     company_name: str
     period: str  # e.g. "2026Q1"
     metrics: list[MetricCard]
-    summary_ko: str
-    summary_en: str
+    # None in the MVP DB-backed digest: the narrative pipeline lives on /answer,
+    # not here. Kept nullable so /digest can return figures without prose.
+    summary_ko: str | None = None
+    summary_en: str | None = None
     citations: list[Citation]
     generated_at: str  # ISO 8601
 
