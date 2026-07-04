@@ -12,7 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import stub_data
 from app.db.session import get_db_session
+from app.figures.service import build_figures, fetch_financials
+from app.llm.answer import Answer
+from app.llm.base import LLMClient
+from app.llm.deps import get_llm_client
+from app.llm.narrative import generate_narrative
 from app.schemas import (
+    AnswerRequest,
+    AnswerResponse,
     ChatRequest,
     ChatResponse,
     CompanyDigest,
@@ -104,3 +111,44 @@ async def search(
     )
     items = [SearchHit.model_validate(r) for r in results]
     return SearchResponse(items=items, total=len(items))
+
+
+@router.post("/answer", response_model=AnswerResponse)
+async def answer(
+    request: AnswerRequest,
+    session: AsyncSession = Depends(get_db_session),
+    client: LLMClient = Depends(get_llm_client),
+) -> AnswerResponse:
+    """Citation-grounded answer: prose narrative + authoritative figures.
+
+    Combines the two tracks that keep the number policy intact -- semantic search
+    feeds prose-only narrative (app.llm.narrative), while figures come straight
+    from the structured filing API (app.figures.service), never through the LLM.
+
+    Empty retrieval SKIPS the LLM: with no grounding chunks there is nothing to
+    cite, and narrating over zero sources would violate "every claim carries a
+    citation" (CLAUDE.md) -- so we return an empty Answer rather than prompting.
+    Figures are still returned in that case. Zero results is a valid 200.
+
+    Guard violations (NarrativeError / CitationError / NumberInNarrativeError)
+    propagate as a 500 -- not caught here (structured error bodies are a later
+    step).
+    """
+    chunks = await search_chunks(
+        session, query=request.query, company_id=request.company_id
+    )
+    rows = await fetch_financials(
+        session, company_id=request.company_id, period=request.period
+    )
+    figures = build_figures(rows)
+
+    if not chunks:
+        answer = Answer(answer_segments=[])
+    else:
+        answer = await generate_narrative(
+            client, question=request.query, chunks=chunks
+        )
+
+    return AnswerResponse(
+        answer=answer, figures=figures, company_id=request.company_id
+    )

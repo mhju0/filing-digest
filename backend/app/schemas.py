@@ -12,6 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.llm.answer import Answer
 from app.search.constants import DEFAULT_TOP_K, MAX_TOP_K
 
 logger = logging.getLogger(__name__)
@@ -174,3 +175,30 @@ class Figure(BaseModel):
     fiscal_year: int
     fiscal_quarter: int | None = None
     filing_id: uuid.UUID
+
+
+class AnswerRequest(BaseModel):
+    """POST /answer request body.
+
+    Numbers are anchored per company, so ``company_id`` is required (unlike
+    ``ChatRequest``'s optional one). ``period`` narrows the figures scope; None
+    returns the whole company scope.
+    """
+
+    query: str = Field(min_length=1)
+    company_id: uuid.UUID
+    period: str | None = None
+
+
+class AnswerResponse(BaseModel):
+    """POST /answer response: citation-bearing prose + authoritative figures.
+
+    The two tracks stay separate by design: ``answer`` carries LLM narrative
+    (prose only, every segment cited, no numbers), while ``figures`` carries the
+    numbers pulled deterministically from the structured filing API -- never
+    through the LLM (CLAUDE.md: "숫자는 구조화 filing API에서만 온다").
+    """
+
+    answer: Answer
+    figures: list[Figure]
+    company_id: uuid.UUID

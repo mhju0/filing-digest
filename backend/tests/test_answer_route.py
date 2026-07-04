@@ -1,0 +1,144 @@
+"""Offline route test for POST /answer (no DB, no model load, no live LLM).
+
+Patches the impure boundaries the endpoint calls -- ``search_chunks`` (KURE embed
++ pgvector) and ``fetch_financials`` (DB read) -- and injects the LLM client via
+FastAPI's dependency override, so the wiring in :func:`app.api.routes.answer` runs
+end-to-end with no external dependency. Focus of this step: the empty-retrieval
+branch must NOT call the LLM (project rule: no narrative over zero sources), and
+``AnswerResponse`` must serialize with the figures track intact. The real Solar
+round-trip is a later live step.
+"""
+
+import uuid
+from decimal import Decimal
+from types import SimpleNamespace
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.api import routes
+from app.db.session import get_db_session
+from app.llm.base import LLMResult
+from app.llm.deps import get_llm_client
+from app.main import app
+
+_COMPANY_ID = uuid.UUID("33333333-3333-3333-3333-333333333333")
+_FILING_ID = uuid.UUID("44444444-4444-4444-4444-444444444444")
+_CHUNK_ID = uuid.UUID("55555555-5555-5555-5555-555555555555")
+
+
+class _ExplodingClient:
+    """Fake LLMClient whose complete() must never run in the empty-chunks path."""
+
+    async def complete(self, *args, **kwargs):
+        raise AssertionError("LLM must not be called when there are no chunks")
+
+
+class _StubClient:
+    """Fake LLMClient returning a canned Answer-JSON body (no network)."""
+
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    async def complete(self, messages, *, response_format=None, temperature=0.2, max_tokens=1024):
+        return LLMResult(
+            text=self._text,
+            model="stub",
+            finish_reason="stop",
+            input_tokens=1,
+            output_tokens=1,
+            raw={},
+        )
+
+
+def _override_session():
+    # search_chunks / fetch_financials are patched, so the session is never used.
+    return object()
+
+
+def _financial_row(**over) -> SimpleNamespace:
+    base = dict(
+        metric="revenue",
+        value=Decimal("279600000000000.0000"),
+        unit="KRW",
+        currency="KRW",
+        period="2026Q1",
+        fiscal_year=2026,
+        fiscal_quarter=1,
+        filing_id=_FILING_ID,
+    )
+    base.update(over)
+    return SimpleNamespace(**base)
+
+
+@pytest.fixture
+def api_client():
+    app.dependency_overrides[get_db_session] = _override_session
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_db_session, None)
+        app.dependency_overrides.pop(get_llm_client, None)
+
+
+def test_answer_empty_chunks_skips_llm_and_still_returns_figures(api_client, monkeypatch):
+    # An exploding client proves the LLM is never called: if generate_narrative
+    # ran, complete() would raise and the response would be 500, not 200.
+    app.dependency_overrides[get_llm_client] = lambda: _ExplodingClient()
+
+    async def _no_chunks(*args, **kwargs):
+        return []
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    monkeypatch.setattr(routes, "search_chunks", _no_chunks)
+    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+
+    resp = api_client.post(
+        "/answer",
+        json={
+            "query": "How did revenue do?",
+            "company_id": str(_COMPANY_ID),
+            "period": "2026Q1",
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["answer"] == {"answer_segments": []}
+    assert body["company_id"] == str(_COMPANY_ID)
+    assert len(body["figures"]) == 1
+    assert body["figures"][0]["metric"] == "revenue"
+    assert body["figures"][0]["filing_id"] == str(_FILING_ID)
+
+
+def test_answer_with_chunks_narrates_and_serializes(api_client, monkeypatch):
+    # LLM cites label [1]; the endpoint remaps it to the real chunk id and the
+    # guards pass (prose has no numbers), so the wired narrative path returns 200.
+    app.dependency_overrides[get_llm_client] = lambda: _StubClient(
+        '{"answer_segments": [{"text": "Revenue rose overseas.", "citations": ["[1]"]}]}'
+    )
+
+    async def _one_chunk(*args, **kwargs):
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.")]
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
+    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+
+    resp = api_client.post(
+        "/answer",
+        json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    segs = body["answer"]["answer_segments"]
+    assert len(segs) == 1
+    assert segs[0]["text"] == "Revenue rose overseas."
+    # Positional label [1] was remapped to the real chunk id string.
+    assert segs[0]["citations"] == [str(_CHUNK_ID)]
+    assert len(body["figures"]) == 1
