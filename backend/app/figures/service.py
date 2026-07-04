@@ -14,9 +14,48 @@ import logging
 import uuid
 from typing import Any, Iterable
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import Financial
 from app.schemas import Figure
 
 logger = logging.getLogger(__name__)
+
+
+async def fetch_financials(
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    period: str | None = None,
+) -> list[Financial]:
+    """Read authoritative ``financials`` rows for one company (thin DB read).
+
+    Read-only counterpart to :func:`build_figures`: this runs the query and
+    hands back the ORM ``Financial`` entities unchanged; ``build_figures`` shapes
+    them into :class:`Figure`. Mirrors :func:`app.search.service.search_chunks`'s
+    session/query pattern (session-first positional, ``select`` + ``where``).
+
+    ``company_id`` scopes every read. ``period`` (e.g. a fiscal period label), if
+    given, further filters; ``None`` returns the whole company scope. An unknown
+    id or empty scope yields ``[]`` rather than raising.
+
+    Returns ORM entities via ``.scalars()`` -- NOT ``Row`` objects and NOT
+    converted to any DTO here -- so the ``value`` ``Decimal`` reaches
+    :func:`build_figures` with ``numeric(24,4)`` precision intact (never cast to
+    ``float``).
+    """
+    stmt = select(Financial).where(Financial.company_id == company_id)
+    if period is not None:
+        stmt = stmt.where(Financial.period == period)
+
+    rows = (await session.execute(stmt)).scalars().all()
+    logger.info(
+        "fetch_financials: company_id=%s period=%s -> %d row(s)",
+        company_id,
+        period,
+        len(rows),
+    )
+    return list(rows)
 
 
 class FigureError(RuntimeError):
