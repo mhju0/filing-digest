@@ -22,3 +22,5 @@ xcuserdata/
 
 # Handoff docs & spike scripts — regenerable, not for the repo.
 scratchpad/
+
+.tokensave/
