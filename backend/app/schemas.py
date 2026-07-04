@@ -218,9 +218,15 @@ class AnswerResponse(BaseModel):
 
     ``answer`` is nullable: when ``narrative_status`` is ``no_results`` or
     ``blocked`` there is no prose to return, but ``figures`` still is.
+
+    ``citations`` resolves every chunk id cited across ``answer.answer_segments``
+    to human-readable source metadata (mirrors ``CompanyDigest.citations``);
+    ``answer.answer_segments[*].citations`` (chunk id strings) remain the anchor
+    and are unchanged.
     """
 
     answer: Answer | None
     figures: list[Figure]
+    citations: list[Citation]
     company_id: uuid.UUID
     narrative_status: NarrativeStatus

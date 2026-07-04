@@ -73,6 +73,29 @@ def _financial_row(**over) -> SimpleNamespace:
     return SimpleNamespace(**base)
 
 
+def _filing_row(**over) -> SimpleNamespace:
+    base = dict(
+        id=_FILING_ID,
+        source="dart",
+        title="2026 Q1 Business Report",
+        url="https://dart.example/1",
+        filed_at=None,
+    )
+    base.update(over)
+    return SimpleNamespace(**base)
+
+
+class _FakeFilingSession:
+    """Fake AsyncSession exposing only the ``execute`` shape the citation
+    resolution join needs (mirrors /digest's ``scalars().all()`` usage)."""
+
+    def __init__(self, filings: list[SimpleNamespace]) -> None:
+        self._filings = filings
+
+    async def execute(self, *args, **kwargs):
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: self._filings))
+
+
 @pytest.fixture
 def api_client():
     app.dependency_overrides[get_db_session] = _override_session
@@ -113,6 +136,7 @@ def test_answer_empty_chunks_skips_llm_and_still_returns_figures(api_client, mon
     assert body["answer"] is None
     assert body["narrative_status"] == "no_results"
     assert body["company_id"] == str(_COMPANY_ID)
+    assert body["citations"] == []
     assert len(body["figures"]) == 1
     assert body["figures"][0]["metric"] == "revenue"
     assert body["figures"][0]["filing_id"] == str(_FILING_ID)
@@ -124,9 +148,16 @@ def test_answer_with_chunks_narrates_and_serializes(api_client, monkeypatch):
     app.dependency_overrides[get_llm_client] = lambda: _StubClient(
         '{"answer_segments": [{"text": "Revenue rose overseas.", "citations": ["[1]"]}]}'
     )
+    app.dependency_overrides[get_db_session] = lambda: _FakeFilingSession(
+        [_filing_row()]
+    )
 
     async def _one_chunk(*args, **kwargs):
-        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.")]
+        return [
+            SimpleNamespace(
+                chunk_id=_CHUNK_ID, filing_id=_FILING_ID, text="Revenue grew on demand."
+            )
+        ]
 
     async def _one_financial(*args, **kwargs):
         return [_financial_row()]
@@ -148,6 +179,11 @@ def test_answer_with_chunks_narrates_and_serializes(api_client, monkeypatch):
     # Positional label [1] was remapped to the real chunk id string.
     assert segs[0]["citations"] == [str(_CHUNK_ID)]
     assert len(body["figures"]) == 1
+    # citations[] resolves the cited chunk id (anchor) to its source filing.
+    assert len(body["citations"]) == 1
+    assert body["citations"][0]["id"] == str(_CHUNK_ID)
+    assert body["citations"][0]["title"] == "2026 Q1 Business Report"
+    assert body["citations"][0]["source"] == "dart"
 
 
 def test_answer_number_guard_blocked_returns_figures_only(api_client, monkeypatch):
@@ -177,6 +213,7 @@ def test_answer_number_guard_blocked_returns_figures_only(api_client, monkeypatc
     body = resp.json()
     assert body["answer"] is None
     assert body["narrative_status"] == "blocked"
+    assert body["citations"] == []
     assert len(body["figures"]) == 1
     assert body["figures"][0]["filing_id"] == str(_FILING_ID)
 

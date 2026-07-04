@@ -261,6 +261,7 @@ async def answer(
         return AnswerResponse(
             answer=None,
             figures=figures,
+            citations=[],
             company_id=request.company_id,
             narrative_status=NarrativeStatus.no_results,
         )
@@ -277,13 +278,42 @@ async def answer(
         return AnswerResponse(
             answer=None,
             figures=figures,
+            citations=[],
             company_id=request.company_id,
             narrative_status=NarrativeStatus.blocked,
         )
 
+    # Resolve each cited chunk id (segment anchor, kept as-is) to its source
+    # filing's metadata, batched (filing_id IN (...)) same as /digest above.
+    cited_chunk_ids = {
+        chunk_id for segment in answer.answer_segments for chunk_id in segment.citations
+    }
+    chunks_by_id = {str(chunk.chunk_id): chunk for chunk in chunks}
+    filing_ids = {chunks_by_id[cid].filing_id for cid in cited_chunk_ids}
+    citations: list[Citation] = []
+    if filing_ids:
+        filings = (
+            await session.execute(
+                select(FilingModel).where(FilingModel.id.in_(filing_ids))
+            )
+        ).scalars().all()
+        filings_by_id = {f.id: f for f in filings}
+        citations = [
+            Citation(
+                id=cid,
+                source=(filing := filings_by_id[chunks_by_id[cid].filing_id]).source,
+                title=filing.title,
+                url=filing.url or "",
+                excerpt=None,
+                filed_at=filing.filed_at.isoformat() if filing.filed_at else None,
+            )
+            for cid in cited_chunk_ids
+        ]
+
     return AnswerResponse(
         answer=answer,
         figures=figures,
+        citations=citations,
         company_id=request.company_id,
         narrative_status=NarrativeStatus.ok,
     )
