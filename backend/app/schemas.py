@@ -8,6 +8,7 @@ citation.
 import logging
 import uuid
 from decimal import Decimal
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -190,6 +191,21 @@ class AnswerRequest(BaseModel):
     period: str | None = None
 
 
+class NarrativeStatus(str, Enum):
+    """Disposition of the ``answer`` track in an :class:`AnswerResponse`.
+
+    ``figures`` is always authoritative and always returned; only the prose
+    narrative can be withheld. ``ok`` -- narrative generated. ``no_results`` --
+    empty retrieval, nothing to cite over, so no narrative was attempted.
+    ``blocked`` -- the number guard tripped on the generated prose, so the
+    narrative is suppressed while figures survive (graceful, not a 500).
+    """
+
+    ok = "ok"
+    blocked = "blocked"
+    no_results = "no_results"
+
+
 class AnswerResponse(BaseModel):
     """POST /answer response: citation-bearing prose + authoritative figures.
 
@@ -197,8 +213,12 @@ class AnswerResponse(BaseModel):
     (prose only, every segment cited, no numbers), while ``figures`` carries the
     numbers pulled deterministically from the structured filing API -- never
     through the LLM (CLAUDE.md: "숫자는 구조화 filing API에서만 온다").
+
+    ``answer`` is nullable: when ``narrative_status`` is ``no_results`` or
+    ``blocked`` there is no prose to return, but ``figures`` still is.
     """
 
-    answer: Answer
+    answer: Answer | None
     figures: list[Figure]
     company_id: uuid.UUID
+    narrative_status: NarrativeStatus

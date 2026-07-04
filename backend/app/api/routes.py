@@ -13,10 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import stub_data
 from app.db.session import get_db_session
 from app.figures.service import build_figures, fetch_financials
-from app.llm.answer import Answer
 from app.llm.base import LLMClient
 from app.llm.deps import get_llm_client
 from app.llm.narrative import generate_narrative
+from app.llm.number_guard import NumberInNarrativeError
 from app.schemas import (
     AnswerRequest,
     AnswerResponse,
@@ -28,6 +28,7 @@ from app.schemas import (
     IngestRequest,
     IngestResponse,
     Language,
+    NarrativeStatus,
     SearchHit,
     SearchRequest,
     SearchResponse,
@@ -127,12 +128,14 @@ async def answer(
 
     Empty retrieval SKIPS the LLM: with no grounding chunks there is nothing to
     cite, and narrating over zero sources would violate "every claim carries a
-    citation" (CLAUDE.md) -- so we return an empty Answer rather than prompting.
-    Figures are still returned in that case. Zero results is a valid 200.
+    citation" (CLAUDE.md) -- so we return no Answer (narrative_status=no_results)
+    rather than prompting. Figures are still returned. Zero results is a valid 200.
 
-    Guard violations (NarrativeError / CitationError / NumberInNarrativeError)
-    propagate as a 500 -- not caught here (structured error bodies are a later
-    step).
+    The number guard tripping (NumberInNarrativeError) is a graceful outcome, not
+    a bug: the figures track is always authoritative, so we suppress just the
+    prose (answer=None, narrative_status=blocked) and still return 200 with
+    figures. The other guards (NarrativeError / CitationError) and FigureError
+    signal a broken contract, so they are NOT caught here and propagate as 500.
     """
     chunks = await search_chunks(
         session, query=request.query, company_id=request.company_id
@@ -143,12 +146,32 @@ async def answer(
     figures = build_figures(rows)
 
     if not chunks:
-        answer = Answer(answer_segments=[])
-    else:
+        return AnswerResponse(
+            answer=None,
+            figures=figures,
+            company_id=request.company_id,
+            narrative_status=NarrativeStatus.no_results,
+        )
+
+    try:
         answer = await generate_narrative(
             client, question=request.query, chunks=chunks
         )
+    except NumberInNarrativeError:
+        logger.warning(
+            "number guard blocked narrative for company_id=%s; returning figures only",
+            request.company_id,
+        )
+        return AnswerResponse(
+            answer=None,
+            figures=figures,
+            company_id=request.company_id,
+            narrative_status=NarrativeStatus.blocked,
+        )
 
     return AnswerResponse(
-        answer=answer, figures=figures, company_id=request.company_id
+        answer=answer,
+        figures=figures,
+        company_id=request.company_id,
+        narrative_status=NarrativeStatus.ok,
     )

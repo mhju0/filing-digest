@@ -19,7 +19,9 @@ from fastapi.testclient import TestClient
 from app.api import routes
 from app.db.session import get_db_session
 from app.llm.base import LLMResult
+from app.llm.citation_guard import CitationError
 from app.llm.deps import get_llm_client
+from app.llm.number_guard import NumberInNarrativeError
 from app.main import app
 
 _COMPANY_ID = uuid.UUID("33333333-3333-3333-3333-333333333333")
@@ -106,7 +108,10 @@ def test_answer_empty_chunks_skips_llm_and_still_returns_figures(api_client, mon
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["answer"] == {"answer_segments": []}
+    # Empty retrieval: no prose to cite over, so answer is withheld but figures
+    # (always authoritative) are still returned.
+    assert body["answer"] is None
+    assert body["narrative_status"] == "no_results"
     assert body["company_id"] == str(_COMPANY_ID)
     assert len(body["figures"]) == 1
     assert body["figures"][0]["metric"] == "revenue"
@@ -136,9 +141,67 @@ def test_answer_with_chunks_narrates_and_serializes(api_client, monkeypatch):
 
     assert resp.status_code == 200
     body = resp.json()
+    assert body["narrative_status"] == "ok"
     segs = body["answer"]["answer_segments"]
     assert len(segs) == 1
     assert segs[0]["text"] == "Revenue rose overseas."
     # Positional label [1] was remapped to the real chunk id string.
     assert segs[0]["citations"] == [str(_CHUNK_ID)]
     assert len(body["figures"]) == 1
+
+
+def test_answer_number_guard_blocked_returns_figures_only(api_client, monkeypatch):
+    # The number guard tripping is graceful: the endpoint suppresses the prose
+    # (answer=None, status=blocked) but returns 200 with figures intact.
+    app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
+
+    async def _one_chunk(*args, **kwargs):
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.")]
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    async def _raise_number_guard(*args, **kwargs):
+        raise NumberInNarrativeError([])
+
+    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
+    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+    monkeypatch.setattr(routes, "generate_narrative", _raise_number_guard)
+
+    resp = api_client.post(
+        "/answer",
+        json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["answer"] is None
+    assert body["narrative_status"] == "blocked"
+    assert len(body["figures"]) == 1
+    assert body["figures"][0]["filing_id"] == str(_FILING_ID)
+
+
+def test_answer_citation_error_propagates_as_500(api_client, monkeypatch):
+    # CitationError signals a broken contract, not a graceful case -- the endpoint
+    # must NOT catch it, so it propagates as a 500 (TestClient re-raises server
+    # exceptions by default).
+    app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
+
+    async def _one_chunk(*args, **kwargs):
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.")]
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    async def _raise_citation_error(*args, **kwargs):
+        raise CitationError([])
+
+    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
+    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+    monkeypatch.setattr(routes, "generate_narrative", _raise_citation_error)
+
+    with pytest.raises(CitationError):
+        api_client.post(
+            "/answer",
+            json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
+        )
