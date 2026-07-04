@@ -52,7 +52,7 @@ curl "http://127.0.0.1:8000/companies?q=samsung"
 
 ## Docker Compose
 
-Brings up postgres 16 + pgvector (port 5432, schema from `backend/db/init.sql`)
+Brings up postgres 16 + pgvector (port 5433, schema from `backend/db/init.sql`)
 and the backend (port 8000):
 
 ```bash
@@ -89,7 +89,7 @@ cp backend/.env.example backend/.env
 | `DART_BASE_URL` | `https://opendart.fss.or.kr/api` | DART Open API base URL. |
 | `SEC_BASE_URL` | `https://data.sec.gov` | SEC EDGAR base URL. |
 | `SEC_USER_AGENT` | placeholder | SEC requires a User-Agent that includes contact info — set your own. |
-| `DATABASE_URL` | `postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5432/filing_digest` | psycopg3 driver; docker compose overrides host to `db`. |
+| `DATABASE_URL` | `postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5433/filing_digest` | psycopg3 driver; docker compose overrides host to `db`. |
 | `EMBEDDING_DIM` | `1024` | KURE-v1 (nlpai-lab/KURE-v1) dense dimension (Verified). |
 
 Do not commit real secrets. `backend/.env` is git-ignored; only

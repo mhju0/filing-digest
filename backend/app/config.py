@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     sec_user_agent: str = "filing-digest/0.1.0 your-contact@example.com"
 
     database_url: str = (
-        "postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5432/filing_digest"
+        "postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5433/filing_digest"
     )
 
     # [Verified] 1024 dims: KURE-v1 (nlpai-lab/KURE-v1) dense dimension.

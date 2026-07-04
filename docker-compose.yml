@@ -13,7 +13,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-filing_digest_dev}
       POSTGRES_DB: ${POSTGRES_DB:-filing_digest}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       # 최초 기동 시(빈 데이터 디렉토리일 때만) 스키마 초기화. Alembic 미사용 - docs/ARCHITECTURE.md 참고.
