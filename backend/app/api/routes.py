@@ -40,6 +40,7 @@ from app.schemas import (
     SearchRequest,
     SearchResponse,
 )
+from app.search.constants import SIMILARITY_THRESHOLD
 from app.search.service import search_chunks
 
 logger = logging.getLogger(__name__)
@@ -238,10 +239,12 @@ async def answer(
     feeds prose-only narrative (app.llm.narrative), while figures come straight
     from the structured filing API (app.figures.service), never through the LLM.
 
-    Empty retrieval SKIPS the LLM: with no grounding chunks there is nothing to
-    cite, and narrating over zero sources would violate "every claim carries a
-    citation" (CLAUDE.md) -- so we return no Answer (narrative_status=no_results)
-    rather than prompting. Figures are still returned. Zero results is a valid 200.
+    Empty or too-weak retrieval SKIPS the LLM: with no grounding chunks, or a
+    best-chunk similarity below SIMILARITY_THRESHOLD (query has no real match in
+    the corpus), there is nothing to cite, and narrating over that would violate
+    "every claim carries a citation" (CLAUDE.md) -- so we return no Answer
+    (narrative_status=no_results) rather than prompting. Figures are still
+    returned. Zero/weak results is a valid 200.
 
     The number guard tripping (NumberInNarrativeError) is a graceful outcome, not
     a bug: the figures track is always authoritative, so we suppress just the
@@ -257,7 +260,7 @@ async def answer(
     )
     figures = build_figures(rows)
 
-    if not chunks:
+    if not chunks or chunks[0].score < SIMILARITY_THRESHOLD:
         return AnswerResponse(
             answer=None,
             figures=figures,

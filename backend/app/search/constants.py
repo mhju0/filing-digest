@@ -7,3 +7,8 @@ service layer (service.py), so neither has to import the other for them.
 MAX_TOP_K = 50
 
 DEFAULT_TOP_K = 5
+
+# Empirically-calibrated cosine-similarity floor for the /answer no_results
+# gate: relevant queries' best chunk scored >=0.45, clearly-unrelated queries
+# scored <=0.38 in calibration; 0.42 sits in the gap.
+SIMILARITY_THRESHOLD = 0.42

@@ -142,6 +142,39 @@ def test_answer_empty_chunks_skips_llm_and_still_returns_figures(api_client, mon
     assert body["figures"][0]["filing_id"] == str(_FILING_ID)
 
 
+def test_answer_low_score_chunk_returns_no_results(api_client, monkeypatch):
+    # Non-empty retrieval whose best (only) chunk scores below
+    # SIMILARITY_THRESHOLD (routes.py's no_results gate also checks
+    # chunks[0].score, not just emptiness) must skip the LLM the same way
+    # empty retrieval does -- weak grounding is not real grounding.
+    app.dependency_overrides[get_llm_client] = lambda: _ExplodingClient()
+
+    async def _weak_chunk(*args, **kwargs):
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, filing_id=_FILING_ID, text="unrelated", score=0.30)]
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    monkeypatch.setattr(routes, "search_chunks", _weak_chunk)
+    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+
+    resp = api_client.post(
+        "/answer",
+        json={
+            "query": "What's the weather like?",
+            "company_id": str(_COMPANY_ID),
+            "period": "2026Q1",
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["answer"] is None
+    assert body["narrative_status"] == "no_results"
+    assert body["citations"] == []
+    assert len(body["figures"]) == 1
+
+
 def test_answer_with_chunks_narrates_and_serializes(api_client, monkeypatch):
     # LLM cites label [1]; the endpoint remaps it to the real chunk id and the
     # guards pass (prose has no numbers), so the wired narrative path returns 200.
@@ -155,7 +188,7 @@ def test_answer_with_chunks_narrates_and_serializes(api_client, monkeypatch):
     async def _one_chunk(*args, **kwargs):
         return [
             SimpleNamespace(
-                chunk_id=_CHUNK_ID, filing_id=_FILING_ID, text="Revenue grew on demand."
+                chunk_id=_CHUNK_ID, filing_id=_FILING_ID, text="Revenue grew on demand.", score=0.9
             )
         ]
 
@@ -192,7 +225,7 @@ def test_answer_number_guard_blocked_returns_figures_only(api_client, monkeypatc
     app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
 
     async def _one_chunk(*args, **kwargs):
-        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.")]
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.", score=0.9)]
 
     async def _one_financial(*args, **kwargs):
         return [_financial_row()]
@@ -225,7 +258,7 @@ def test_answer_citation_error_propagates_as_500(api_client, monkeypatch):
     app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
 
     async def _one_chunk(*args, **kwargs):
-        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.")]
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.", score=0.9)]
 
     async def _one_financial(*args, **kwargs):
         return [_financial_row()]
