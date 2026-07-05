@@ -121,30 +121,6 @@ struct CompanyDigest: Codable, Hashable, Sendable {
     }
 }
 
-// MARK: - Chat
-
-/// POST /chat request body.
-struct ChatRequest: Codable, Hashable, Sendable {
-    /// nil means "no specific company context" (encoded key omitted; the
-    /// backend defaults to null).
-    let companyId: String?
-    let question: String
-    let language: Language
-
-    init(companyId: String? = nil, question: String, language: Language = .ko) {
-        self.companyId = companyId
-        self.question = question
-        self.language = language
-    }
-}
-
-/// POST /chat response body.
-struct ChatResponse: Codable, Hashable, Sendable {
-    let answer: String
-    let language: Language
-    let citations: [Citation]
-}
-
 // MARK: - Ingest
 
 /// POST /ingest request body.

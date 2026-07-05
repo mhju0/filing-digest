@@ -16,7 +16,7 @@ import Foundation
 
 // MARK: - Request
 
-/// POST /answer request body. `company_id` is required (unlike ChatRequest).
+/// POST /answer request body. `company_id` is required.
 /// `period` narrows the figures scope; nil means whole-company scope.
 struct AnswerRequest: Encodable, Hashable, Sendable {
     let query: String

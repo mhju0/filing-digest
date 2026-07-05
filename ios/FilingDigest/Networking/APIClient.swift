@@ -126,11 +126,6 @@ struct APIClient {
         )
     }
 
-    /// POST /chat
-    func makeChatRequest(_ body: ChatRequest) throws -> URLRequest {
-        try makeRequest(path: "/chat", method: "POST", body: encoder.encode(body))
-    }
-
     /// POST /ingest
     func makeIngestRequest(_ body: IngestRequest) throws -> URLRequest {
         try makeRequest(path: "/ingest", method: "POST", body: encoder.encode(body))
@@ -153,11 +148,6 @@ struct APIClient {
     /// can toggle languages without refetching.
     func fetchDigest(companyID: String, language: Language = .ko) async throws -> CompanyDigest {
         try await send(makeDigestRequest(companyID: companyID, language: language))
-    }
-
-    /// POST /chat
-    func sendChat(_ request: ChatRequest) async throws -> ChatResponse {
-        try await send(makeChatRequest(request))
     }
 
     /// POST /ingest (backend answers 202 with a queued job id).

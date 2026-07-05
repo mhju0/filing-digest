@@ -170,7 +170,7 @@ private struct MetricCardView: View {
 
 // MARK: - Citation row
 
-/// Citation cell shared by DigestView and ChatView.
+/// Citation cell shared by DigestView and AnswerView.
 struct CitationRow: View {
     let citation: Citation
 

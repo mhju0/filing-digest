@@ -3,7 +3,7 @@
 //  FilingDigestTests
 //
 //  Swift Testing (import Testing) — no XCTest.
-//  Covers: snake_case JSON decoding of CompanyDigest / ChatResponse, and
+//  Covers: snake_case JSON decoding of CompanyDigest, and
 //  APIClient URLRequest construction (path / query / method / body).
 //
 
@@ -53,23 +53,6 @@ private let companyDigestJSON = """
     }
   ],
   "generated_at": "2026-07-01T09:00:00Z"
-}
-"""
-
-private let chatResponseJSON = """
-{
-  "answer": "Apple's revenue grew year over year.",
-  "language": "en",
-  "citations": [
-    {
-      "id": "cit-sec-1",
-      "source": "sec",
-      "title": "Form 10-Q",
-      "url": "https://data.sec.gov/stub/10-Q",
-      "excerpt": null,
-      "filed_at": null
-    }
-  ]
 }
 """
 
@@ -195,21 +178,6 @@ struct APIModelDecodingTests {
         #expect(citation.source == .dart)
         #expect(citation.filedAt == "2026-05-15")
     }
-
-    @Test("ChatResponse decodes, including citations with null fields")
-    func decodesChatResponse() throws {
-        let decoder = APIClient.makeJSONDecoder()
-        let response = try decoder.decode(ChatResponse.self, from: Data(chatResponseJSON.utf8))
-
-        #expect(response.answer == "Apple's revenue grew year over year.")
-        #expect(response.language == .en)
-
-        let citation = try #require(response.citations.first)
-        #expect(citation.id == "cit-sec-1")
-        #expect(citation.source == .sec)
-        #expect(citation.excerpt == nil)
-        #expect(citation.filedAt == nil)
-    }
 }
 
 // MARK: - POST /answer decoding tests
@@ -316,27 +284,6 @@ struct APIClientRequestTests {
         #expect(request.httpMethod == "GET")
         #expect(components.path == "/companies/11111111-1111-1111-1111-111111111111/digest")
         #expect(components.queryItems == [URLQueryItem(name: "lang", value: "en")])
-    }
-
-    @Test("Chat: POST /chat with snake_case body; nil company_id omitted")
-    func chatRequest() throws {
-        let request = try client.makeChatRequest(
-            ChatRequest(companyId: nil, question: "최근 실적은?", language: .ko)
-        )
-        let url = try #require(request.url)
-
-        #expect(request.httpMethod == "POST")
-        #expect(url.path() == "/chat")
-        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
-
-        let body = try #require(request.httpBody)
-        let object = try #require(
-            try JSONSerialization.jsonObject(with: body) as? [String: Any]
-        )
-        #expect(object["question"] as? String == "최근 실적은?")
-        #expect(object["language"] as? String == "ko")
-        // Optional companyId == nil is encoded with encodeIfPresent -> key omitted.
-        #expect(object["company_id"] == nil)
     }
 
     @Test("Ingest: POST /ingest with snake_case keys")
