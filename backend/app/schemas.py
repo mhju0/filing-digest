@@ -80,8 +80,10 @@ class CompanyDigest(BaseModel):
     company_name: str
     period: str  # e.g. "2026Q1"
     metrics: list[MetricCard]
-    # None in the MVP DB-backed digest: the narrative pipeline lives on /answer,
-    # not here. Kept nullable so /digest can return figures without prose.
+    # A prose-only, number-free KO/EN business overview (app.digest_narrative),
+    # guarded on both languages. Nullable: falls back to None when there is
+    # nothing to summarize or the number guard blocks the prose, so /digest can
+    # still return its authoritative figures without prose.
     summary_ko: str | None = None
     summary_en: str | None = None
     citations: list[Citation]

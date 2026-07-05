@@ -10,15 +10,46 @@ live, not pinned in pytest -- CLAUDE.md "테스트 PASSED만으로 실연동 스
 """
 
 import logging
+import uuid
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app import digest_narrative
+from app.llm.base import LLMResult
+from app.llm.deps import get_llm_client
 from app.main import app
 
 logger = logging.getLogger(__name__)
 
 client = TestClient(app)
+
+
+class _ExplodingClient:
+    """LLMClient whose complete() must never run (e.g. empty-retrieval path)."""
+
+    async def complete(self, *args, **kwargs):
+        raise AssertionError("LLM must not be called when there is nothing to summarize")
+
+
+class _StubDigestClient:
+    """LLMClient returning one canned {summary_ko, summary_en} body (no network)."""
+
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    async def complete(
+        self, messages, *, response_format=None, temperature=0.2, max_tokens=1024
+    ) -> LLMResult:
+        return LLMResult(
+            text=self._text,
+            model="stub",
+            finish_reason="stop",
+            input_tokens=1,
+            output_tokens=1,
+            raw={},
+        )
 
 UNKNOWN_ID = "99999999-9999-4999-8999-999999999999"
 # /ingest doesn't validate company_id against the DB (see test_ingest_accepted
@@ -61,11 +92,25 @@ def _first_company_id() -> str | None:
     return items[0]["id"] if items else None
 
 
-def test_digest_ok() -> None:
+def test_digest_ok(monkeypatch) -> None:
     company_id = _first_company_id()
     if company_id is None:
         pytest.skip("no companies in the live DB to build a digest from")
-    resp = client.get(f"/companies/{company_id}/digest")
+
+    # Keep the summary path offline: no chunks -> null summaries, and an exploding
+    # LLM proves generation is skipped when there is nothing to summarize. Metrics
+    # stay DB-backed (fetch_financials is untouched), so this still exercises the
+    # real digest shape over live data.
+    async def _no_chunks(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr(digest_narrative, "search_chunks", _no_chunks)
+    app.dependency_overrides[get_llm_client] = lambda: _ExplodingClient()
+    try:
+        resp = client.get(f"/companies/{company_id}/digest")
+    finally:
+        app.dependency_overrides.pop(get_llm_client, None)
+
     assert resp.status_code == 200
     body = resp.json()
     assert set(body) == {
@@ -79,7 +124,7 @@ def test_digest_ok() -> None:
         "generated_at",
     }
     assert body["company_id"] == company_id
-    # MVP DB-backed digest: numbers only, narrative deferred to /answer.
+    # No grounding chunks -> summaries withheld; figures are still authoritative.
     assert body["summary_ko"] is None
     assert body["summary_en"] is None
     assert isinstance(body["metrics"], list)
@@ -96,17 +141,42 @@ def test_digest_ok() -> None:
         }
 
 
-def test_digest_lang_en() -> None:
+def test_digest_lang_en(monkeypatch) -> None:
     company_id = _first_company_id()
     if company_id is None:
         pytest.skip("no companies in the live DB to build a digest from")
-    resp = client.get(f"/companies/{company_id}/digest", params={"lang": "en"})
+
+    # Mock retrieval + LLM so the summary path runs fully offline. Contract:
+    # /digest returns BOTH summaries regardless of `lang` (a display hint only),
+    # so lang=en must still carry a non-null summary_ko AND summary_en.
+    digest_narrative.clear_summary_cache()
+
+    async def _one_chunk(*args, **kwargs):
+        return [
+            SimpleNamespace(
+                chunk_id=uuid.uuid4(),
+                filing_id=uuid.uuid4(),
+                text="사업의 개요: 회사는 반도체와 디스플레이를 생산한다.",
+                score=0.7,
+            )
+        ]
+
+    monkeypatch.setattr(digest_narrative, "search_chunks", _one_chunk)
+    app.dependency_overrides[get_llm_client] = lambda: _StubDigestClient(
+        '{"summary_ko": "회사 개요 요약입니다.", "summary_en": "A company overview summary."}'
+    )
+    try:
+        resp = client.get(f"/companies/{company_id}/digest", params={"lang": "en"})
+    finally:
+        app.dependency_overrides.pop(get_llm_client, None)
+        digest_narrative.clear_summary_cache()
+
     assert resp.status_code == 200
     body = resp.json()
     assert body["company_id"] == company_id
-    # `lang` is a display hint only; both summaries are None in the MVP digest.
-    assert body["summary_ko"] is None
-    assert body["summary_en"] is None
+    # Both languages are returned regardless of the `lang` param.
+    assert body["summary_ko"] == "회사 개요 요약입니다."
+    assert body["summary_en"] == "A company overview summary."
 
 
 def test_digest_unknown_company_404() -> None:
