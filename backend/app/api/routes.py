@@ -12,7 +12,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import stub_data
 from app.db.models import Company as CompanyModel
 from app.db.models import Filing as FilingModel
 from app.db.session import get_db_session
@@ -24,8 +23,6 @@ from app.llm.number_guard import NumberInNarrativeError
 from app.schemas import (
     AnswerRequest,
     AnswerResponse,
-    ChatRequest,
-    ChatResponse,
     Citation,
     Company,
     CompanyDigest,
@@ -178,15 +175,6 @@ async def get_company_digest(
         summary_en=None,
         citations=citations,
         generated_at=datetime.now(timezone.utc).isoformat(),
-    )
-
-
-@router.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest) -> ChatResponse:
-    return stub_data.build_chat_response(
-        company_id=request.company_id,
-        question=request.question,
-        language=request.language,
     )
 
 

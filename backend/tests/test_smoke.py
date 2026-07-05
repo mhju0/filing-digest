@@ -1,4 +1,4 @@
-"""Smoke tests for all 5 stub endpoints (API CONTRACT v0.1).
+"""Smoke tests for the stub/DB-backed endpoints (API CONTRACT v0.1).
 
 Runs without a database -- only in-memory stub data is exercised, EXCEPT
 /companies and /companies/{id}/digest, which are DB-backed (they query the real
@@ -15,13 +15,16 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.stub_data import SAMSUNG_ID
 
 logger = logging.getLogger(__name__)
 
 client = TestClient(app)
 
 UNKNOWN_ID = "99999999-9999-4999-8999-999999999999"
+# /ingest doesn't validate company_id against the DB (see test_ingest_accepted
+# below), so any UUID-shaped string works here -- this was formerly imported
+# from the now-deleted app.stub_data.SAMSUNG_ID.
+_STUB_COMPANY_ID = "11111111-1111-4111-8111-111111111111"
 
 
 def test_health() -> None:
@@ -111,33 +114,10 @@ def test_digest_unknown_company_404() -> None:
     assert resp.status_code == 404
 
 
-def test_chat() -> None:
-    resp = client.post(
-        "/chat",
-        json={"company_id": SAMSUNG_ID, "question": "최근 분기 실적은?"},
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert set(body) == {"answer", "language", "citations"}
-    assert body["language"] == "ko"
-    assert len(body["citations"]) >= 1
-
-
-def test_chat_without_company_en() -> None:
-    resp = client.post(
-        "/chat",
-        json={"question": "What is a 10-Q?", "language": "en"},
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["language"] == "en"
-    assert len(body["citations"]) >= 1
-
-
 def test_ingest_accepted() -> None:
     resp = client.post(
         "/ingest",
-        json={"company_id": SAMSUNG_ID, "source": "dart", "filing_types": ["분기보고서"]},
+        json={"company_id": _STUB_COMPANY_ID, "source": "dart", "filing_types": ["분기보고서"]},
     )
     assert resp.status_code == 202
     body = resp.json()

@@ -88,22 +88,6 @@ class CompanyDigest(BaseModel):
     generated_at: str  # ISO 8601
 
 
-class ChatRequest(BaseModel):
-    """POST /chat request body."""
-
-    company_id: str | None = None
-    question: str = Field(min_length=1)
-    language: Language = "ko"
-
-
-class ChatResponse(BaseModel):
-    """POST /chat response."""
-
-    answer: str
-    language: Language
-    citations: list[Citation]
-
-
 class IngestRequest(BaseModel):
     """POST /ingest request body."""
 
@@ -183,9 +167,8 @@ class Figure(BaseModel):
 class AnswerRequest(BaseModel):
     """POST /answer request body.
 
-    Numbers are anchored per company, so ``company_id`` is required (unlike
-    ``ChatRequest``'s optional one). ``period`` narrows the figures scope; None
-    returns the whole company scope.
+    Numbers are anchored per company, so ``company_id`` is required.
+    ``period`` narrows the figures scope; None returns the whole company scope.
     """
 
     query: str = Field(min_length=1)
