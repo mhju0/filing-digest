@@ -43,8 +43,9 @@ enum NarrativeStatus: String, Decodable, CaseIterable, Hashable, Sendable {
     case blocked = "blocked"
 }
 
-/// One narrated span and the chunk ids backing it. Citations are bare
-/// chunk_id strings for now; resolving them to titles/links is a later scope.
+/// One narrated span and the chunk ids backing it. `citations` are bare
+/// chunk_id strings that anchor into `AnswerResponse.citations` (resolved
+/// title/source/url/filed_at) by matching `id`.
 struct AnswerSegment: Decodable, Hashable, Sendable {
     let text: String
     let citations: [String]
@@ -100,9 +101,14 @@ struct Figure: Decodable, Hashable, Sendable {
 /// POST /answer response. `answer` is nil when narrative_status is
 /// no_results or blocked; `figures` is always present (possibly empty) and
 /// can be non-empty even under no_results — the two tracks are independent.
+/// `citations` resolves every chunk id cited across `answer.answerSegments`
+/// to human-readable source metadata (mirrors `CompanyDigest.citations`);
+/// the backend always sends a (possibly empty) array, even under
+/// no_results/blocked.
 struct AnswerResponse: Decodable, Hashable, Sendable {
     let answer: Answer?
     let figures: [Figure]
+    let citations: [Citation]
     let companyId: UUID
     let narrativeStatus: NarrativeStatus
 }

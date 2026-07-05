@@ -97,7 +97,7 @@ struct AnswerView: View {
         switch response.narrativeStatus {
         case .ok:
             if let answer = response.answer {
-                narrativeSection(answer)
+                narrativeSection(answer, citations: response.citations)
             }
         case .blocked:
             blockedNotice
@@ -108,12 +108,61 @@ struct AnswerView: View {
     }
 
     @ViewBuilder
-    private func narrativeSection(_ answer: Answer) -> some View {
+    private func narrativeSection(_ answer: Answer, citations: [Citation]) -> some View {
+        let filingIndex = Self.buildFilingIndex(citations: citations)
         Text("답변")
             .font(.headline)
         ForEach(Array(answer.answerSegments.enumerated()), id: \.offset) { _, segment in
-            SegmentView(segment: segment)
+            SegmentView(segment: segment, citationIndex: filingIndex.chunkToIndex)
         }
+        if !filingIndex.ordered.isEmpty {
+            sourcesSection(filingIndex.ordered)
+        }
+    }
+
+    /// Sources section: one `CitationRow` per unique filing, numbered to match
+    /// the `[n]` chips rendered inline in `SegmentView`.
+    private func sourcesSection(_ filings: [Citation]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("출처")
+                .font(.headline)
+            VStack(spacing: 8) {
+                ForEach(Array(filings.enumerated()), id: \.offset) { index, citation in
+                    HStack(alignment: .top, spacing: 6) {
+                        Text("[\(index + 1)]")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        CitationRow(citation: citation)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Dedupes `citations` down to unique source filings, in first-seen
+    /// order, and maps every chunk_id to its filing's 1-based index. Filing
+    /// identity is `url` when non-empty (filing.url is shared verbatim by
+    /// every chunk of the same filing — backend/app/api/routes.py:301-311),
+    /// falling back to `title|filedAt` for the rare empty-url case.
+    private static func buildFilingIndex(
+        citations: [Citation]
+    ) -> (ordered: [Citation], chunkToIndex: [String: Int]) {
+        var indexByKey: [String: Int] = [:]
+        var ordered: [Citation] = []
+        var chunkToIndex: [String: Int] = [:]
+        for citation in citations {
+            let key = citation.url.isEmpty ? "\(citation.title)|\(citation.filedAt ?? "")" : citation.url
+            let index: Int
+            if let existing = indexByKey[key] {
+                index = existing
+            } else {
+                index = ordered.count + 1
+                indexByKey[key] = index
+                ordered.append(citation)
+            }
+            chunkToIndex[citation.id] = index
+        }
+        return (ordered, chunkToIndex)
     }
 
     /// Not an error: the number guard suppressed the prose while the figures
@@ -184,20 +233,54 @@ struct AnswerView: View {
 
 // MARK: - Segment
 
-/// One narrated span plus its citation chips.
-/// Citations are raw chunk_id strings for now.
-/// TODO: resolve chunk ids to filing titles/links (next scope).
+/// One narrated span plus compact `[n]` citation chips. Each chunk id in
+/// `segment.citations` is resolved against `citationIndex` (chunk_id -> the
+/// unique filing's 1-based position, built by `AnswerView.buildFilingIndex`)
+/// into a small capsule; an unmatched id falls back to the raw chunk_id
+/// capsule, which surfaces a citation-contract violation instead of hiding
+/// it. The full per-filing detail lives once in the "출처" section below.
 private struct SegmentView: View {
     let segment: AnswerSegment
+    let citationIndex: [String: Int]
+
+    private enum Chip: Hashable, Identifiable {
+        case filing(Int)
+        case raw(String)
+        var id: Self { self }
+    }
+
+    private var chips: [Chip] {
+        var seenIndices = Set<Int>()
+        var seenRaw = Set<String>()
+        var result: [Chip] = []
+        for chunkID in segment.citations {
+            if let index = citationIndex[chunkID] {
+                if seenIndices.insert(index).inserted {
+                    result.append(.filing(index))
+                }
+            } else if seenRaw.insert(chunkID).inserted {
+                result.append(.raw(chunkID))
+            }
+        }
+        return result
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(segment.text)
                 .font(.body)
-            if !segment.citations.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(segment.citations, id: \.self) { chunkID in
+            if !chips.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(chips) { chip in
+                        switch chip {
+                        case .filing(let index):
+                            Text("[\(index)]")
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.accentColor.opacity(0.15)))
+                                .foregroundStyle(Color.accentColor)
+                        case .raw(let chunkID):
                             Text(chunkID)
                                 .font(.caption2.monospaced())
                                 .lineLimit(1)

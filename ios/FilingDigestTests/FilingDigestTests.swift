@@ -111,6 +111,16 @@ private let answerOKJSON = """
       "filing_id": "33333333-3333-3333-3333-333333333333"
     }
   ],
+  "citations": [
+    {
+      "id": "chunk-aaaa",
+      "source": "dart",
+      "title": "분기보고서 (2025.12)",
+      "url": "https://dart.fss.or.kr/report/stub-2",
+      "excerpt": "매출은 ...",
+      "filed_at": "2026-02-15"
+    }
+  ],
   "company_id": "11111111-1111-1111-1111-111111111111",
   "narrative_status": "ok"
 }
@@ -131,6 +141,7 @@ private let answerBlockedJSON = """
       "filing_id": "33333333-3333-3333-3333-333333333333"
     }
   ],
+  "citations": [],
   "company_id": "11111111-1111-1111-1111-111111111111",
   "narrative_status": "blocked"
 }
@@ -140,6 +151,7 @@ private let answerNoResultsJSON = """
 {
   "answer": null,
   "figures": [],
+  "citations": [],
   "company_id": "11111111-1111-1111-1111-111111111111",
   "narrative_status": "no_results"
 }
@@ -240,6 +252,11 @@ struct AnswerResponseDecodingTests {
         #expect(eps.value == expectedEPS)
         #expect(eps.currency == nil)
         #expect(eps.fiscalQuarter == nil)
+
+        let citation = try #require(response.citations.first)
+        #expect(citation.id == "chunk-aaaa")
+        #expect(citation.source == .dart)
+        #expect(citation.filedAt == "2026-02-15")
     }
 
     @Test("blocked: answer withheld, figures track survives")
@@ -249,6 +266,7 @@ struct AnswerResponseDecodingTests {
         #expect(response.narrativeStatus == .blocked)
         #expect(response.answer == nil)
         #expect(response.figures.count == 1)
+        #expect(response.citations.isEmpty)
 
         // 19 significant digits: a Double round trip would corrupt this value,
         // so equality here proves the string -> Decimal path is lossless.
