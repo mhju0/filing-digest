@@ -10,9 +10,11 @@ strings / UUIDs and would always false-positive). Callers decide what to do with
 the violations reported here.
 
 Calibration: stored prose chunks are structurally prose but retain inline
-numbers. Financial figures always carry a ``원``/``%``/``배`` suffix; innocent
-tokens (years, article numbers, dates, counts) do not -- so the match rules are
-suffix-anchored blocklists rather than a bare digit scan.
+numbers. Financial figures always carry a ``원``/``%``/``배`` suffix (Korean)
+or a ``$``/currency-word/``x``/``times`` anchor (English); innocent tokens
+(years, article numbers, dates, counts, section references) do not -- so the
+match rules are suffix/prefix-anchored blocklists rather than a bare digit
+scan.
 """
 
 import re
@@ -58,10 +60,44 @@ class NumberInNarrativeError(RuntimeError):
 #    after a magnitude run would false-positive (``제3조 원칙`` -> ``3조 원``).
 # B2 percent  -- a digit-led run, optional space, then ``%``.
 # B3 multiple -- a digit-led run, optional space, then ``배``.
+# B4 currency ($) -- a ``$``-anchored digit run, optionally followed by a
+#    magnitude word (thousand/million/billion/trillion) after whitespace, or a
+#    single-letter abbreviation (K/M/B/T) attached with no intervening
+#    whitespace (``$5B``). The leading ``$`` is mandatory, so a bare ``5B`` or
+#    ``Item 7`` never matches -- there is no ``$`` to anchor on.
+# B5 currency (word/code) -- a digit run followed by whitespace, an optional
+#    magnitude word, then a currency word (dollar/dollars) or ISO code
+#    (USD/KRW/EUR). The currency term is mandatory, so bare years/ordinals
+#    (``2024``, ``Item 7``, ``10-K``, ``Q4``) never match -- nothing after the
+#    digit run satisfies the required suffix.
+# B6 multiple (x) -- a digit-led run, optional space, then ``x``/``X``
+#    (``2x``, ``2.5x``).
+# B7 multiple (times) -- a digit-led run, whitespace, then the word ``times``.
+#    A literal digit is mandatory before ``times``, so the idiom "one time"
+#    (spelled-out, no digit) never matches.
 _CURRENCY_RE = re.compile(r"\d[\d,.\s조억만천백]*(?<!\s)원")
 _PERCENT_RE = re.compile(r"\d[\d,.]*\s*%")
 _MULTIPLE_RE = re.compile(r"\d[\d,.]*\s*배")
-_NUMBER_RES = (_CURRENCY_RE, _PERCENT_RE, _MULTIPLE_RE)
+_CURRENCY_USD_RE = re.compile(
+    r"\$\d[\d,]*(?:\.\d+)?(?:\s+(?:thousand|million|billion|trillion)\b|[kmbt]\b)?",
+    re.IGNORECASE,
+)
+_CURRENCY_WORD_RE = re.compile(
+    r"\d[\d,]*(?:\.\d+)?\s+(?:(?:thousand|million|billion|trillion)\s+)?"
+    r"(?:dollars?|USD|KRW|EUR)\b",
+    re.IGNORECASE,
+)
+_MULTIPLE_X_RE = re.compile(r"\d[\d.]*\s?x\b", re.IGNORECASE)
+_MULTIPLE_TIMES_RE = re.compile(r"\d[\d,.]*\s+times\b", re.IGNORECASE)
+_NUMBER_RES = (
+    _CURRENCY_RE,
+    _PERCENT_RE,
+    _MULTIPLE_RE,
+    _CURRENCY_USD_RE,
+    _CURRENCY_WORD_RE,
+    _MULTIPLE_X_RE,
+    _MULTIPLE_TIMES_RE,
+)
 
 
 def find_number_violations(answer: Answer) -> list[Violation]:

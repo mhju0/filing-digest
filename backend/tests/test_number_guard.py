@@ -39,6 +39,17 @@ def _answer(*segments: tuple[str, list[str]]) -> Answer:
         "1%",
         "728%",
         "2배",  # B3 multiple
+        "$5",  # B4 currency ($)
+        "$5.2 billion",
+        "$1,234,567",
+        "$5B",
+        "5 billion dollars",  # B5 currency (word/code)
+        "3.2 million USD",
+        "5 KRW",
+        "10 EUR",
+        "2x",  # B6 multiple (x)
+        "2.5x",
+        "3 times",  # B7 multiple (times)
     ],
 )
 def test_block_financial_number_is_flagged(token: str):
@@ -66,6 +77,11 @@ def test_block_financial_number_is_flagged(token: str):
         "1. 개요",  # line-head enumerator
         "031-200-1114",
         "삼성로 129",
+        "Item 7",
+        "10-K",
+        "Q4",
+        "the company grew one time this year",  # idiom, no digit before "time(s)"
+        "see [1] for details",
     ],
 )
 def test_exempt_innocent_number_is_clean(text: str):
@@ -135,6 +151,34 @@ def test_multiple_numbers_in_one_segment_ordered_by_position():
     tokens = [v.token for v in violations]
     assert tokens == ["258조 9,355억원", "14.3%", "2배"]
     # ordered by start position within the segment
+    assert [v.span[0] for v in violations] == sorted(v.span[0] for v in violations)
+
+
+# --- English patterns (B4-B7) ----------------------------------------------
+
+def test_mixed_ko_en_sentence_with_dollar_amount_blocks():
+    answer = _answer(("올해 매출은 $5.2 billion 수준으로 추정된다.", ["c1"]))
+    violations = find_number_violations(answer)
+    assert len(violations) == 1
+    assert violations[0].token == "$5.2 billion"
+
+
+def test_korean_patterns_still_block_alongside_english_rules():
+    # Regression: adding English patterns must not disturb existing KO rules.
+    answer = _answer(("매출 8조원, 성장률 14.3%, 2배 증가.", ["c1"]))
+    tokens = [v.token for v in find_number_violations(answer)]
+    assert tokens == ["8조원", "14.3%", "2배"]
+
+
+def test_english_multiplier_and_currency_together_ordered_by_position():
+    answer = _answer(
+        ("Revenue grew 3 times to $5.2 billion, or 3.2 million USD per store.", ["c1"]),
+    )
+    violations = find_number_violations(answer)
+    tokens = [v.token for v in violations]
+    assert "3 times" in tokens
+    assert "$5.2 billion" in tokens
+    assert "3.2 million USD" in tokens
     assert [v.span[0] for v in violations] == sorted(v.span[0] for v in violations)
 
 
