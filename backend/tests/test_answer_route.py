@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from app.api import routes
 from app.db.session import get_db_session
 from app.llm.base import LLMResult
-from app.llm.citation_guard import CitationError
+from app.llm.citation_guard import CitationError, CitationViolation
 from app.llm.deps import get_llm_client
 from app.llm.number_guard import NumberInNarrativeError
 from app.main import app
@@ -251,10 +251,12 @@ def test_answer_number_guard_blocked_returns_figures_only(api_client, monkeypatc
     assert body["figures"][0]["filing_id"] == str(_FILING_ID)
 
 
-def test_answer_citation_error_propagates_as_500(api_client, monkeypatch):
-    # CitationError signals a broken contract, not a graceful case -- the endpoint
-    # must NOT catch it, so it propagates as a 500 (TestClient re-raises server
-    # exceptions by default).
+def test_answer_citation_error_hallucinated_id_propagates_as_500(api_client, monkeypatch):
+    # A CitationError containing an "unknown" (fabricated/hallucinated) citation
+    # id is a real hallucination signal, not a graceful case -- the endpoint must
+    # NOT catch it, so it propagates as a 500 (TestClient re-raises server
+    # exceptions by default). This locks in that the no_results mapping for
+    # all-empty violations does NOT broaden into swallowing hallucinations too.
     app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
 
     async def _one_chunk(*args, **kwargs):
@@ -264,7 +266,7 @@ def test_answer_citation_error_propagates_as_500(api_client, monkeypatch):
         return [_financial_row()]
 
     async def _raise_citation_error(*args, **kwargs):
-        raise CitationError([])
+        raise CitationError([CitationViolation(0, "unknown", ("999",))])
 
     monkeypatch.setattr(routes, "search_chunks", _one_chunk)
     monkeypatch.setattr(routes, "fetch_financials", _one_financial)
@@ -275,3 +277,65 @@ def test_answer_citation_error_propagates_as_500(api_client, monkeypatch):
             "/answer",
             json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
         )
+
+
+def test_answer_citation_error_mixed_violations_propagates_as_500(api_client, monkeypatch):
+    # Even one "unknown" violation alongside "empty" ones must still propagate --
+    # the mapping to no_results only applies when EVERY violation is "empty".
+    app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
+
+    async def _one_chunk(*args, **kwargs):
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.", score=0.9)]
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    async def _raise_citation_error(*args, **kwargs):
+        raise CitationError(
+            [
+                CitationViolation(0, "empty", ()),
+                CitationViolation(1, "unknown", ("999",)),
+            ]
+        )
+
+    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
+    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+    monkeypatch.setattr(routes, "generate_narrative", _raise_citation_error)
+
+    with pytest.raises(CitationError):
+        api_client.post(
+            "/answer",
+            json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
+        )
+
+
+def test_answer_citation_error_all_empty_returns_no_results(api_client, monkeypatch):
+    # When the LLM's answer cites nothing at all (every segment has an "empty"
+    # violation), there is no grounded basis -- map to the same no_results state
+    # the retrieval-threshold gate uses, as a 200, not a 500.
+    app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
+
+    async def _one_chunk(*args, **kwargs):
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.", score=0.9)]
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    async def _raise_citation_error(*args, **kwargs):
+        raise CitationError([CitationViolation(0, "empty", ())])
+
+    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
+    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+    monkeypatch.setattr(routes, "generate_narrative", _raise_citation_error)
+
+    resp = api_client.post(
+        "/answer",
+        json={"query": "삼성 매출액 2024년꺼 알려줘", "company_id": str(_COMPANY_ID)},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["answer"] is None
+    assert body["narrative_status"] == "no_results"
+    assert body["citations"] == []
+    assert len(body["figures"]) == 1

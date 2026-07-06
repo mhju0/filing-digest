@@ -19,6 +19,7 @@ from app.db.session import get_db_session
 from app.digest_narrative import DigestNarrativeError, build_company_summary
 from app.figures.service import build_figures, fetch_financials
 from app.llm.base import LLMClient
+from app.llm.citation_guard import CitationError
 from app.llm.deps import get_llm_client
 from app.llm.narrative import generate_narrative
 from app.llm.number_guard import NumberInNarrativeError
@@ -268,8 +269,13 @@ async def answer(
     The number guard tripping (NumberInNarrativeError) is a graceful outcome, not
     a bug: the figures track is always authoritative, so we suppress just the
     prose (answer=None, narrative_status=blocked) and still return 200 with
-    figures. The other guards (NarrativeError / CitationError) and FigureError
-    signal a broken contract, so they are NOT caught here and propagate as 500.
+    figures. A CitationError where every violation is kind="empty" means the LLM
+    had nothing groundable to say (e.g. the corpus lacks the asked-for period) --
+    that is the same "nothing to cite" situation as the retrieval-threshold gate
+    above, so it also maps to narrative_status=no_results. A CitationError with
+    ANY "unknown" (fabricated) citation id is a real hallucination signal and is
+    re-raised as-is. NarrativeError and FigureError signal a broken contract, so
+    they are NOT caught here and propagate as 500.
     """
     chunks = await search_chunks(
         session, query=request.query, company_id=request.company_id
@@ -303,6 +309,21 @@ async def answer(
             citations=[],
             company_id=request.company_id,
             narrative_status=NarrativeStatus.blocked,
+        )
+    except CitationError as exc:
+        if any(v.kind != "empty" for v in exc.violations):
+            raise
+        logger.warning(
+            "citation guard found no groundable segments for company_id=%s; "
+            "returning no_results",
+            request.company_id,
+        )
+        return AnswerResponse(
+            answer=None,
+            figures=figures,
+            citations=[],
+            company_id=request.company_id,
+            narrative_status=NarrativeStatus.no_results,
         )
 
     # Resolve each cited chunk id (segment anchor, kept as-is) to its source
