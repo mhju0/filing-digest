@@ -14,12 +14,14 @@ Design (fixed -- do not relitigate):
    A failure anywhere rolls the whole filing back (no half-written filing).
 
 2. **companies is idempotent** on ``ON CONFLICT (dart_corp_code) DO UPDATE
-   ... RETURNING id`` (the column is ``dart_corp_code``, not ``corp_code``).
+   ... RETURNING id`` for DART rows, or ``ON CONFLICT (sec_cik)`` for SEC rows
+   (the conflict column is picked from ``row["source"]``, not corp_code).
    ``source='dart'`` satisfies the ``companies_source_check`` CHECK.
 
 3. **filings is idempotent** on ``ON CONFLICT (rcept_no) DO UPDATE ... RETURNING
-   id``. This is the *only* place a ``rcept_no`` becomes a ``filing_id`` (uuid);
-   everything below uses the uuid.
+   id`` for DART rows, or ``ON CONFLICT (sec_accession_no)`` for SEC rows (same
+   source-based branching as companies). This is the *only* place a natural key
+   becomes a ``filing_id`` (uuid); everything below uses the uuid.
 
 4. **financials is idempotent, company-scoped** on the existing
    ``ON CONFLICT (company_id, period, metric, source)``. The table is EAV: each
@@ -72,6 +74,7 @@ logger = logging.getLogger(__name__)
 # has NO CHECK constraint (unlike companies.source), so a typo would silently
 # create a second, non-matching row -- hence a single constant.
 SOURCE_DART = "dart"
+SOURCE_SEC = "sec"
 
 # Default currency for KRW-denominated DART numbers when a row omits `currency`
 # (domestic filings report in won). See docs/dart-api-notes.md §3.
@@ -191,19 +194,20 @@ def unit_for(metric: str) -> str:
 # -- pure row builders (cleaned object -> row dict) ---------------------------
 
 
-def company_row(filing_item: FilingItem, corp_code: str) -> dict:
+def company_row(filing_item: FilingItem, corp_code: str, source: str = SOURCE_DART) -> dict:
     """Build the ``companies`` row for this filing's issuer (docs §6).
 
     ``name``/``source`` are the NOT NULL columns; ``dart_corp_code`` is the
-    idempotent conflict key. ``name_en`` is left NULL (list.json carries no
-    English name); ``ticker`` <- stock_code, ``market`` <- corp_cls. Pure.
+    idempotent conflict key for the default ``source='dart'``. ``name_en`` is
+    left NULL (list.json carries no English name); ``ticker`` <- stock_code,
+    ``market`` <- corp_cls. Pure.
     """
     return {
         "name": filing_item.corp_name,
         "name_en": None,
         "ticker": filing_item.stock_code or None,
         "market": market_for(filing_item.corp_cls),
-        "source": SOURCE_DART,
+        "source": source,
         "dart_corp_code": corp_code,
         "sec_cik": None,
     }
@@ -214,17 +218,19 @@ def filing_row(
     company_id: uuid.UUID,
     filing_type: str,
     period: str,
+    source: str = SOURCE_DART,
 ) -> dict:
     """Build the ``filings`` row (docs §6).
 
     ``company_id`` is injected from the company upsert's RETURNING id.
-    ``rcept_no`` is the idempotent conflict key; ``title`` <- report_nm (already
-    right-trimmed upstream), ``filed_at`` <- rcept_dt, ``url`` <- viewer_url.
-    ``period`` is the same canonical string used for financials. Pure.
+    ``rcept_no`` is the idempotent conflict key for the default
+    ``source='dart'``; ``title`` <- report_nm (already right-trimmed
+    upstream), ``filed_at`` <- rcept_dt, ``url`` <- viewer_url. ``period`` is
+    the same canonical string used for financials. Pure.
     """
     return {
         "company_id": company_id,
-        "source": SOURCE_DART,
+        "source": source,
         "rcept_no": filing_item.rcept_no,
         "filing_type": filing_type,
         "title": filing_item.report_nm,
@@ -239,6 +245,8 @@ def financial_rows(
     company_id: uuid.UUID,
     filing_id: uuid.UUID,
     descriptor: PeriodDescriptor,
+    source: str = SOURCE_DART,
+    default_currency: str = DEFAULT_CURRENCY,
 ) -> list[dict]:
     """Build the EAV ``financials`` rows for one filing (docs §3, §6).
 
@@ -280,8 +288,8 @@ def financial_rows(
                 "metric": metric,
                 "value": item.thstrm_amount,  # int (KRW) | Decimal (EPS)
                 "unit": unit_for(metric),
-                "currency": item.currency or DEFAULT_CURRENCY,
-                "source": SOURCE_DART,
+                "currency": item.currency or default_currency,
+                "source": source,
             }
         )
     return rows
@@ -313,12 +321,51 @@ def chunk_rows(chunks: list[Chunk], filing_id: uuid.UUID) -> list[dict]:
 
 # -- impure: the atomic write ------------------------------------------------
 
+# source -> idempotent conflict column. No default: an unknown source must
+# fail loudly rather than silently reuse DART's column and corrupt idempotency.
+_COMPANY_CONFLICT_COLUMNS: dict[str, str] = {
+    SOURCE_DART: "dart_corp_code",
+    SOURCE_SEC: "sec_cik",
+}
+_FILING_CONFLICT_COLUMNS: dict[str, str] = {
+    SOURCE_DART: "rcept_no",
+    SOURCE_SEC: "sec_accession_no",
+}
+
+
+def _natural_key_column(columns: dict[str, str], label: str, source: str) -> str:
+    """Look up the idempotent conflict column for ``source``, or raise."""
+    try:
+        return columns[source]
+    except KeyError as exc:
+        raise ValueError(f"unknown {label} source {source!r}") from exc
+
+
+def _require_natural_key(row: dict, column: str) -> None:
+    """Raise if ``row[column]`` (the row's natural key for its source) is NULL.
+
+    A NULL natural key can never conflict with itself on re-run (Postgres
+    treats NULLs as distinct under UNIQUE), so it would silently break
+    idempotency by inserting a fresh duplicate row every time.
+    """
+    if row.get(column) is None:
+        raise ValueError(
+            f"row for source {row.get('source')!r} has no {column}; "
+            "refusing to write a non-idempotent row"
+        )
+
 
 async def _upsert_company(session: AsyncSession, row: dict) -> uuid.UUID:
-    """Upsert one ``companies`` row on dart_corp_code; return its id (invariant)."""
+    """Upsert one ``companies`` row; return its id (invariant).
+
+    Conflict column is picked from ``row["source"]``: ``dart_corp_code`` for
+    'dart', ``sec_cik`` for 'sec'.
+    """
+    conflict_column = _natural_key_column(_COMPANY_CONFLICT_COLUMNS, "company", row["source"])
+    _require_natural_key(row, conflict_column)
     ins = pg_insert(Company).values(**row)
     stmt = ins.on_conflict_do_update(
-        index_elements=["dart_corp_code"],
+        index_elements=[conflict_column],
         set_={
             "name": ins.excluded.name,
             "name_en": ins.excluded.name_en,
@@ -331,13 +378,17 @@ async def _upsert_company(session: AsyncSession, row: dict) -> uuid.UUID:
 
 
 async def _upsert_filing(session: AsyncSession, row: dict) -> uuid.UUID:
-    """Upsert one ``filings`` row on rcept_no; return its id (invariant).
+    """Upsert one ``filings`` row; return its id (invariant).
 
-    This is the sole rcept_no -> filing_id(uuid) mapping point in the system.
+    Conflict column is picked from ``row["source"]``: ``rcept_no`` for 'dart',
+    ``sec_accession_no`` for 'sec'. This is the sole natural-key ->
+    filing_id(uuid) mapping point in the system.
     """
+    conflict_column = _natural_key_column(_FILING_CONFLICT_COLUMNS, "filing", row["source"])
+    _require_natural_key(row, conflict_column)
     ins = pg_insert(Filing).values(**row)
     stmt = ins.on_conflict_do_update(
-        index_elements=["rcept_no"],
+        index_elements=[conflict_column],
         set_={
             "company_id": ins.excluded.company_id,
             "source": ins.excluded.source,

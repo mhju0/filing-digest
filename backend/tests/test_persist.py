@@ -2,11 +2,15 @@
 
 These exercise the "cleaned object -> row dict" transforms and the canonical
 vocabulary helpers with fixture objects only -- no network, no database. The
-transaction/upsert path (:func:`ingest_filing`, ``_upsert_*``) is covered by the
-live end-to-end verification, not here.
+full ``ingest_filing`` transaction (network fetch + all 4 tables) is covered by
+the live end-to-end verification, not here. The ``_upsert_company``/
+``_upsert_filing`` DART/SEC conflict-column branching IS covered here, against
+a fake in-memory session (see ``_FakeUpsertSession`` below) -- no real Postgres.
 """
 
+import asyncio
 import datetime
+import re
 import uuid
 from decimal import Decimal
 
@@ -16,9 +20,12 @@ from app.clients.dart import FilingItem, FinancialItem
 from app.ingest.chunking import Chunk
 from app.ingest.persist import (
     SOURCE_DART,
+    SOURCE_SEC,
     UNIT_KRW,
     UNIT_KRW_PER_SHARE,
     PeriodDescriptor,
+    _upsert_company,
+    _upsert_filing,
     chunk_rows,
     company_row,
     filing_row,
@@ -254,3 +261,111 @@ def test_chunk_rows_embedding_null_and_anchor_in_meta() -> None:
 
 def test_chunk_rows_empty_is_empty() -> None:
     assert chunk_rows([], _FILING_ID) == []
+
+
+# -- _upsert_company / _upsert_filing conflict-column branching --------------
+#
+# Fake in-memory AsyncSession: compiles the real statement built by
+# _upsert_company/_upsert_filing, reads which column the ON CONFLICT clause
+# targeted, and keys an id store on (column, value) -- a second execute() with
+# the same natural key returns the same id, exactly like a real Postgres
+# upsert would. This exercises the actual branching code, offline.
+
+
+class _FakeUpsertResult:
+    def __init__(self, value):
+        self._value = value
+
+    def scalar_one(self):
+        return self._value
+
+
+class _FakeUpsertSession:
+    def __init__(self) -> None:
+        self.rows: dict[tuple[str, object], uuid.UUID] = {}
+
+    async def execute(self, stmt):
+        compiled = stmt.compile()
+        conflict_column = re.search(r"ON CONFLICT \(([^)]+)\)", compiled.string).group(1)
+        key = (conflict_column, compiled.params[conflict_column])
+        row_id = self.rows.setdefault(key, uuid.uuid4())
+        return _FakeUpsertResult(row_id)
+
+
+def _raw_company_row(**over) -> dict:
+    base = dict(
+        name="Test Co",
+        name_en=None,
+        ticker=None,
+        market=None,
+        source=SOURCE_DART,
+        dart_corp_code="00126380",
+        sec_cik=None,
+    )
+    base.update(over)
+    return base
+
+
+def _raw_filing_row(**over) -> dict:
+    base = dict(
+        company_id=_COMPANY_ID,
+        source=SOURCE_DART,
+        rcept_no="20240312000736",
+        sec_accession_no=None,
+        filing_type="business_report",
+        title="title",
+        period="2023-annual",
+        filed_at=None,
+        url=None,
+    )
+    base.update(over)
+    return base
+
+
+def test_upsert_company_dart_conflicts_on_dart_corp_code() -> None:
+    session = _FakeUpsertSession()
+    asyncio.run(_upsert_company(session, _raw_company_row()))
+    assert ("dart_corp_code", "00126380") in session.rows
+
+
+def test_upsert_company_sec_conflicts_on_sec_cik() -> None:
+    session = _FakeUpsertSession()
+    row = _raw_company_row(source=SOURCE_SEC, dart_corp_code=None, sec_cik="0000320193")
+    asyncio.run(_upsert_company(session, row))
+    assert ("sec_cik", "0000320193") in session.rows
+
+
+def test_upsert_company_missing_natural_key_raises() -> None:
+    session = _FakeUpsertSession()
+    row = _raw_company_row(source=SOURCE_SEC, sec_cik=None)
+    with pytest.raises(ValueError):
+        asyncio.run(_upsert_company(session, row))
+
+
+def test_upsert_filing_dart_conflicts_on_rcept_no() -> None:
+    session = _FakeUpsertSession()
+    asyncio.run(_upsert_filing(session, _raw_filing_row()))
+    assert ("rcept_no", "20240312000736") in session.rows
+
+
+def test_upsert_filing_sec_conflicts_on_sec_accession_no_and_is_idempotent() -> None:
+    session = _FakeUpsertSession()
+    row = _raw_filing_row(
+        source=SOURCE_SEC, rcept_no=None, sec_accession_no="0000320193-24-000123"
+    )
+
+    async def _run_twice():
+        first = await _upsert_filing(session, row)
+        second = await _upsert_filing(session, row)
+        return first, second
+
+    first_id, second_id = asyncio.run(_run_twice())
+    assert first_id == second_id  # re-run upserts the same row, no duplicate
+    assert len(session.rows) == 1
+
+
+def test_upsert_filing_missing_natural_key_raises() -> None:
+    session = _FakeUpsertSession()
+    row = _raw_filing_row(source=SOURCE_SEC, sec_accession_no=None)
+    with pytest.raises(ValueError):
+        asyncio.run(_upsert_filing(session, row))

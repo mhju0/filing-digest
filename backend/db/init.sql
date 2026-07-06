@@ -26,6 +26,11 @@ CREATE TABLE IF NOT EXISTS filings (
     -- 취급하므로 UNIQUE 아래에서도 여러 SEC(NULL) row는 충돌하지 않고, DART rcept_no
     -- 끼리만 dedup된다. 이 UNIQUE가 ON CONFLICT (rcept_no) DO UPDATE의 inference target.
     rcept_no text UNIQUE,
+    -- SEC accession number. SEC filing의 자연키; DART filing은 이 값이 없으므로
+    -- nullable. Postgres는 NULL을 서로 distinct로 취급하므로 여러 DART(NULL) row는
+    -- 이 UNIQUE에서 충돌하지 않고, SEC sec_accession_no끼리만 dedup된다. 이 UNIQUE가
+    -- ON CONFLICT (sec_accession_no) DO UPDATE의 inference target.
+    sec_accession_no text UNIQUE,
     filing_type text NOT NULL,
     title text NOT NULL,
     period text,
