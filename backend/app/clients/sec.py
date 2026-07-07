@@ -529,6 +529,23 @@ def search_company_matches(
     return [r for r in records if query_lower in r.title.lower()]
 
 
+def find_company_by_cik(
+    records: list[SecCompanyMatch], cik: str | int
+) -> SecCompanyMatch | None:
+    """Return the company_tickers record whose CIK matches ``cik``, or ``None``.
+
+    Unlike :func:`search_company_matches` (ticker/name substring), this is an
+    exact identity lookup: the SEC ingest path already knows the CIK and only
+    needs the display name/ticker. ``cik`` is normalized to the zero-padded
+    10-digit form before comparison, so a caller may pass ``320193`` or
+    ``"0000320193"``. ``None`` (rather than a raise) when the CIK is absent -- a
+    filer without a ticker is not in company_tickers.json, and the caller falls
+    back to a deterministic name rather than aborting. Pure -> unit-tested.
+    """
+    cik10 = format_cik(cik)
+    return next((r for r in records if r.cik == cik10), None)
+
+
 class SecClient:
     """Client for SEC EDGAR (https://data.sec.gov + https://www.sec.gov).
 
@@ -566,6 +583,18 @@ class SecClient:
         """
         records = await self._load_company_tickers()
         return search_company_matches(records, query)
+
+    async def resolve_company_by_cik(self, cik: str | int) -> SecCompanyMatch | None:
+        """Resolve a CIK to its company_tickers.json display name/ticker.
+
+        Reuses the same in-process cache as :meth:`search_company` (the mapping
+        is fetched at most once per client). Returns ``None`` when the CIK is not
+        in company_tickers (e.g. a filer with no ticker); the ingest caller then
+        supplies a deterministic fallback name rather than failing, because a
+        company's identity is its ``sec_cik`` natural key, not its display name.
+        """
+        records = await self._load_company_tickers()
+        return find_company_by_cik(records, cik)
 
     async def _load_company_tickers(self) -> list[SecCompanyMatch]:
         if self._ticker_cache is not None:

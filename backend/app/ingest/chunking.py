@@ -62,7 +62,10 @@ class Chunk:
 
     content: str
     chunk_index: int  # running index across the whole document (0..N-1)
-    rcept_no: str
+    # DART receipt number (which filing). None for SEC filings, which have no
+    # rcept_no -- their provenance rides on filing_id -> filings.sec_accession_no,
+    # so the accession is never mislabeled into this DART-specific field.
+    rcept_no: str | None
     section_title: str | None
     section_order: int  # source ProseSection.order
     part_index: int  # 0-based slice number *within* this section
@@ -147,7 +150,7 @@ def split_section(section: ProseSection) -> list[str]:
     return chunks
 
 
-def chunk_document(sections: list[ProseSection], rcept_no: str) -> list[Chunk]:
+def chunk_document(sections: list[ProseSection], rcept_no: str | None) -> list[Chunk]:
     """Turn a document's prose sections into ordered :class:`Chunk` records.
 
     Each section is split via :func:`split_section`; the document-wide
@@ -155,6 +158,10 @@ def chunk_document(sections: list[ProseSection], rcept_no: str) -> list[Chunk]:
     at 0 within each section. Empty-content sections (e.g. a title-only TOC header,
     or a shell whose prose lives in nested sub-sections) are skipped and logged --
     there is nothing to embed and we never invent content.
+
+    ``rcept_no`` is the DART receipt number; SEC callers pass ``None`` (SEC filings
+    have no rcept_no -- see :class:`Chunk`), and it flows through to the chunk's
+    citation anchor unchanged.
 
     Returns chunks ready for the NEXT step (embedding + ``filing_chunks`` load,
     docs §6); no embedding, DB write, or network call happens here. Pure ->
