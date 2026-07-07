@@ -38,11 +38,13 @@ body heading (see that function's docstring for the full rationale):
       spanning the most text wins -- the TOC entry spans only its own title, the
       body heading spans the whole section.
 
-Numbers: unlike DART's ``extract_dsd_prose`` this extractor does NOT drop tables
--- Item 7 (MD&A) is inherently narrative-about-numbers and the task scope is
-"strip tags to text". Numeric grounding remains enforced downstream (financials
-API is the sole source of numbers; number_guard/citation gating at generation
-time). This is an intentional, scoped difference from the DSD extractor.
+Numbers: like DART's ``extract_dsd_prose``, this extractor drops ``<table>``
+content entirely (nesting-aware). A raw financial table (e.g. Item 7's segment
+revenue breakdown) tag-strips into bare numbers with no sentence structure --
+ingesting that as "prose" contaminates chunks with ungrounded digits that
+number_guard then (correctly) blocks at answer time. Numbers stay sourced
+exclusively from the structured financials API; MD&A prose keeps only the
+narrative text around any tables.
 
 Design mirrors ``app.clients.dart`` / ``app.clients.sec``: pure functions
 (network-free, unit-tested directly) split from the (here, nonexistent) I/O.
@@ -69,11 +71,16 @@ class SecDocumentParseError(RuntimeError):
 # on both their start and end so tag-stripped text keeps its paragraph structure
 # (otherwise "Item 7.Management's Discussion" would fuse and headings would be
 # unfindable). Inline tags (<span>, <a>, <b>, <ix:nonNumeric>, ...) are NOT here
-# -- their text flows inline, which is what we want.
+# -- their text flows inline, which is what we want. ``table`` and its descendants
+# (thead/tbody/tr/td/th) are NOT here either -- ``table`` is handled separately by
+# :class:`_TextExtractor`'s dedicated skip-depth counter, which drops all table
+# content (see below); the descendant tags are kept in this set only as a
+# defensive fallback for a stray tag that shows up outside a ``<table>`` in
+# malformed markup.
 _BLOCK_TAGS = frozenset(
     {
         "p", "div", "br", "hr", "li", "ul", "ol",
-        "table", "thead", "tbody", "tr", "td", "th",
+        "thead", "tbody", "tr", "td", "th",
         "h1", "h2", "h3", "h4", "h5", "h6",
         "section", "article", "header", "footer", "blockquote",
     }
@@ -83,6 +90,10 @@ _BLOCK_TAGS = frozenset(
 # wraps inline-XBRL metadata (``ix:hidden``, ``ix:references``, ``ix:resources``)
 # that carries fact values never shown to a reader -- pulling it into prose would
 # inject stray numbers/identifiers. ``script``/``style`` are the usual noise.
+# ``table`` is handled by its own depth counter (:attr:`_TextExtractor._table_depth`)
+# rather than living here, because unlike these three it must still emit a single
+# paragraph-boundary newline around the dropped region (see ``handle_starttag``/
+# ``handle_endtag``) so prose immediately before/after a table doesn't fuse.
 _SKIP_CONTENT_TAGS = frozenset({"script", "style", "ix:header"})
 
 # How far past an ``Item N.`` match to look for the title word. Generous enough to
@@ -116,6 +127,14 @@ class _TextExtractor(HTMLParser):
     ``&nbsp;``, ``&#160;``) are already decoded when they reach
     :meth:`handle_data`. Content inside :data:`_SKIP_CONTENT_TAGS` is dropped via
     a small depth counter so nested same-name tags close correctly.
+
+    ``<table>`` content is dropped the same way, via its own ``_table_depth``
+    counter rather than reusing ``_skip_depth`` -- a nested ``<table>`` must
+    still increment/decrement independently of any ``script``/``style``/
+    ``ix:header`` skip in effect, and unlike those three, entering/leaving a
+    table also emits one paragraph-boundary newline (only at depth 0->1 /
+    1->0) so prose immediately before and after a stripped table doesn't fuse
+    into a single run-on line.
     """
 
     def __init__(self) -> None:
@@ -123,6 +142,7 @@ class _TextExtractor(HTMLParser):
         self._parts: list[str] = []
         self._skip_tag: str | None = None
         self._skip_depth = 0
+        self._table_depth = 0
 
     def handle_starttag(self, tag: str, attrs: object) -> None:
         if self._skip_depth:
@@ -132,6 +152,13 @@ class _TextExtractor(HTMLParser):
         if tag in _SKIP_CONTENT_TAGS:
             self._skip_tag = tag
             self._skip_depth = 1
+            return
+        if tag == "table":
+            self._table_depth += 1
+            if self._table_depth == 1:
+                self._parts.append("\n")
+            return
+        if self._table_depth:
             return
         if tag in _BLOCK_TAGS:
             self._parts.append("\n")
@@ -143,11 +170,19 @@ class _TextExtractor(HTMLParser):
                 if self._skip_depth == 0:
                     self._skip_tag = None
             return
+        if tag == "table":
+            if self._table_depth:
+                self._table_depth -= 1
+                if self._table_depth == 0:
+                    self._parts.append("\n")
+            return
+        if self._table_depth:
+            return
         if tag in _BLOCK_TAGS:
             self._parts.append("\n")
 
     def handle_data(self, data: str) -> None:
-        if self._skip_depth:
+        if self._skip_depth or self._table_depth:
             return
         self._parts.append(data)
 

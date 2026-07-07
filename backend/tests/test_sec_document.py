@@ -94,8 +94,20 @@ _BIZ_SENTINEL = "BUSINESSBODYSENTINEL"
 _BIZ_TAIL_SENTINEL = "BUSINESSTAILSENTINEL"  # sits AFTER the forward cross-ref
 _RISK_SENTINEL = "RISKFACTORSSENTINEL"
 _MDNA_SENTINEL = "MDNABODYSENTINEL"
+_MDNA_TAIL_SENTINEL = "MDNATAILSENTINEL"  # sits AFTER the financial table
 _MKT_SENTINEL = "MARKETRISKSENTINEL"
 _HIDDEN_NOISE = "999888777666"
+
+# Realistic MD&A segment-revenue table numbers -- these must never survive into
+# extracted prose (this is the live-verified bug: raw table digits leaking into
+# a chunk, then correctly blocked downstream by number_guard on contaminated
+# input). "(7) %" / "14 %" mirror the real leaked chunk's percent-change cells.
+_TABLE_PRODUCTS_NET = "309,845"
+_TABLE_PRODUCTS_PRIOR = "333,845"
+_TABLE_SERVICES_NET = "109,158"
+_TABLE_SERVICES_PRIOR = "96,169"
+_TABLE_PRODUCTS_PCT = "(7) %"
+_TABLE_SERVICES_PCT = "14 %"
 
 # Filler long enough that each item body clears the 500-char fail-loud floor.
 _FILLER = (
@@ -161,6 +173,17 @@ def _build_10k_html(
             "<p><b>Item 7.</b> Management&#8217;s Discussion and Analysis of "
             "Financial Condition and Results of Operations</p>",
             f"<p>{_MDNA_SENTINEL} {_FILLER} {_FILLER}</p>",
+            "<p>The following table summarizes net sales by reportable segment "
+            "for fiscal 2023 and 2022 (in millions, except percentages):</p>",
+            "<table><thead><tr><th>Segment</th><th>2023</th><th>% Change</th>"
+            "<th>2022</th></tr></thead><tbody>"
+            f"<tr><td>Products</td><td>{_TABLE_PRODUCTS_NET}</td>"
+            f"<td>{_TABLE_PRODUCTS_PCT}</td><td>{_TABLE_PRODUCTS_PRIOR}</td></tr>"
+            f"<tr><td>Services</td><td>{_TABLE_SERVICES_NET}</td>"
+            f"<td>{_TABLE_SERVICES_PCT}</td><td>{_TABLE_SERVICES_PRIOR}</td></tr>"
+            "</tbody></table>",
+            f"<p>{_MDNA_TAIL_SENTINEL} follows the segment table with further "
+            "narrative discussion of the drivers behind the change.</p>",
             # Backward cross-reference to Item 1 (period + title), inside Item 7.
             "<p>As described in Part I, Item 1. Business, of this report, demand "
             "remained strong across product categories.</p>",
@@ -218,6 +241,47 @@ def test_extract_10k_item7_body_and_boundary() -> None:
     # Ends at Item 7A -- Market Risk / Item 8 text excluded.
     assert _MKT_SENTINEL not in item7.content
     assert "consolidated financial statements" not in item7.content
+
+
+def test_extract_10k_item7_table_numbers_stripped_prose_intact() -> None:
+    # Live-verified bug: a raw MD&A financial table tag-strips into bare numbers
+    # with no sentence structure, contaminating the chunk (number_guard then
+    # correctly blocks queries retrieving it). Table cells must never leak...
+    item7 = extract_10k_prose(_build_10k_html())[1]
+    for leaked in (
+        _TABLE_PRODUCTS_NET,
+        _TABLE_PRODUCTS_PRIOR,
+        _TABLE_SERVICES_NET,
+        _TABLE_SERVICES_PRIOR,
+        _TABLE_PRODUCTS_PCT,
+        _TABLE_SERVICES_PCT,
+    ):
+        assert leaked not in item7.content
+    # ...but the narrative prose immediately before AND after the stripped
+    # table survives, and the two don't fuse into one run-on line.
+    assert _MDNA_SENTINEL in item7.content
+    assert _MDNA_TAIL_SENTINEL in item7.content
+    assert "following table summarizes net sales" in item7.content
+    assert "further narrative discussion" in item7.content
+
+
+def test_html_to_text_strips_nested_tables_and_keeps_surrounding_prose() -> None:
+    # Nesting-aware: the inner </table> must not stop the skip early (which
+    # would let "222,222" and the tail of the outer row leak through), and the
+    # outer </table> must resume normal text collection afterward.
+    html = (
+        "<p>Before table.</p>"
+        "<table><tr><td>Outer 111,111"
+        "<table><tr><td>Inner 222,222</td></tr></table>"
+        "trailing outer cell text</td></tr></table>"
+        "<p>After table.</p>"
+    )
+    text = _html_to_text(html)
+    assert "111,111" not in text
+    assert "222,222" not in text
+    assert "trailing outer cell text" not in text
+    assert "Before table." in text
+    assert "After table." in text
 
 
 def test_extract_10k_toc_links_not_mistaken_for_headings() -> None:
