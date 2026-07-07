@@ -1,11 +1,13 @@
 # filing-digest
 
 A bilingual (KO/EN), citation-grounded digest & Q&A service for corporate
-filings. Korean disclosures via DART OpenAPI are live; SEC EDGAR (US filings)
-is planned (client stubbed, not yet wired to real HTTP calls).
+filings. Dual-source and live end-to-end: Korean disclosures via DART OpenAPI
+and US filings via SEC EDGAR. The corpus currently holds Samsung Electronics'
+2023 annual report (DART) and Apple's FY2025 10-K (SEC, accession
+`0000320193-25-000079`).
 
 > **Core principle:** every financial figure comes exclusively from a
-> structured filing API (DART today, SEC planned) — never from the LLM. The
+> structured filing API (DART, SEC) — never from the LLM. The
 > LLM writes narrative prose only, and every prose claim carries a citation
 > anchor back to a retrieved chunk. This isn't just a prompting convention:
 > it's enforced at runtime by deterministic guards that inspect every LLM
@@ -30,8 +32,9 @@ SwiftUI (iOS 17+, zero 3rd-party deps) → FastAPI (Python 3.11) → PostgreSQL 
 - **DART client** (`backend/app/clients/dart.py`, ~1160 lines): live,
   response formats verified against the real API
   (see `docs/dart-api-notes.md`).
-- **SEC client** (`backend/app/clients/sec.py`): stub — every method raises
-  `NotImplementedError` pending Phase 2.
+- **SEC client** (`backend/app/clients/sec.py`, `sec_document.py`): live —
+  submissions + companyfacts APIs, and Item 1/Item 7 10-K prose extraction
+  (see [SEC ingest](#sec-ingest) below).
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system diagram,
 decision log, and DB schema.
@@ -44,7 +47,7 @@ caught mechanically, not by asking the model nicely twice.
 
 | Guard | File | What it does |
 |---|---|---|
-| Number guard | `backend/app/llm/number_guard.py` | Scans narrated prose (NFKC-normalized) for suffix-anchored currency (`원`), percentage (`%`), and multiple (`배`) tokens. Never scans citation ids. |
+| Number guard | `backend/app/llm/number_guard.py` | Scans narrated prose (NFKC-normalized) for suffix-anchored currency (`원`), percentage (`%`), and multiple (`배`) tokens — plus English equivalents: `$` amounts, currency words/codes (`dollars`, `USD`/`KRW`/`EUR`), and `x`/`times` multipliers. Never scans citation ids. |
 | Citation guard | `backend/app/llm/citation_guard.py` | Flags any citation id not in the actually-retrieved chunk set (`"unknown"`, real hallucination) and any segment with no citation at all (`"empty"`, nothing groundable). |
 | Digest bare-digit floor | `backend/app/digest_narrative.py` (`_ANY_DIGIT_RE`, lines 70, 190–195) | Stricter than the number guard: rejects *any* digit in a generated `/digest` summary — bare counts, years, `$` amounts — since a digest summary must be fully qualitative. |
 
@@ -61,6 +64,22 @@ These guards drive a 3-state `narrative_status` on `POST /answer`
 `blocked`-by-default is the design goal: suppressing an ungrounded or
 number-bearing sentence is treated as success, not failure, since `figures`
 never depends on the LLM.
+
+10-K prose extraction (`backend/app/clients/sec_document.py`) strips
+`<table>` content entirely before chunking, so financial tables never reach
+the guards or the retrieval corpus as narrated text — only clean prose is
+indexed.
+
+## SEC ingest
+
+`backend/app/ingest/sec_ingest.py` orchestrates a 10-K end-to-end: SEC's
+`submissions` API lists filings and `companyfacts` supplies structured
+financials, then `sec_document.py` extracts Item 1/Item 7 prose for chunking
+and embedding. SEC's `fy` field describes the *filing's* period, not
+necessarily the period each individual fact covers, so fiscal year is
+derived from each fact's own `period_end` instead of trusted from `fy`
+directly. Filings upsert idempotently on `sec_accession_no` (`filings` table,
+`backend/db/init.sql:33`), mirroring the DART path's conflict key.
 
 ## API surface
 
@@ -81,10 +100,9 @@ top-level keys: `answer`, `figures`, `citations`, `company_id`,
 
 ## Demo script
 
-Three `curl` calls against a locally running backend (`127.0.0.1:8001`),
-each landing in a different `narrative_status`. The corpus currently holds a
-single company/filing (Samsung Electronics' 2023 annual report), so look up
-its `company_id` first:
+Four `curl` calls against a locally running backend (`127.0.0.1:8001`): three
+DART-sourced calls each landing in a different `narrative_status`, plus one
+SEC-sourced call. Look up a company's `company_id` first:
 
 ```bash
 curl -s "http://127.0.0.1:8001/companies?q=samsung"
@@ -122,6 +140,16 @@ curl -s -X POST http://127.0.0.1:8001/answer \
 # expected: narrative_status = "no_results"
 ```
 
+**4. SEC source** — a business-overview question against Apple's FY2025
+10-K (cross-lingual: English filing, Korean narrative):
+
+```bash
+curl -s -X POST http://127.0.0.1:8001/answer \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Tell me about Apple services business", "company_id": "<apple_company_id>"}'
+# expected: narrative_status = "ok"
+```
+
 ## Screenshots
 
 | Search | Digest | Answer | Figures & Sources |
@@ -129,10 +157,15 @@ curl -s -X POST http://127.0.0.1:8001/answer \
 | <img src="docs/screenshots/search.png" width="220"> | <img src="docs/screenshots/digest.png" width="220"> | <img src="docs/screenshots/answer_ok.png" width="220"> | <img src="docs/screenshots/answer_figures.png" width="220"> |
 | Company lookup via DART | Structured figures + guarded KO/EN summary | Citation-anchored narrative segments | Numbers exclusively from the structured filing track, with citation |
 
+| SEC search | SEC digest |
+|---|---|
+| <img src="docs/screenshots/search_sec.png" width="220"> | <img src="docs/screenshots/digest_sec.png" width="220"> |
+| SEC source badge, zero iOS changes | Korean summary generated from an English 10-K — cross-lingual retrieval |
+
 ## Known Limitations
 
-- **Single-company, single-filing corpus** — Samsung Electronics' 2023
-  annual report only. No multi-year comparison, no SEC filings ingested yet.
+- **Two companies, one filing each** — Samsung Electronics' 2023 annual
+  report (DART) and Apple's FY2025 10-K (SEC). No multi-year comparison yet.
 - **Nonexistent-year queries can land in either `blocked` or `no_results`**,
   depending on whether the LLM's refusal states a bare number without a
   citation, or omits citations entirely — the guards are deterministic, but
@@ -144,9 +177,10 @@ curl -s -X POST http://127.0.0.1:8001/answer \
 - **`POST /ingest` is a stub** (`backend/app/api/routes.py:213-227`) —
   accepts and logs a job id, but there's no worker; ingestion is manual.
 - **iOS citation chips use a plain `HStack`** with no wrapping
-  (`ios/FilingDigest/Views/AnswerView.swift:273`) — fine for a single-filing
-  corpus, will need a wrapping layout once answers routinely cite multiple
-  filings (e.g. after SEC ingestion).
+  (`ios/FilingDigest/Views/AnswerView.swift:273`) — fine as long as each
+  company has one filing (still true after SEC ingestion), will need a
+  wrapping layout once a company has multiple filings and answers routinely
+  cite more than one.
 
 ## Stack & tests
 
@@ -155,7 +189,7 @@ curl -s -X POST http://127.0.0.1:8001/answer \
   loader). Version ranges pinned in `backend/requirements.txt`.
 - **iOS**: SwiftUI, iOS 17.0 deployment target, Swift Testing (`import
   Testing`, no XCTest), zero third-party dependencies.
-- **Tests**: 226 offline backend tests (`pytest --collect-only -q`), plus
+- **Tests**: 339 offline backend tests (`pytest --collect-only -q`), plus
   `ios/FilingDigestTests/FilingDigestTests.swift` covering JSON decoding and
   request construction.
 
@@ -186,7 +220,7 @@ cp backend/.env.example backend/.env   # fill in DART_API_KEY, etc.
 |----------|---------|-------|
 | `DART_API_KEY` | (none) | Secret — never commit a real key. |
 | `DART_BASE_URL` | `https://opendart.fss.or.kr/api` | |
-| `SEC_BASE_URL` | `https://data.sec.gov` | Unused until the SEC client is implemented. |
+| `SEC_BASE_URL` | `https://data.sec.gov` | |
 | `SEC_USER_AGENT` | placeholder | SEC requires a User-Agent with contact info. |
 | `DATABASE_URL` | `postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5433/filing_digest` | psycopg3 driver; port 5433 is this project's fixed host port. |
 | `EMBEDDING_DIM` | `1024` | KURE-v1 dense dimension. |

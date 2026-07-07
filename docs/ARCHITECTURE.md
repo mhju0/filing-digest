@@ -27,7 +27,7 @@
 │  │ (real reads) │   │ job queue     │   │ (KURE-v1 + Solar)  │  │
 │  └─────────────┘   └──────────────┘   └───────────────────┘  │
 └───────┬──────────────────────┬────────────────────────────────┘
-        │ SQLAlchemy 2.x       │  Phase 2: httpx
+        │ SQLAlchemy 2.x       │  httpx (async)
         │ (psycopg3)           ▼
         ▼               ┌─────────────────┐  ┌─────────────────┐
 ┌────────────────┐      │  DART Open API   │  │  SEC EDGAR API   │
@@ -39,11 +39,12 @@
 └────────────────┘
 ```
 
-- **현재**: DART 실호출 연동됨(`backend/app/clients/dart.py`), `/companies`·
-  `/companies/{id}/digest`·`/search`·`/answer`는 실제 DB(`companies`,
-  `filings`, `filing_chunks`, `financials`)를 읽는다. SEC는 아직 스텁
-  (`backend/app/clients/sec.py`, 메서드 전부 `NotImplementedError`)이다.
-- **Phase 2**: SEC 실연동, 파싱/청킹 자동화, 벡터 인덱스 튜닝.
+- **현재**: DART·SEC 둘 다 실호출 연동됨(`backend/app/clients/dart.py`,
+  `backend/app/clients/sec.py`, `sec_document.py`, `backend/app/ingest/sec_ingest.py`).
+  `/companies`·`/companies/{id}/digest`·`/search`·`/answer`는 실제 DB(`companies`,
+  `filings`, `filing_chunks`, `financials`)를 읽는다. `filings.sec_accession_no`가
+  SEC 쪽 idempotent upsert 자연키다.
+- **Phase 2**: 파싱/청킹 자동화, 벡터 인덱스 튜닝, 멀티필링/멀티이어 확장.
 
 ## 2. 모노레포 구조 (Monorepo Layout)
 
@@ -82,10 +83,10 @@ filing-digest/
 |---|------|------|------|
 | D1 | **Alembic 대신 `backend/db/init.sql` 단일 스크립트 채택** | [Verified] | v0.1은 테이블 4개(companies, filings, filing_chunks, financials)뿐이고 운영 데이터가 없어 마이그레이션 이력 관리가 불필요. `docker-entrypoint-initdb.d`에 read-only 마운트하면 compose up만으로 재현 가능한 스키마가 보장된다. 스키마가 진화하기 시작하는 Phase 2에서 Alembic 도입을 재검토한다. |
 | D2 | **pgvector embedding 차원 1024** | [Verified] | 임베딩 모델을 KURE-v1(nlpai-lab/KURE-v1)로 확정. dense 차원은 HuggingFace `config.json`의 `hidden_size=1024`(bge-m3 기반 XLM-RoBERTa) 및 `1_Pooling/config.json`의 `word_embedding_dimension=1024`로 교차 확인. `EMBEDDING_DIM` 환경변수(default 1024)와 `filing_chunks.embedding vector(1024)`에 반영. |
-| D3 | **DART/SEC 실제 응답 포맷** | DART [Verified] / SEC [Unknown] | DART는 실호출로 확인 완료(`docs/dart-api-notes.md`). SEC는 `SecClient`가 아직 스텁(`NotImplementedError`)이라 미확인. `SEC_BASE_URL`/`SEC_USER_AGENT`만 설정으로 예약해 둔다. (SEC는 연락처 포함 User-Agent를 요구 - placeholder만 커밋) |
+| D3 | **DART/SEC 실제 응답 포맷** | [Verified] | DART는 실호출로 확인 완료(`docs/dart-api-notes.md`). SEC도 `SecClient`(submissions + companyfacts)로 실호출 검증 완료 — Apple(CIK 320193, accession `0000320193-25-000079`) 10-K로 라이브 검증(`backend/app/ingest/sec_ingest.py`). SEC `fy`는 필링의 기간을 나타낼 뿐 팩트 자체의 기간이 아니므로, `fiscal_year`는 각 팩트의 `period_end`에서 유도한다. |
 | D4 | **psycopg3 선택** (`postgresql+psycopg://` 드라이버) | [Verified] | psycopg2는 유지보수 모드, psycopg3(패키지명 `psycopg`)가 현행 권장 드라이버이며 SQLAlchemy 2.x가 `postgresql+psycopg` dialect로 공식 지원. `DATABASE_URL` 기본값과 docker-compose의 접속 문자열에 반영됨. |
 | D5 | **iOS 17 타깃 + 서드파티 의존성 없음** | [Verified] | SwiftUI + URLSession + Codable(async/await)만으로 v0.1 API 소비가 충분하다. 의존성 0개는 빌드 재현성과 리뷰 범위를 최소화한다. 기본 baseURL은 `http://127.0.0.1:8001` (시뮬레이터 로컬 개발). |
-| D6 | **초기 데이터 범위: 삼성전자 단일 기업/공시** | [Verified] | 삼성전자(dart, KOSPI, 005930) 2023년 사업보고서 하나만 적재된 상태로 시작. DART 실연동 경로를 최소 셋으로 검증한다. `/digest`·`/answer`는 이제 실제 DB(`financials`, `filing_chunks`)를 읽고, 모든 `MetricCard.value`는 `citation_id`로 실제 `Citation`(원본 공시)과 연결된다(핵심 원칙 강제). SEC/Apple 등 두 번째 소스는 Phase 2. |
+| D6 | **초기 데이터 범위: 기업당 단일 공시, 소스 2개** | [Verified] | 삼성전자(dart, KOSPI, 005930) 2023년 사업보고서 + Apple(sec, CIK 320193) FY2025 10-K(accession `0000320193-25-000079`), 각 기업당 공시 1건씩 적재된 상태. DART·SEC 실연동 경로를 모두 검증한다. `/digest`·`/answer`는 실제 DB(`financials`, `filing_chunks`)를 읽고, 모든 `MetricCard.value`는 `citation_id`로 실제 `Citation`(원본 공시)과 연결된다(핵심 원칙 강제). 멀티필링/멀티이어 확장은 Phase 2. |
 | D7 | **API CONTRACT v0.1 고정** (아래 5절 전문) | [Verified] | backend·iOS가 병렬 개발되므로 계약을 먼저 동결. JSON 필드는 snake_case. |
 | D8 | **벡터 인덱스(hnsw/ivfflat) 미생성** | [Verified] | 실데이터가 없어 인덱스 파라미터 튜닝이 불가능. init.sql에 Phase 2 TODO 주석으로만 남긴다. |
 | D9 | **`filing_chunks`의 메타데이터 컬럼명은 `meta`** | [Verified] | `metadata`는 SQLAlchemy Declarative의 예약 속성명(`Base.metadata`)이라 충돌한다. 컬럼명 자체를 `meta`(jsonb)로 통일. |
@@ -145,7 +146,8 @@ pg16 내장 `gen_random_uuid()` 사용)
 - **companies**: id(uuid PK), name, name_en, ticker, market, source(`dart|sec` CHECK),
   dart_corp_code UNIQUE, sec_cik UNIQUE, created_at
 - **filings**: id(uuid PK), company_id FK→companies ON DELETE CASCADE, source, filing_type,
-  title, period, filed_at(date), url, created_at; `idx_filings_company` 인덱스
+  title, period, filed_at(date), url, sec_accession_no(text, UNIQUE — SEC 쪽 idempotent
+  upsert 자연키), created_at; `idx_filings_company` 인덱스
 - **filing_chunks**: id(uuid PK), filing_id FK→filings ON DELETE CASCADE, chunk_index,
   content, embedding `vector(1024)` [Verified - D2], meta(jsonb, `metadata`는 예약어라 회피 - D9),
   created_at; UNIQUE(filing_id, chunk_index)
@@ -156,9 +158,8 @@ pg16 내장 `gen_random_uuid()` 사용)
 
 ## 7. Phase 2 TODO
 
-- [ ] **DART/SEC 실연동**: httpx 기반 클라이언트, 응답 포맷 실측·확정(D3 해소), 레이트리밋·재시도 처리
-- [ ] **파싱/청킹(parsing/chunking)**: 공시 원문(XBRL/HTML) 파싱 → `filing_chunks` 적재 파이프라인
-- [ ] **임베딩 + RAG**: 임베딩 모델 확정(D2 해소, `EMBEDDING_DIM` 재조정 가능) → pgvector 유사도 검색 기반 근거 검색
-- [ ] **LLM 요약 파이프라인**: 구조화 수치 + 검색된 청크만을 컨텍스트로 서술 생성, 인용 강제(핵심 원칙 유지)
+- [x] **DART/SEC 실연동**: httpx 기반 클라이언트, 응답 포맷 실측·확정(D3 해소), Apple 10-K 라이브 검증 완료
+- [ ] **멀티필링/멀티이어 확장**: 기업당 공시 1건 제약 해소, 연도 비교 지원
+- [ ] **파싱/청킹(parsing/chunking) 자동화**: 현재는 수동 ingest, 스케줄링/큐 기반 자동화 파이프라인
 - [ ] **벡터 인덱스 튜닝**: 실데이터 규모 확인 후 hnsw/ivfflat 인덱스 생성·파라미터 튜닝 (D8)
 - [ ] (부수) Alembic 도입 재검토(D1), ingest 잡의 실제 비동기 처리(큐/워커)
