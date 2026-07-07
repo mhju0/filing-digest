@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Company as CompanyModel
 from app.db.models import Filing as FilingModel
+from app.db.models import Financial
 from app.db.session import get_db_session
 from app.digest_narrative import DigestNarrativeError, build_company_summary
 from app.figures.service import build_figures, fetch_financials
@@ -114,6 +115,53 @@ def select_target_period(periods: Iterable[str]) -> str:
     return max(periods, default="")
 
 
+def select_previous_period(periods: Iterable[str], target_period: str) -> str | None:
+    """Deterministic "previous year" period pick for YoY comparison.
+
+    Same lexicographic-max logic as :func:`select_target_period`, applied to
+    every period except ``target_period`` itself. ``None`` when no other
+    period exists (e.g. Samsung's single ingested fiscal year) -- callers
+    treat that as "nothing to compare against" rather than raising. Pure --
+    unit-tested offline.
+    """
+    others = [p for p in periods if p != target_period]
+    return max(others, default=None)
+
+
+def compute_yoy_deltas(
+    rows: Sequence[Financial], target_period: str, previous_period: str | None
+) -> dict[str, float | None]:
+    """YoY %% change per metric, ``target_period`` vs ``previous_period``.
+
+    One entry per metric present in ``target_period``. A metric is ``None``
+    rather than raising when: there is no ``previous_period``, the previous
+    period has no row for that metric, or the previous value is ``<= 0``
+    (division-by-zero / sign-flip guard -- a negative-to-positive swing has no
+    meaningful percentage). Pure given already-fetched ORM rows -- unit-tested
+    offline.
+    """
+    target_metrics = {row.metric for row in rows if row.period == target_period}
+    if previous_period is None:
+        return dict.fromkeys(target_metrics)
+
+    current_by_metric = {
+        row.metric: row.value for row in rows if row.period == target_period
+    }
+    previous_by_metric = {
+        row.metric: row.value for row in rows if row.period == previous_period
+    }
+
+    deltas: dict[str, float | None] = {}
+    for metric in target_metrics:
+        previous_value = previous_by_metric.get(metric)
+        if previous_value is None or previous_value <= 0:
+            deltas[metric] = None
+            continue
+        current_value = current_by_metric[metric]
+        deltas[metric] = float((current_value - previous_value) / previous_value * 100)
+    return deltas
+
+
 def select_latest_filing_id(
     filing_ids: set[uuid.UUID], filings: Sequence[FilingModel]
 ) -> uuid.UUID:
@@ -152,8 +200,10 @@ async def get_company_digest(
     network error degrades to null summaries rather than breaking the response
     (the figures track is always authoritative -- mirrors /answer's graceful
     ``blocked`` path); a retrieval/embedding failure still propagates, same as
-    /search and /answer. ``yoy_delta_pct`` is None because only a single period
-    is stored, so there is nothing to compare against.
+    /search and /answer. ``yoy_delta_pct`` is computed against the
+    lexicographically next-highest period (see :func:`select_previous_period`
+    / :func:`compute_yoy_deltas`) and is None when no other period is stored
+    (single-filing companies) or the prior value is missing/``<= 0``.
 
     Multi-filing companies (e.g. 3 ingested fiscal years) can have several
     ``period`` values in ``financials``; the digest deterministically picks the
@@ -178,6 +228,10 @@ async def get_company_digest(
 
     rows = await fetch_financials(session, company_id=company_uuid)
     target_period = select_target_period(row.period for row in rows)
+    previous_period = select_previous_period(
+        (row.period for row in rows), target_period
+    )
+    yoy_deltas = compute_yoy_deltas(rows, target_period, previous_period)
     period_rows = [row for row in rows if row.period == target_period]
     by_metric = {row.metric: row for row in period_rows}
 
@@ -188,7 +242,7 @@ async def get_company_digest(
             label_en=labels["en"],
             value=float(row.value),
             unit=row.unit,
-            yoy_delta_pct=None,
+            yoy_delta_pct=yoy_deltas.get(key),
             source=row.source,
             citation_id=str(row.filing_id) if row.filing_id else None,
         )
