@@ -1,21 +1,27 @@
 """Offline tests for the pure layer of app.search.service (no DB, no model load).
 
-The impure half (search_chunks: embed_texts + pgvector query) is covered by the
-live end-to-end verification, not here. What is unit-tested is score conversion,
-top_k clamping, and row -> SearchResult assembly, all pure.
+The impure half (search_chunks: embed_texts + pgvector query) is mostly covered
+by the live end-to-end verification, not here -- except for the new
+``filing_id`` filter, whose WHERE-clause wiring is cheap to check offline by
+compiling the built statement against a fake in-memory session (same pattern
+as test_persist.py's ``_FakeUpsertSession``). What is otherwise unit-tested is
+score conversion, top_k clamping, and row -> SearchResult assembly, all pure.
 """
 
+import asyncio
 import uuid
 from types import SimpleNamespace
 
 import pytest
 
+import app.search.service as search_service
 from app.search.constants import MAX_TOP_K
 from app.search.service import (
     SearchResult,
     _distance_to_similarity,
     _row_to_result,
     clamp_top_k,
+    search_chunks,
 )
 
 _CHUNK_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")
@@ -100,3 +106,44 @@ def test_row_to_result_tolerates_missing_meta_keys() -> None:
 def test_row_to_result_tolerates_none_meta() -> None:
     result = _row_to_result(_row(meta=None))
     assert result.rcept_no is None
+
+
+# -- search_chunks's filing_id filter (additive; WHERE-clause wiring only) ------
+
+
+class _FakeSearchResult:
+    def all(self):
+        return []
+
+
+class _FakeSearchSession:
+    """Captures the compiled statement instead of touching a real DB."""
+
+    def __init__(self) -> None:
+        self.stmt = None
+
+    async def execute(self, stmt):
+        self.stmt = stmt
+        return _FakeSearchResult()
+
+
+def test_search_chunks_filing_id_filter_adds_where_clause(monkeypatch) -> None:
+    monkeypatch.setattr(search_service, "embed_texts", lambda texts: [[0.1, 0.2]])
+    session = _FakeSearchSession()
+    target = uuid.uuid4()
+
+    asyncio.run(search_chunks(session, query="q", filing_id=target))
+
+    compiled = session.stmt.compile()
+    assert "filing_chunks.filing_id = " in compiled.string
+    assert compiled.params["filing_id_1"] == target
+
+
+def test_search_chunks_without_filing_id_preserves_prior_behavior(monkeypatch) -> None:
+    monkeypatch.setattr(search_service, "embed_texts", lambda texts: [[0.1, 0.2]])
+    session = _FakeSearchSession()
+
+    asyncio.run(search_chunks(session, query="q"))
+
+    compiled = session.stmt.compile()
+    assert "filing_chunks.filing_id = " not in compiled.string

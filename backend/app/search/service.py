@@ -17,7 +17,8 @@ Design:
 - **``top_k`` is capped** at :data:`MAX_TOP_K` so a caller can't force an
   unbounded table scan/sort.
 - **``company_id`` scoping joins through ``filings``** (chunks have no
-  ``company_id`` of their own). Period/source scoping is deliberately NOT
+  ``company_id`` of their own). ``filing_id`` scoping (below) is a direct
+  column filter, no join needed. Period/source scoping is deliberately NOT
   implemented yet -- see the TODO in :func:`search_chunks`.
 - Row -> :class:`SearchResult` assembly is a pure function
   (:func:`_row_to_result`), unit-tested without a DB (implement-step pattern:
@@ -114,6 +115,7 @@ async def search_chunks(
     query: str,
     top_k: int = DEFAULT_TOP_K,
     company_id: uuid.UUID | None = None,
+    filing_id: uuid.UUID | None = None,
 ) -> list[SearchResult]:
     """Semantic search over ``filing_chunks`` for the ``top_k`` nearest to ``query``.
 
@@ -125,7 +127,12 @@ async def search_chunks(
 
     ``company_id``, if given, scopes results to that company's filings (a join
     through ``filings``); a company with no chunks (or an unknown id) yields
-    ``[]`` rather than an error.
+    ``[]`` rather than an error. ``filing_id``, if given, additionally scopes
+    results to that one filing (a direct column filter -- chunks already carry
+    their own ``filing_id``, no join needed); this is what lets a caller (e.g.
+    the digest narrative) pin retrieval to one specific filing instead of a
+    company's whole chunk corpus. ``None`` (the default for both) preserves the
+    exact prior behavior -- ``/search`` never passes ``filing_id``.
 
     TODO(Phase 2): period (e.g. fiscal year/quarter) and source (dart/sec)
     filters -- not implemented this step; ``filings.period``/``filings.source``
@@ -152,14 +159,17 @@ async def search_chunks(
         stmt = stmt.join(Filing, Filing.id == FilingChunk.filing_id).where(
             Filing.company_id == company_id
         )
+    if filing_id is not None:
+        stmt = stmt.where(FilingChunk.filing_id == filing_id)
 
     rows = (await session.execute(stmt)).all()
     results = [_row_to_result(row) for row in rows]
     logger.info(
-        "search_chunks: query=%r top_k=%d company_id=%s -> %d result(s)",
+        "search_chunks: query=%r top_k=%d company_id=%s filing_id=%s -> %d result(s)",
         query,
         k,
         company_id,
+        filing_id,
         len(results),
     )
     return results

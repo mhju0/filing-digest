@@ -7,6 +7,7 @@ the LLM narrates only; every claim carries a citation.
 import logging
 import uuid
 from datetime import datetime, timezone
+from typing import Iterable, Sequence
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -100,6 +101,37 @@ _DIGEST_METRIC_LABELS: dict[str, dict[str, str]] = {
 }
 
 
+def select_target_period(periods: Iterable[str]) -> str:
+    """Deterministic "latest" period pick from a company's financials rows.
+
+    ``financials.period`` strings share a ``"YYYY-<suffix>"`` shape (e.g.
+    ``"2024-annual"`` from both ``persist.py`` and ``sec_ingest.py``), so the
+    year prefix dominates lexicographic comparison -- ``max()`` reliably picks
+    the highest fiscal year regardless of which source (dart/sec) produced
+    each row. Empty input yields ``""`` (a company with no financials yet).
+    Pure -- unit-tested offline.
+    """
+    return max(periods, default="")
+
+
+def select_latest_filing_id(
+    filing_ids: set[uuid.UUID], filings: Sequence[FilingModel]
+) -> uuid.UUID:
+    """Pick ONE filing id to anchor the target period's narrative/cache key.
+
+    Normally exactly one filing backs a period's financials rows, returned
+    directly. If more than one appears (unexpected: the target period's own
+    rows disagree on their source filing), never silently guess -- pick
+    deterministically by ``filed_at`` DESC (a filing with no parseable date
+    sorts last, mirroring ``sec_ingest.select_target_filing``); the caller logs
+    this branch. Pure given already-fetched ORM rows -- unit-tested offline.
+    """
+    if len(filing_ids) == 1:
+        return next(iter(filing_ids))
+    dated = [f for f in filings if f.filed_at is not None]
+    return (max(dated, key=lambda f: f.filed_at) if dated else filings[0]).id
+
+
 @router.get("/companies/{company_id}/digest", response_model=CompanyDigest)
 async def get_company_digest(
     company_id: str,
@@ -122,6 +154,12 @@ async def get_company_digest(
     ``blocked`` path); a retrieval/embedding failure still propagates, same as
     /search and /answer. ``yoy_delta_pct`` is None because only a single period
     is stored, so there is nothing to compare against.
+
+    Multi-filing companies (e.g. 3 ingested fiscal years) can have several
+    ``period`` values in ``financials``; the digest deterministically picks the
+    lexicographically MAX period (``"YYYY-annual"`` / ``"YYYY-Q1"`` etc. sort
+    correctly by year prefix) as "latest" and scopes metrics/period
+    label/citations/narrative to that period only -- never an unordered DB scan.
     """
     try:
         company_uuid = uuid.UUID(company_id)
@@ -139,7 +177,9 @@ async def get_company_digest(
         raise HTTPException(status_code=404, detail="company not found")
 
     rows = await fetch_financials(session, company_id=company_uuid)
-    by_metric = {row.metric: row for row in rows}
+    target_period = select_target_period(row.period for row in rows)
+    period_rows = [row for row in rows if row.period == target_period]
+    by_metric = {row.metric: row for row in period_rows}
 
     metrics = [
         MetricCard(
@@ -156,9 +196,10 @@ async def get_company_digest(
         if (row := by_metric.get(key)) is not None
     ]
 
-    # One Citation per filing referenced by the stored financials.
-    filing_ids = {row.filing_id for row in rows if row.filing_id is not None}
+    # One Citation per filing referenced by the target period's financials.
+    filing_ids = {row.filing_id for row in period_rows if row.filing_id is not None}
     citations: list[Citation] = []
+    latest_filing_id: uuid.UUID | None = None
     if filing_ids:
         filings = (
             await session.execute(
@@ -176,6 +217,16 @@ async def get_company_digest(
             )
             for f in filings
         ]
+        latest_filing_id = select_latest_filing_id(filing_ids, filings)
+        if len(filing_ids) > 1:
+            logger.warning(
+                "digest: target_period=%s for company_id=%s spans multiple "
+                "filings %s; picked filing_id=%s by filed_at desc",
+                target_period,
+                company_id,
+                sorted(str(fid) for fid in filing_ids),
+                latest_filing_id,
+            )
 
     # Prose-only KO/EN business overview (numbers forbidden + guarded). Any
     # summary-side failure (guard block, unparseable body, Solar/network error)
@@ -184,7 +235,7 @@ async def get_company_digest(
     summary_en: str | None = None
     try:
         summary_ko, summary_en = await build_company_summary(
-            session, client, company_uuid
+            session, client, company_uuid, latest_filing_id
         )
     except (
         DigestNarrativeError,
@@ -201,7 +252,7 @@ async def get_company_digest(
     return CompanyDigest(
         company_id=str(company.id),
         company_name=company.name,
-        period=next((row.period for row in rows), ""),
+        period=target_period,
         metrics=metrics,
         summary_ko=summary_ko,
         summary_en=summary_en,

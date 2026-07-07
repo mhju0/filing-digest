@@ -93,8 +93,12 @@ def _chunk(filing_id: uuid.UUID = _FILING_ID) -> SimpleNamespace:
     )
 
 
-def _patch_chunks(monkeypatch, chunks: list[SimpleNamespace]) -> None:
+def _patch_chunks(
+    monkeypatch, chunks: list[SimpleNamespace], captured_kwargs: dict | None = None
+) -> None:
     async def _fake_search(*args, **kwargs):
+        if captured_kwargs is not None:
+            captured_kwargs.update(kwargs)
         return list(chunks)
 
     monkeypatch.setattr(digest_narrative, "search_chunks", _fake_search)
@@ -169,6 +173,29 @@ def test_null_result_is_not_cached(monkeypatch) -> None:
     second = asyncio.run(build_company_summary(object(), client, _COMPANY_ID))
     assert second == (_CLEAN_KO, _CLEAN_EN)
     assert client.calls == 3
+
+
+def test_explicit_filing_id_is_forwarded_to_search_and_used_as_cache_key(
+    monkeypatch,
+) -> None:
+    # A different filing's chunk happens to rank first in retrieval (e.g. a
+    # multi-filing company's search hit), but the caller-provided filing_id --
+    # not the top-retrieved chunk's own filing_id -- must be both the
+    # search_chunks scope and the cache key.
+    _OTHER_FILING_ID = uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    captured: dict = {}
+    _patch_chunks(monkeypatch, [_chunk(filing_id=_OTHER_FILING_ID)], captured)
+    client = _StubClient([_CLEAN_BODY])
+
+    ko, en = asyncio.run(
+        build_company_summary(object(), client, _COMPANY_ID, _FILING_ID)
+    )
+
+    assert (ko, en) == (_CLEAN_KO, _CLEAN_EN)
+    assert captured["filing_id"] == _FILING_ID
+    # Cached under the caller-provided filing_id, not the chunk's own.
+    assert digest_narrative._SUMMARY_CACHE[_FILING_ID] == (_CLEAN_KO, _CLEAN_EN)
+    assert _OTHER_FILING_ID not in digest_narrative._SUMMARY_CACHE
 
 
 def test_no_chunks_short_circuits_without_llm(monkeypatch) -> None:

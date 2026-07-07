@@ -245,14 +245,23 @@ async def build_company_summary(
     session: AsyncSession,
     client: LLMClient,
     company_id: uuid.UUID,
+    filing_id: uuid.UUID | None = None,
 ) -> tuple[str | None, str | None]:
     """Build (or reuse a cached) KO/EN business-overview summary for a company.
 
-    Retrieves the company's business-overview chunks via the shared semantic
-    search (fixed query, no user input), then generates a guarded prose summary.
-    Returns ``(None, None)`` when the company has no chunks or the number guard
+    Retrieves business-overview chunks via the shared semantic search (fixed
+    query, no user input), then generates a guarded prose summary. Returns
+    ``(None, None)`` when there are no chunks to retrieve or the number guard
     blocks the prose twice -- the caller keeps its authoritative figures either
     way. Successful summaries are memoized by ``filing_id``.
+
+    ``filing_id``, when given by the caller (the /digest route's deterministic
+    "latest filing" -- see ``routes.py``'s ``target_period`` selection), scopes
+    retrieval to that ONE filing via :func:`app.search.service.search_chunks`'s
+    ``filing_id`` parameter, so a multi-filing company's summary is always
+    generated from its intended filing rather than whichever chunk search
+    happens to rank first. ``None`` (e.g. no financials rows to derive a filing
+    from) falls back to the prior company-wide retrieval.
 
     May raise :class:`DigestNarrativeError` (unparseable body) or Solar/httpx
     transport errors -- the /digest route catches those and falls back to null
@@ -265,16 +274,17 @@ async def build_company_summary(
         query=_OVERVIEW_QUERY,
         top_k=_DIGEST_TOP_K,
         company_id=company_id,
+        filing_id=filing_id,
     )
     if not chunks:
         return (None, None)
 
-    # Single-filing-per-company MVP: the top-retrieved chunk's filing is the
-    # digest's primary filing and the stable cache key.
-    filing_id = chunks[0].filing_id
-    cached = _SUMMARY_CACHE.get(filing_id)
+    # Cache key: the caller-provided (deterministic) filing_id when given,
+    # else the top-retrieved chunk's filing (prior company-wide fallback).
+    cache_key = filing_id if filing_id is not None else chunks[0].filing_id
+    cached = _SUMMARY_CACHE.get(cache_key)
     if cached is not None:
-        logger.info("digest summary cache hit for filing_id=%s", filing_id)
+        logger.info("digest summary cache hit for filing_id=%s", cache_key)
         return cached
 
     summary = await _generate_summary(client, chunks)
@@ -282,10 +292,10 @@ async def build_company_summary(
         return (None, None)
 
     result = (summary.summary_ko, summary.summary_en)
-    _SUMMARY_CACHE[filing_id] = result
+    _SUMMARY_CACHE[cache_key] = result
     logger.info(
         "digest summary generated and cached for filing_id=%s (%d source chunk(s))",
-        filing_id,
+        cache_key,
         len(chunks),
     )
     return result
