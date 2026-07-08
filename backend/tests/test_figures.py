@@ -1,19 +1,25 @@
 """Offline tests for the pure layer of app.figures.service (no DB, no network).
 
-The impure half (the ``financials`` query) is covered by live verification, not
-here. What is unit-tested is row -> Figure shaping: Decimal precision, raw-metric
-passthrough, per-figure citation anchoring, and the fail-loud on a missing
-filing_id. Fixtures mimic real Samsung shapes (raw KRW integer revenue, 4-decimal
-EPS) with Decimal values, exactly as ``financials.value`` (numeric(24,4)) yields.
+Whether the DB actually returns rows in the queried order is covered by live
+verification, not here. What is unit-tested is row -> Figure shaping: Decimal
+precision, raw-metric passthrough, per-figure citation anchoring, and the
+fail-loud on a missing filing_id -- plus, for ``fetch_financials``, that it
+builds a statement with the right ``ORDER BY`` clause (via a stub session that
+captures the statement instead of touching a DB). Fixtures mimic real Samsung
+shapes (raw KRW integer revenue, 4-decimal EPS) with Decimal values, exactly as
+``financials.value`` (numeric(24,4)) yields.
 """
 
+import asyncio
 import uuid
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
-from app.figures.service import FigureError, build_figures
+from app.figures.service import FigureError, build_figures, fetch_financials
 from app.schemas import Figure
 
 _FILING_ID = uuid.UUID("33333333-3333-3333-3333-333333333333")
@@ -100,3 +106,29 @@ def test_build_figures_raises_on_missing_filing_id() -> None:
 
 def test_build_figures_empty_rows_yields_empty_list() -> None:
     assert build_figures([]) == []
+
+
+# -- fetch_financials: query shape (stub session, no DB) -------------------------
+
+
+class _CapturingSession:
+    """Fake AsyncSession that records the statement instead of executing it."""
+
+    def __init__(self) -> None:
+        self.captured_stmt: Any = None
+
+    async def execute(self, stmt: Any) -> Any:
+        self.captured_stmt = stmt
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
+
+
+def test_fetch_financials_orders_by_period_desc_metric_asc() -> None:
+    # /answer (app.api.routes.answer) passes fetch_financials's rows straight
+    # into build_figures with no reordering of its own, so the figures list
+    # returned to the iOS grounding panel is only as deterministic as this
+    # query's ORDER BY. A stub session captures the built statement so this
+    # is checkable without a live DB.
+    session = _CapturingSession()
+    asyncio.run(fetch_financials(session, company_id=uuid.uuid4()))
+    compiled = str(session.captured_stmt.compile(dialect=postgresql.dialect()))
+    assert "ORDER BY financials.period DESC, financials.metric ASC" in compiled

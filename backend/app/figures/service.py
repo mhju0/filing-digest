@@ -39,6 +39,11 @@ async def fetch_financials(
     given, further filters; ``None`` returns the whole company scope. An unknown
     id or empty scope yields ``[]`` rather than raising.
 
+    Rows are ordered ``period`` DESC, ``metric`` ASC so callers (notably
+    ``/answer``, which passes rows straight through to :func:`build_figures`
+    with no reordering of its own) get a deterministic figure list instead of
+    whatever order the DB happens to return.
+
     Returns ORM entities via ``.scalars()`` -- NOT ``Row`` objects and NOT
     converted to any DTO here -- so the ``value`` ``Decimal`` reaches
     :func:`build_figures` with ``numeric(24,4)`` precision intact (never cast to
@@ -47,6 +52,7 @@ async def fetch_financials(
     stmt = select(Financial).where(Financial.company_id == company_id)
     if period is not None:
         stmt = stmt.where(Financial.period == period)
+    stmt = stmt.order_by(Financial.period.desc(), Financial.metric.asc())
 
     rows = (await session.execute(stmt)).scalars().all()
     logger.info(
