@@ -133,13 +133,20 @@ private struct MetricCardView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            Text(valueText)
+            Text(numberText)
                 .font(.title3.bold())
+                .monospacedDigit()
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(0.5)
+            if let unitText {
+                Text(unitText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
             if let delta = metric.yoyDeltaPct {
                 Text(deltaText(delta))
                     .font(.caption.bold())
+                    .monospacedDigit()
                     .foregroundStyle(delta >= 0 ? Color.green : Color.red)
             } else {
                 Text("YoY —")
@@ -155,11 +162,18 @@ private struct MetricCardView: View {
         )
     }
 
-    /// nil value -> dash, per contract UI rule.
-    private var valueText: String {
+    /// nil value -> dash, per contract UI rule. Number and unit render as
+    /// separate texts so the unit suffix never competes with the digits for
+    /// the (half-width) card's horizontal space.
+    private var numberText: String {
         guard let value = metric.value else { return "—" }
-        let number = value.formatted(.number.precision(.fractionLength(0...2)))
-        return metric.unit.isEmpty ? number : "\(number) \(FigureDisplay.unitName(metric.unit, language: language))"
+        return value.formatted(.number.precision(.fractionLength(0...2)))
+    }
+
+    /// nil when there is no value or no unit — the number line then stands alone.
+    private var unitText: String? {
+        guard metric.value != nil, !metric.unit.isEmpty else { return nil }
+        return FigureDisplay.unitName(metric.unit, language: language)
     }
 
     private func deltaText(_ delta: Double) -> String {

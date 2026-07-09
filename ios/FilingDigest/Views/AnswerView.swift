@@ -308,19 +308,28 @@ private struct FigureRow: View {
     let figure: Figure
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(FigureDisplay.metricName(figure.metric, language: .ko))
-                    .font(.subheadline.bold())
-                Text(periodText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text(valueText)
-                .font(.body.monospacedDigit())
+        // Label / number / metadata stacked vertically so a 15-digit value
+        // owns the full row width and never contends with the label.
+        VStack(alignment: .leading, spacing: 4) {
+            Text(FigureDisplay.metricName(figure.metric, language: .ko))
+                .font(.caption)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(numberText)
+                    .font(.title3.bold())
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                if let unitText {
+                    Text(unitText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Text(periodText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -338,12 +347,15 @@ private struct FigureRow: View {
     }
 
     /// Formats the Decimal directly (Decimal.FormatStyle) — no Double round
-    /// trip, so numeric(24,4) precision is preserved end to end.
-    private var valueText: String {
-        let number = figure.value.formatted(
+    /// trip, so numeric(24,4) precision is preserved end to end. Number and
+    /// unit are separate texts so the unit never steals width from the digits.
+    private var numberText: String {
+        figure.value.formatted(
             .number.precision(.fractionLength(0...4)).grouping(.automatic)
         )
-        let unitSuffix = figure.unit.isEmpty ? "" : " \(FigureDisplay.unitName(figure.unit, language: .ko))"
-        return number + unitSuffix
+    }
+
+    private var unitText: String? {
+        figure.unit.isEmpty ? nil : FigureDisplay.unitName(figure.unit, language: .ko)
     }
 }
