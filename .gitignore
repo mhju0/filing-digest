@@ -1,6 +1,9 @@
 # DART corpCode snapshot cache (regenerable from the ~3.5MB corpCode.xml ZIP).
 backend/data/corpcode_snapshot.json
 
+# Offline eval harness run output (regenerable, not for the repo).
+backend/evals/reports/
+
 # Python
 __pycache__/
 *.pyc
