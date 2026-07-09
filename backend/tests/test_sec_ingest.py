@@ -148,7 +148,8 @@ def test_sec_company_row_fills_sec_cik_and_source() -> None:
     assert row["name"] == "Apple Inc."
     assert row["ticker"] == "AAPL"
     assert row["market"] is None
-    assert row["name_en"] is None
+    # SEC filer names are already English -> name_en mirrors name for bilingual search.
+    assert row["name_en"] == "Apple Inc."
 
 
 def test_sec_company_row_falls_back_to_cik_name_when_unresolved() -> None:
@@ -157,6 +158,7 @@ def test_sec_company_row_falls_back_to_cik_name_when_unresolved() -> None:
     row = sec_company_row(None, _CIK)
     assert row["name"] == f"CIK {_CIK}"
     assert row["ticker"] is None
+    assert row["name_en"] == f"CIK {_CIK}"  # mirrors the fallback name
     assert row["sec_cik"] == _CIK
     assert row["source"] == "sec"
 

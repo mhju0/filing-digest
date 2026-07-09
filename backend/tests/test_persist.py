@@ -144,8 +144,16 @@ def test_company_row_maps_required_and_optional_fields() -> None:
     assert row["dart_corp_code"] == "00126380"  # idempotent conflict key
     assert row["ticker"] == "005930"
     assert row["market"] == "KOSPI"  # corp_cls Y -> KOSPI
-    assert row["name_en"] is None
+    assert row["name_en"] is None  # no enrichment supplied -> NULL, never invented
     assert row["sec_cik"] is None
+
+
+def test_company_row_populates_name_en_when_supplied() -> None:
+    # company.json enrichment (corp_name_eng) flows in via the name_en kwarg.
+    row = company_row(
+        _filing_item(), corp_code="00126380", name_en="SAMSUNG ELECTRONICS CO,.LTD"
+    )
+    assert row["name_en"] == "SAMSUNG ELECTRONICS CO,.LTD"
 
 
 def test_company_row_blank_ticker_becomes_null() -> None:
@@ -283,9 +291,11 @@ class _FakeUpsertResult:
 class _FakeUpsertSession:
     def __init__(self) -> None:
         self.rows: dict[tuple[str, object], uuid.UUID] = {}
+        self.last_sql: str | None = None
 
     async def execute(self, stmt):
         compiled = stmt.compile()
+        self.last_sql = compiled.string
         conflict_column = re.search(r"ON CONFLICT \(([^)]+)\)", compiled.string).group(1)
         key = (conflict_column, compiled.params[conflict_column])
         row_id = self.rows.setdefault(key, uuid.uuid4())
@@ -340,6 +350,19 @@ def test_upsert_company_missing_natural_key_raises() -> None:
     row = _raw_company_row(source=SOURCE_SEC, sec_cik=None)
     with pytest.raises(ValueError):
         asyncio.run(_upsert_company(session, row))
+
+
+def test_upsert_company_coalesces_name_en_on_conflict() -> None:
+    # Regression guard: a DART re-ingest supplies name_en=None, so the ON CONFLICT
+    # update must COALESCE the incoming NULL against the stored value -- otherwise
+    # it would wipe an English name backfilled from company.json. Asserting on the
+    # generated SQL (not row order) makes this discriminate the actual clause.
+    session = _FakeUpsertSession()
+    asyncio.run(_upsert_company(session, _raw_company_row()))
+    sql = session.last_sql.lower()
+    assert "coalesce(excluded.name_en, companies.name_en)" in sql
+    # Other columns still overwrite plainly (they are always authoritative).
+    assert "name = excluded.name" in sql
 
 
 def test_upsert_filing_dart_conflicts_on_rcept_no() -> None:

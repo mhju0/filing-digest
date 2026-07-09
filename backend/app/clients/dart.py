@@ -1104,6 +1104,54 @@ class DartClient:
         )
         return deduped
 
+    async def fetch_company_eng_name(self, corp_code: str) -> str | None:
+        """Fetch a company's English name via ``company.json`` (기업개황).
+
+        Returns ``corp_name_eng`` (stripped) when present, else ``None``. This
+        is *enrichment* for the bilingual ``companies.name_en`` column -- it is
+        NOT a source of numbers. Status handling mirrors list.json (§5): ``000``
+        -> parse; ``013`` (무자료) -> ``None``; anything else -> DartApiError.
+
+        No DB write happens here -- the ingest step persists the value.
+        """
+        params: dict[str, str] = {
+            "crtfc_key": self._api_key(),
+            "corp_code": corp_code,
+        }
+        client = self._get_client()
+        # crtfc_key is masked; log only the non-secret query shape.
+        logger.info(
+            "fetching %s/company.json (crtfc_key=***, corp_code=%s)",
+            self._base_url,
+            corp_code,
+        )
+        resp = await client.get(f"{self._base_url}/company.json", params=params)
+        resp.raise_for_status()
+        return self._parse_company_eng_name(resp.json())
+
+    @staticmethod
+    def _parse_company_eng_name(payload: Any) -> str | None:
+        """Extract ``corp_name_eng`` from a ``company.json`` body (pure).
+
+        Split from network I/O so offline fixtures exercise status branching and
+        field cleaning without a live call. Returns ``None`` (never a fabricated
+        name) when the API reports no data or the English name is blank/absent.
+        """
+        if not isinstance(payload, dict):
+            raise DartApiError("company.json: unexpected response (not a JSON object)")
+
+        status = str(payload.get("status", "")).strip()
+        message = str(payload.get("message", "")).strip()
+
+        if status == _STATUS_NO_DATA:
+            logger.info("company.json: no data (status 013); no English name")
+            return None
+        if status != _STATUS_OK:
+            raise DartApiError(f"company.json returned status {status}: {message}")
+
+        eng = str(payload.get("corp_name_eng") or "").strip()
+        return eng or None
+
     async def fetch_document(self, rcept_no: str) -> DocumentPayload:
         """Fetch a filing's original document via ``document.xml`` (§4).
 

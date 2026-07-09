@@ -142,12 +142,14 @@ def sec_company_row(match: SecCompanyMatch | None, cik10: str) -> dict:
     ``name``/``ticker`` come from company_tickers when the CIK resolved; a filer
     absent from that index falls back to a deterministic ``f"CIK {cik10}"`` name
     (the CIK IS the identity -- never fabricated data) with a NULL ticker.
-    ``market`` is left None (company_tickers carries no exchange). ``name_en`` is
-    None (the primary ``name`` is already English). Pure.
+    ``market`` is left None (company_tickers carries no exchange). ``name_en``
+    mirrors ``name`` -- SEC filer names are already English, so the primary name
+    doubles as the English name for bilingual search. Pure.
     """
+    name = match.title if (match and match.title) else f"CIK {cik10}"
     return {
-        "name": match.title if (match and match.title) else f"CIK {cik10}",
-        "name_en": None,
+        "name": name,
+        "name_en": name,
         "ticker": (match.ticker or None) if match else None,
         "market": None,
         "source": SOURCE_SEC,

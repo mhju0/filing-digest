@@ -50,7 +50,8 @@ import logging
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import delete, insert
+import httpx
+from sqlalchemy import delete, func, insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -194,17 +195,23 @@ def unit_for(metric: str) -> str:
 # -- pure row builders (cleaned object -> row dict) ---------------------------
 
 
-def company_row(filing_item: FilingItem, corp_code: str, source: str = SOURCE_DART) -> dict:
+def company_row(
+    filing_item: FilingItem,
+    corp_code: str,
+    source: str = SOURCE_DART,
+    name_en: str | None = None,
+) -> dict:
     """Build the ``companies`` row for this filing's issuer (docs §6).
 
     ``name``/``source`` are the NOT NULL columns; ``dart_corp_code`` is the
     idempotent conflict key for the default ``source='dart'``. ``name_en`` is
-    left NULL (list.json carries no English name); ``ticker`` <- stock_code,
-    ``market`` <- corp_cls. Pure.
+    the English name enrichment (from company.json's ``corp_name_eng``); list.json
+    itself carries no English name, so callers pass ``None`` when the lookup found
+    nothing or failed. ``ticker`` <- stock_code, ``market`` <- corp_cls. Pure.
     """
     return {
         "name": filing_item.corp_name,
-        "name_en": None,
+        "name_en": name_en,
         "ticker": filing_item.stock_code or None,
         "market": market_for(filing_item.corp_cls),
         "source": source,
@@ -368,7 +375,10 @@ async def _upsert_company(session: AsyncSession, row: dict) -> uuid.UUID:
         index_elements=[conflict_column],
         set_={
             "name": ins.excluded.name,
-            "name_en": ins.excluded.name_en,
+            # Never clobber an existing English name with an incoming NULL: DART
+            # re-ingest supplies name_en=None (list.json has no English name), so
+            # a plain overwrite would wipe a value backfilled from company.json.
+            "name_en": func.coalesce(ins.excluded.name_en, Company.name_en),
             "ticker": ins.excluded.ticker,
             "market": ins.excluded.market,
             "source": ins.excluded.source,
@@ -450,6 +460,24 @@ async def _fetch_filing_item(
     )
 
 
+async def _fetch_company_eng_name(dart_client: DartClient, corp_code: str) -> str | None:
+    """Best-effort English-name enrichment; never fails the ingest.
+
+    ``name_en`` is enrichment for bilingual search, not the critical path (numbers
+    and prose are), so a company.json failure -- bad key, rate limit, network --
+    logs and yields ``None`` rather than aborting the filing ingest.
+    """
+    try:
+        return await dart_client.fetch_company_eng_name(corp_code)
+    except (DartApiError, httpx.HTTPError) as exc:
+        logger.warning(
+            "company.json enrichment failed for corp_code=%s: %s; name_en stays NULL",
+            corp_code,
+            exc,
+        )
+        return None
+
+
 async def ingest_filing(
     session: AsyncSession,
     dart_client: DartClient,
@@ -480,6 +508,7 @@ async def ingest_filing(
     financial_items = await dart_client.fetch_financials(
         corp_code, bsns_year, reprt_code, fs_div
     )
+    name_en = await _fetch_company_eng_name(dart_client, corp_code)
     document = await dart_client.fetch_document(rcept_no)
 
     text = decode_dart_bytes(document.content)
@@ -503,7 +532,9 @@ async def ingest_filing(
 
     # -- 3. one atomic transaction (all-or-nothing for this filing) ---------
     async with session.begin():
-        company_id = await _upsert_company(session, company_row(filing_item, corp_code))
+        company_id = await _upsert_company(
+            session, company_row(filing_item, corp_code, name_en=name_en)
+        )
         filing_id = await _upsert_filing(
             session, filing_row(filing_item, company_id, ftype, descriptor.period)
         )
