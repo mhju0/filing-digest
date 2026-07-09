@@ -253,6 +253,52 @@ struct AnswerResponseDecodingTests {
     }
 }
 
+// MARK: - FigureDisplay mapping tests
+
+@Suite("FigureDisplay metric/unit humanization")
+struct FigureDisplayTests {
+
+    // (a) every known metric key -> KO and EN display name.
+    @Test("known metric keys map to KO and EN names", arguments: [
+        ("revenue", "매출액", "Revenue"),
+        ("operating_income", "영업이익", "Operating Income"),
+        ("net_income", "당기순이익", "Net Income"),
+        ("net_income_attributable", "지배기업 소유주지분 순이익", "Net Income (Attributable)"),
+        ("eps", "주당순이익(EPS)", "EPS"),
+        ("eps_diluted", "희석주당순이익", "Diluted EPS"),
+    ])
+    func mapsKnownMetrics(key: String, ko: String, en: String) {
+        #expect(FigureDisplay.metricName(key, language: .ko) == ko)
+        #expect(FigureDisplay.metricName(key, language: .en) == en)
+    }
+
+    // (b) every known unit key -> KO and EN display.
+    @Test("known unit keys map to KO and EN display", arguments: [
+        ("KRW", "원", "KRW"),
+        ("USD", "USD", "USD"),
+        ("KRW_PER_SHARE", "원/주", "KRW per share"),
+        ("USD_PER_SHARE", "USD/주", "USD per share"),
+    ])
+    func mapsKnownUnits(key: String, ko: String, en: String) {
+        #expect(FigureDisplay.unitName(key, language: .ko) == ko)
+        #expect(FigureDisplay.unitName(key, language: .en) == en)
+    }
+
+    // (c) unknown metric key -> raw fallback, identical in both languages.
+    @Test("unknown metric key falls back to the raw key")
+    func unknownMetricFallsBack() {
+        #expect(FigureDisplay.metricName("free_cash_flow", language: .ko) == "free_cash_flow")
+        #expect(FigureDisplay.metricName("free_cash_flow", language: .en) == "free_cash_flow")
+    }
+
+    // (d) unknown unit key -> raw fallback, identical in both languages.
+    @Test("unknown unit key falls back to the raw key")
+    func unknownUnitFallsBack() {
+        #expect(FigureDisplay.unitName("EUR", language: .ko) == "EUR")
+        #expect(FigureDisplay.unitName("EUR", language: .en) == "EUR")
+    }
+}
+
 // MARK: - APIClient request construction tests
 
 @Suite("APIClient URLRequest construction")

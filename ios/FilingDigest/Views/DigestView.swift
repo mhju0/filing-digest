@@ -159,7 +159,7 @@ private struct MetricCardView: View {
     private var valueText: String {
         guard let value = metric.value else { return "—" }
         let number = value.formatted(.number.precision(.fractionLength(0...2)))
-        return metric.unit.isEmpty ? number : "\(number) \(metric.unit)"
+        return metric.unit.isEmpty ? number : "\(number) \(FigureDisplay.unitName(metric.unit, language: language))"
     }
 
     private func deltaText(_ delta: Double) -> String {

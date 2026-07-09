@@ -310,7 +310,7 @@ private struct FigureRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(figure.metric)
+                Text(FigureDisplay.metricName(figure.metric, language: .ko))
                     .font(.subheadline.bold())
                 Text(periodText)
                     .font(.caption)
@@ -343,7 +343,7 @@ private struct FigureRow: View {
         let number = figure.value.formatted(
             .number.precision(.fractionLength(0...4)).grouping(.automatic)
         )
-        let unitSuffix = figure.unit.isEmpty ? "" : " \(figure.unit)"
+        let unitSuffix = figure.unit.isEmpty ? "" : " \(FigureDisplay.unitName(figure.unit, language: .ko))"
         return number + unitSuffix
     }
 }
