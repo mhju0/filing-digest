@@ -172,9 +172,9 @@ struct AnswerView: View {
             Image(systemName: "shield.lefthalf.filled")
                 .foregroundStyle(Color.orange)
             VStack(alignment: .leading, spacing: 4) {
-                Text("서술이 수치 검증에 걸려 표시하지 않습니다")
+                Text("정확한 수치는 아래 표에서 확인하세요")
                     .font(.subheadline.bold())
-                Text("생성된 문장의 숫자가 공시 수치와 일치하지 않아 서술을 차단했습니다. 확정 수치는 아래 표에서 확인하세요.")
+                Text("수치 정확성을 위해 AI 서술에는 숫자를 표시하지 않습니다. 아래 확정 수치는 공시 원문에서 직접 가져온 값입니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
