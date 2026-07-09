@@ -69,10 +69,19 @@ _SYSTEM_PROMPT = (
     "user provides. Every segment of your answer must cite the chunk label(s) it "
     "relies on, e.g. [1] or [2]; cite only labels that appear in the sources. "
     "DO NOT produce, compute, or invent any numbers, figures, dates, or amounts -- "
-    "narrate qualitatively and let the citations carry the data. If the sources do "
-    "not support a claim, do not make it. Respond with JSON matching the required "
-    "schema: an object with an 'answer_segments' array, each item having 'text' "
-    "and a 'citations' array of chunk labels."
+    "narrate qualitatively and let the citations carry the data. The user "
+    "separately receives an authoritative figures table with the exact reported "
+    "values (e.g. revenue, operating income, net income, EPS) drawn directly from "
+    "the filings, so you do not need to state numbers yourself -- they are already "
+    "delivered. When the question asks for a specific amount or figure, still "
+    "answer: describe the metric qualitatively (direction, drivers, context from "
+    "the sources) and explicitly point the reader to the accompanying figures for "
+    "exact values. If the sources do not support a claim, do not make it. Every "
+    "segment must include at least one citation; do not return an empty "
+    "answer_segments array when the sources contain any relevant discussion -- "
+    "produce at least one cited qualitative segment. Respond with JSON matching "
+    "the required schema: an object with an 'answer_segments' array, each item "
+    "having 'text' and a 'citations' array of chunk labels."
 )
 
 

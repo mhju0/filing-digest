@@ -107,25 +107,25 @@
   query: "What was Apple's revenue in fiscal year 2019?"
   company_slug: apple
   tier: full
-  expected_states: [no_results, blocked]
+  expected_states: [no_results, blocked, ok]
   expected_filing_hint: null
-  notes: "FY2019 predates the ingested corpus (FY2023-2025 only); expect the retrieval-threshold no_results gate. known issue: 없는 연도 질의가 blocked로 빠질 수 있음 (2026-07-09 실측: samsung-2019가 blocked, reports/eval_20260709T092340Z.json)."
+  notes: "ok accepted since prompt v2 — LLM may return an honest cited 'not in sources' answer; number_guard still blocks fabricated figures. FY2019 predates the ingested corpus (FY2023-2025 only); expect the retrieval-threshold no_results gate. known issue: 없는 연도 질의가 blocked로 빠질 수 있음 (2026-07-09 실측: samsung-2019가 blocked, reports/eval_20260709T092340Z.json)."
 
 - id: no_results-msft-fy2020-en
   query: "What was Microsoft's operating income in fiscal year 2020?"
   company_slug: msft
   tier: full
-  expected_states: [no_results, blocked]
+  expected_states: [no_results, blocked, ok]
   expected_filing_hint: null
-  notes: "known issue: 없는 연도 질의가 blocked로 빠질 수 있음 (2026-07-09 실측: samsung-2019가 blocked, reports/eval_20260709T092340Z.json)."
+  notes: "ok accepted since prompt v2 — LLM may return an honest cited 'not in sources' answer; number_guard still blocks fabricated figures. known issue: 없는 연도 질의가 blocked로 빠질 수 있음 (2026-07-09 실측: samsung-2019가 blocked, reports/eval_20260709T092340Z.json)."
 
 - id: no_results-samsung-2019-ko
   query: "삼성전자의 2019년 매출액은 얼마였나요?"
   company_slug: 삼성전자
   tier: full
-  expected_states: [no_results, blocked]
+  expected_states: [no_results, blocked, ok]
   expected_filing_hint: null
-  notes: "Samsung corpus only has the 2023 annual report; 2019 is out of scope. known issue: 없는 연도 질의가 blocked로 빠질 수 있음 (2026-07-09 실측: samsung-2019가 blocked, reports/eval_20260709T092340Z.json)."
+  notes: "ok accepted since prompt v2 — LLM may return an honest cited 'not in sources' answer; number_guard still blocks fabricated figures. Samsung corpus only has the 2023 annual report; 2019 is out of scope. known issue: 없는 연도 질의가 blocked로 빠질 수 있음 (2026-07-09 실측: samsung-2019가 blocked, reports/eval_20260709T092340Z.json)."
 
 - id: blocked-msft-opex-en
   query: "Tell me about Microsoft's operating expenses and cost structure."

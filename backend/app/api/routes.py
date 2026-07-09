@@ -431,6 +431,20 @@ async def answer(
             narrative_status=NarrativeStatus.no_results,
         )
 
+    if not answer.answer_segments:
+        logger.warning(
+            "narrative generation produced no segments for company_id=%s; "
+            "returning no_results",
+            request.company_id,
+        )
+        return AnswerResponse(
+            answer=None,
+            figures=figures,
+            citations=[],
+            company_id=request.company_id,
+            narrative_status=NarrativeStatus.no_results,
+        )
+
     # Resolve each cited chunk id (segment anchor, kept as-is) to its source
     # filing's metadata, batched (filing_id IN (...)) same as /digest above.
     cited_chunk_ids = {

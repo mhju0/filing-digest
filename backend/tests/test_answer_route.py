@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from app.api import routes
 from app.db.session import get_db_session
+from app.llm.answer import Answer
 from app.llm.base import LLMResult
 from app.llm.citation_guard import CitationError, CitationViolation
 from app.llm.deps import get_llm_client
@@ -307,6 +308,40 @@ def test_answer_citation_error_mixed_violations_propagates_as_500(api_client, mo
             "/answer",
             json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
         )
+
+
+def test_answer_empty_segments_returns_no_results(api_client, monkeypatch):
+    # generate_narrative can succeed (guards pass trivially on an empty
+    # answer_segments list) but produce nothing to show the user -- that must
+    # map to the same no_results shape as the other "nothing to say" branches,
+    # not fall through to narrative_status=ok with an empty answer.
+    app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
+
+    async def _one_chunk(*args, **kwargs):
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.", score=0.9)]
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    async def _empty_answer(*args, **kwargs):
+        return Answer(answer_segments=[])
+
+    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
+    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+    monkeypatch.setattr(routes, "generate_narrative", _empty_answer)
+
+    resp = api_client.post(
+        "/answer",
+        json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["answer"] is None
+    assert body["narrative_status"] == "no_results"
+    assert body["citations"] == []
+    assert len(body["figures"]) == 1
+    assert body["figures"][0]["filing_id"] == str(_FILING_ID)
 
 
 def test_answer_citation_error_all_empty_returns_no_results(api_client, monkeypatch):
