@@ -166,7 +166,7 @@ curl -s -X POST http://127.0.0.1:8001/answer \
 | Search | Digest | Answer | Figures & Sources |
 |---|---|---|---|
 | <img src="docs/screenshots/search.png" width="220"> | <img src="docs/screenshots/digest.png" width="220"> | <img src="docs/screenshots/answer_ok.png" width="220"> | <img src="docs/screenshots/answer_figures.png" width="220"> |
-| Company lookup via DART | Structured figures + guarded KO/EN summary | Citation-anchored narrative segments | Numbers exclusively from the structured filing track, with citation |
+| Browse-first home: the whole corpus, grouped by source, filtered as you type | Structured figures + guarded KO/EN summary | Citation-anchored narrative segments | Numbers exclusively from the structured filing track, with citation |
 
 | SEC search | SEC digest | 3-state answer flow |
 |---|---|---|

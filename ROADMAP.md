@@ -111,6 +111,12 @@ and searching any household-name KR/US ticker returns a real digest.
 - [ ] **Manual (1 min, github.com)**: paste the repo description + topics
       (text in the session notes / PR description), and upload
       `docs/social-preview.png` under Settings → Social preview.
+- [x] **Browse-first home** (post-D UX decision, 2026-07-12): the corpus is
+      small enough that hiding it behind a search box was a dead end — the
+      home screen now lists all companies grouped by source (DART/SEC) and
+      the search field filters the list as you type. Server-side
+      `/companies?q=` stays (initial load uses `q=""` = match-all; the local
+      filter matches the same name/name_en/ticker fields).
 - [ ] Optional: 60–90s screen-recording demo video linked from README.
 
 ## Non-goals (deliberately out of scope for the portfolio)

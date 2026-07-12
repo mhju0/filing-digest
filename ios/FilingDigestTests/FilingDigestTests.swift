@@ -448,3 +448,47 @@ struct FigureDisplayFormattingTests {
         )
     }
 }
+
+@Suite("SearchView browse-first filtering and grouping")
+struct SearchFilterTests {
+    private static func company(
+        _ name: String, nameEn: String? = nil, ticker: String? = nil,
+        source: FilingSource = .dart
+    ) -> Company {
+        Company(id: UUID().uuidString, name: name, nameEn: nameEn, ticker: ticker,
+                market: nil, source: source)
+    }
+
+    private var corpus: [Company] {
+        [
+            Self.company("삼성전자", nameEn: "SAMSUNG ELECTRONICS CO,.LTD", ticker: "005930"),
+            Self.company("SK하이닉스", nameEn: "SK hynix Inc.", ticker: "000660"),
+            Self.company("Apple Inc.", nameEn: "Apple Inc.", ticker: "AAPL", source: .sec),
+            Self.company("MICROSOFT CORP", nameEn: "MICROSOFT CORP", ticker: "MSFT", source: .sec),
+        ]
+    }
+
+    @Test("Empty and whitespace queries pass everything through")
+    func emptyQuery() {
+        #expect(SearchView.filter(corpus, query: "").count == 4)
+        #expect(SearchView.filter(corpus, query: "   ").count == 4)
+    }
+
+    @Test("Filter matches Korean name, English name, and ticker, case-insensitively")
+    func filterFields() {
+        #expect(SearchView.filter(corpus, query: "삼성").map(\.name) == ["삼성전자"])
+        #expect(SearchView.filter(corpus, query: "hynix").map(\.name) == ["SK하이닉스"])
+        #expect(SearchView.filter(corpus, query: "msft").map(\.name) == ["MICROSOFT CORP"])
+        #expect(SearchView.filter(corpus, query: "카카오").isEmpty)
+    }
+
+    @Test("Grouping is DART then SEC, dropping empty groups, preserving order")
+    func grouping() {
+        let groups = SearchView.grouped(corpus)
+        #expect(groups.map(\.source) == [.dart, .sec])
+        #expect(groups[0].companies.map(\.name) == ["삼성전자", "SK하이닉스"])
+
+        let secOnly = SearchView.grouped(corpus.filter { $0.source == .sec })
+        #expect(secOnly.map(\.source) == [.sec])
+    }
+}
