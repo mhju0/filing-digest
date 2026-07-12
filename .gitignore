@@ -28,3 +28,8 @@ scratchpad/
 
 .tokensave/
 .serena/
+
+# AI-assistant workspace config — local tooling, not for the public repo.
+CLAUDE.md
+.claude/
+.ruff_cache/
