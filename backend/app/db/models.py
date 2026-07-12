@@ -8,8 +8,8 @@ Notes:
   attribute name on SQLAlchemy Declarative models.
 - embedding vector(1024) is [Verified]: KURE-v1 (nlpai-lab/KURE-v1) dense
   dimension (HuggingFace config.json hidden_size=1024).
-- TODO(Phase 2): vector index (hnsw or ivfflat) on filing_chunks.embedding --
-  do not create it now; it cannot be tuned without real data.
+- filing_chunks.embedding carries an hnsw index over cosine distance
+  (vector_cosine_ops), mirroring init.sql (decision D8 resolved).
 """
 
 import datetime
@@ -105,7 +105,13 @@ class FilingChunk(Base):
         UniqueConstraint(
             "filing_id", "chunk_index", name="filing_chunks_filing_id_chunk_index_key"
         ),
-        # TODO(Phase 2): vector index (hnsw/ivfflat) on embedding -- needs data.
+        # Mirrors init.sql: hnsw over cosine (<=>), vector_cosine_ops (D8).
+        Index(
+            "idx_filing_chunks_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
