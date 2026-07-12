@@ -14,8 +14,8 @@ FastAPI request handlers.
 """
 
 import logging
+from collections.abc import AsyncIterator
 from functools import lru_cache
-from typing import AsyncIterator
 
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.ext.asyncio import (

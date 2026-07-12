@@ -34,7 +34,7 @@ _FIXTURE_XML = (
     "<modify_date>20200101</modify_date>"
     "</list>"
     "</result>"
-).encode("utf-8")
+).encode()
 
 
 def test_parse_corpcode_xml_filters_non_listed() -> None:

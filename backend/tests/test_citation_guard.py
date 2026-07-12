@@ -7,7 +7,7 @@ schema, its Solar json_schema builder, and check_citations/assert_citations.
 import pytest
 
 from app.llm.answer import Answer, AnswerSegment, build_answer_json_schema
-from app.llm.citation_guard import CitationError, check_citations, assert_citations
+from app.llm.citation_guard import CitationError, assert_citations, check_citations
 
 
 def _answer(*segments: tuple[str, list[str]]) -> Answer:
@@ -76,7 +76,7 @@ def test_assert_citations_raises_on_violation():
 
 def test_assert_citations_passes_when_clean():
     answer = _answer(("Good segment.", ["chunk-1"]))
-    assert_citations(answer, {"chunk-1"}) is None
+    assert assert_citations(answer, {"chunk-1"}) is None
 
 
 def test_build_answer_json_schema_shape():

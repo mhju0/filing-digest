@@ -4,8 +4,8 @@ Run with: uvicorn app.main:app --host 0.0.0.0 --port 8001
 """
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from fastapi import FastAPI
 

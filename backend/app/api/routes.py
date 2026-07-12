@@ -6,8 +6,8 @@ the LLM narrates only; every claim carries a citation.
 
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
+from datetime import UTC, datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -215,7 +215,7 @@ async def get_company_digest(
         company_uuid = uuid.UUID(company_id)
     except ValueError:
         logger.info("digest requested for malformed company_id=%s", company_id)
-        raise HTTPException(status_code=404, detail="company not found")
+        raise HTTPException(status_code=404, detail="company not found") from None
 
     company = (
         await session.execute(
@@ -311,7 +311,7 @@ async def get_company_digest(
         summary_ko=summary_ko,
         summary_en=summary_en,
         citations=citations,
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=datetime.now(UTC).isoformat(),
     )
 
 

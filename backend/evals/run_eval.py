@@ -7,7 +7,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -255,7 +255,7 @@ def main() -> int:
     print_summary_table(results)
 
     REPORTS_DIR.mkdir(exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     report_path = REPORTS_DIR / f"eval_{timestamp}.json"
     report_path.write_text(
         json.dumps(

@@ -43,8 +43,8 @@ database (via the reused persist writers).
 import datetime
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

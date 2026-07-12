@@ -12,7 +12,7 @@ optimization, deliberately out of scope here (request-scoped creation first).
 """
 
 import logging
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from app.config import get_settings
 from app.llm.base import LLMClient

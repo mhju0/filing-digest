@@ -24,9 +24,10 @@ test suite can import app code with no model download.
 
 import logging
 import os
+from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, Sequence
+from typing import TYPE_CHECKING
 
 from app.config import get_settings
 from app.db.models import EMBEDDING_DIM

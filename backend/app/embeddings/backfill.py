@@ -29,7 +29,8 @@ cast is needed on this typed-column path.
 import argparse
 import asyncio
 import logging
-from typing import Sequence, TypeVar
+from collections.abc import Sequence
+from typing import TypeVar
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,7 +68,7 @@ def align_ids_with_vectors(
         raise ValueError(
             f"id/vector count mismatch: {len(ids)} ids vs {len(vectors)} vectors"
         )
-    return list(zip(ids, vectors))
+    return list(zip(ids, vectors, strict=True))
 
 
 async def backfill_embeddings(

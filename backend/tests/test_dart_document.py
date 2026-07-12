@@ -42,14 +42,14 @@ logger = logging.getLogger(__name__)
 
 
 def test_decode_plain_utf8_korean() -> None:
-    raw = "당사는 반도체를 생산합니다.".encode("utf-8")
+    raw = "당사는 반도체를 생산합니다.".encode()
     assert decode_dart_bytes(raw) == "당사는 반도체를 생산합니다."
 
 
 def test_decode_euckr_declared_but_utf8_bytes() -> None:
     # The (B) xforms trap: <meta charset=euc-kr> but the bytes are actually UTF-8.
     # We must ignore the declaration and decode as UTF-8, not mojibake it.
-    raw = '<meta charset="euc-kr">돋움체 본문'.encode("utf-8")
+    raw = '<meta charset="euc-kr">돋움체 본문'.encode()
     decoded = decode_dart_bytes(raw)
     assert "돋움체" in decoded  # docs §4: \xeb\x8f\x8b... == 돋움체, decoded clean
     assert "charset=\"euc-kr\"" in decoded

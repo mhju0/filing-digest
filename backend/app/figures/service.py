@@ -12,7 +12,8 @@ caller runs the query; this module only shapes already-fetched rows.
 
 import logging
 import uuid
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

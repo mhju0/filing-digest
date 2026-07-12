@@ -8,7 +8,7 @@ citation.
 import logging
 import uuid
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -178,7 +178,7 @@ class AnswerRequest(BaseModel):
     period: str | None = None
 
 
-class NarrativeStatus(str, Enum):
+class NarrativeStatus(StrEnum):
     """Disposition of the ``answer`` track in an :class:`AnswerResponse`.
 
     ``figures`` is always authoritative and always returned; only the prose
