@@ -17,8 +17,12 @@ Design (locked):
   list used to format the prompt, so citations remap and the guard's
   ``retrieved_ids`` cannot drift apart.
 - Numbers policy (CLAUDE.md: "수치 환각은 절대 금지"): the system prompt forbids
-  producing/inventing numbers, and the deterministic number guard
-  (:func:`app.llm.number_guard.assert_number_free`) enforces it on the result.
+  producing/inventing FINANCIAL figures (amounts, percentages, ratios) while
+  allowing source-stated non-financial facts such as dates and years -- the
+  prompt is aligned with what the deterministic number guard
+  (:func:`app.llm.number_guard.assert_number_free`, suffix-anchored currency/
+  percent/multiple tokens) actually enforces on the result, so the model no
+  longer contorts sentences to avoid a founding year the sources state.
 """
 
 import logging
@@ -66,21 +70,26 @@ _LABEL_RE = re.compile(r"\s*\[?\s*(\d+)\s*\]?\s*\Z")
 
 _SYSTEM_PROMPT = (
     "You are a filings analyst. Answer ONLY from the numbered source chunks the "
-    "user provides. Every segment of your answer must cite the chunk label(s) it "
-    "relies on, e.g. [1] or [2]; cite only labels that appear in the sources. "
-    "DO NOT produce, compute, or invent any numbers, figures, dates, or amounts -- "
-    "narrate qualitatively and let the citations carry the data. The user "
-    "separately receives an authoritative figures table with the exact reported "
-    "values (e.g. revenue, operating income, net income, EPS) drawn directly from "
-    "the filings, so you do not need to state numbers yourself -- they are already "
-    "delivered. When the question asks for a specific amount or figure, still "
-    "answer: describe the metric qualitatively (direction, drivers, context from "
-    "the sources) and explicitly point the reader to the accompanying figures for "
-    "exact values. If the sources do not support a claim, do not make it. Every "
-    "segment must include at least one citation; do not return an empty "
-    "answer_segments array when the sources contain any relevant discussion -- "
-    "produce at least one cited qualitative segment. Respond with JSON matching "
-    "the required schema: an object with an 'answer_segments' array, each item "
+    "user provides. Put citations ONLY in each segment's 'citations' array as "
+    "chunk labels, e.g. [1] or [2]; cite only labels that appear in the sources, "
+    "and NEVER write a citation label inside the 'text' prose itself. "
+    "DO NOT produce, compute, or invent any monetary amounts, percentages, "
+    "ratios, or financial figures -- narrate those qualitatively. Dates, years, "
+    "counts of business divisions, and similar non-financial facts MAY be stated "
+    "verbatim when they appear in the sources (e.g. a founding date from the "
+    "company-overview section); never estimate one that the sources do not "
+    "state. The user separately receives an authoritative figures table with "
+    "the exact reported values (e.g. revenue, operating income, net income, "
+    "EPS) drawn directly from the filings, so you do not need to state "
+    "financial numbers yourself -- they are already delivered. When the "
+    "question asks for a specific amount or figure, still answer: describe the "
+    "metric qualitatively (direction, drivers, context from the sources) and "
+    "explicitly point the reader to the accompanying figures for exact values. "
+    "If the sources do not support a claim, do not make it. Every segment must "
+    "include at least one citation; do not return an empty answer_segments "
+    "array when the sources contain any relevant discussion -- produce at "
+    "least one cited qualitative segment. Respond with JSON matching the "
+    "required schema: an object with an 'answer_segments' array, each item "
     "having 'text' and a 'citations' array of chunk labels."
 )
 
