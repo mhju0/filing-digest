@@ -396,3 +396,55 @@ struct APIClientRequestTests {
         #expect(url.port == 9999)
     }
 }
+
+@Suite("FigureDisplay period titles and value abbreviation")
+struct FigureDisplayFormattingTests {
+
+    @Test("Period codes humanize per language, unknown shapes pass through")
+    func periodTitles() {
+        #expect(FigureDisplay.periodTitle("2023-annual", language: .ko) == "사업보고서 2023")
+        #expect(FigureDisplay.periodTitle("2023-annual", language: .en) == "Annual Report 2023")
+        #expect(FigureDisplay.periodTitle("2026Q1", language: .ko) == "2026년 1분기")
+        #expect(FigureDisplay.periodTitle("2026Q1", language: .en) == "Q1 2026")
+        // Out-of-range quarter and unknown shapes fall back verbatim.
+        #expect(FigureDisplay.periodTitle("2026Q7", language: .ko) == "2026Q7")
+        #expect(FigureDisplay.periodTitle("FY25", language: .en) == "FY25")
+    }
+
+    @Test("Large KRW/USD values abbreviate; small and per-share values stay exact")
+    func valueAbbreviation() {
+        #expect(
+            FigureDisplay.formattedValue(258_935_494_000_000, unit: "KRW", language: .ko)
+                == "258.9조 원"
+        )
+        #expect(
+            FigureDisplay.formattedValue(6_566_976_000_000, unit: "KRW", language: .ko)
+                == "6.6조 원"
+        )
+        #expect(
+            FigureDisplay.formattedValue(650_000_000_000, unit: "KRW", language: .ko)
+                == "6,500억 원"
+        )
+        #expect(
+            FigureDisplay.formattedValue(258_935_494_000_000, unit: "KRW", language: .en)
+                == "258.9T KRW"
+        )
+        #expect(
+            FigureDisplay.formattedValue(391_035_000_000, unit: "USD", language: .en)
+                == "391B USD"
+        )
+        // Negative values keep their sign through the scaling.
+        #expect(
+            FigureDisplay.formattedValue(-1_200_000_000_000, unit: "KRW", language: .ko)
+                == "-1.2조 원"
+        )
+        // Per-share and small values stay exact.
+        #expect(
+            FigureDisplay.formattedValue(2_131, unit: "KRW_PER_SHARE", language: .ko)
+                == "2,131원/주"
+        )
+        #expect(
+            FigureDisplay.formattedValue(2_131, unit: "KRW", language: .ko) == "2,131원"
+        )
+    }
+}

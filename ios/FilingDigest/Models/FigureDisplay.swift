@@ -56,4 +56,57 @@ enum FigureDisplay {
         guard let pair = unitNames[key] else { return key }
         return language == .ko ? pair.ko : pair.en
     }
+
+    // MARK: - Period titles
+
+    /// Humanizes backend period codes for screen titles: "2023-annual" ->
+    /// "사업보고서 2023" / "Annual Report 2023", "2026Q1" -> "2026년 1분기" /
+    /// "Q1 2026". Unknown shapes fall back to the raw string verbatim.
+    static func periodTitle(_ period: String, language: Language) -> String {
+        if period.hasSuffix("-annual"), let year = Int(period.dropLast("-annual".count)) {
+            return language == .ko ? "사업보고서 \(year)" : "Annual Report \(year)"
+        }
+        let parts = period.split(separator: "Q")
+        if parts.count == 2, let year = Int(parts[0]), let quarter = Int(parts[1]),
+           (1...4).contains(quarter) {
+            return language == .ko ? "\(year)년 \(quarter)분기" : "Q\(quarter) \(year)"
+        }
+        return period
+    }
+
+    // MARK: - Value abbreviation
+
+    /// Display string for a structured-API value: large KRW/USD amounts are
+    /// abbreviated (조/억, T/B/M) so 15-digit values stay readable; everything
+    /// else keeps the exact grouped number. Display-only — the exact value
+    /// still lives in the model and callers may show it alongside.
+    static func formattedValue(_ value: Double, unit: String, language: Language) -> String {
+        let magnitude = abs(value)
+
+        func scaled(_ divisor: Double, _ suffix: String) -> String {
+            let n = (value / divisor).formatted(.number.precision(.fractionLength(0...1)))
+            return "\(n)\(suffix)"
+        }
+
+        switch unit {
+        case "KRW":
+            if language == .ko {
+                if magnitude >= 1e12 { return scaled(1e12, "조 원") }
+                if magnitude >= 1e8 { return scaled(1e8, "억 원") }
+            } else {
+                if magnitude >= 1e12 { return scaled(1e12, "T KRW") }
+                if magnitude >= 1e9 { return scaled(1e9, "B KRW") }
+            }
+        case "USD":
+            if magnitude >= 1e12 { return scaled(1e12, language == .ko ? "조 달러" : "T USD") }
+            if magnitude >= 1e9 { return scaled(1e9, language == .ko ? "B 달러" : "B USD") }
+            if magnitude >= 1e6 { return scaled(1e6, language == .ko ? "M 달러" : "M USD") }
+        default:
+            break
+        }
+
+        let number = value.formatted(.number.precision(.fractionLength(0...2)))
+        let unitText = unitName(unit, language: language)
+        return unit.isEmpty ? number : "\(number)\(language == .ko ? "" : " ")\(unitText)"
+    }
 }

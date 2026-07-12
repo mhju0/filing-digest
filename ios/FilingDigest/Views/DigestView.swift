@@ -2,9 +2,11 @@
 //  DigestView.swift
 //  FilingDigest
 //
-//  Company digest: metric card grid (LazyVGrid) + KO/EN segmented toggle +
-//  summary + citations. Metric values are structured-API numbers only; every
-//  card links to a citation via citationId. value == nil renders as a dash.
+//  Company digest, Ledger system (docs/design/DESIGN.md): editorial company
+//  header, filing-context line, 2-column hairline metric cards with
+//  abbreviated values, summary and sources under small-caps section rules.
+//  Metric values are structured-API numbers only; every card links to a
+//  citation via citationId. value == nil renders as a dash.
 //
 //  The digest payload always contains both label_ko/label_en, so metric labels
 //  switch locally without refetching. summary_ko/summary_en may be nil (no
@@ -23,17 +25,14 @@ struct DigestView: View {
     @State private var errorMessage: String?
 
     private let columns = [
-        GridItem(.adaptive(minimum: 150), spacing: 12)
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12),
     ]
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Picker("언어", selection: $language) {
-                    Text("한국어").tag(Language.ko)
-                    Text("English").tag(Language.en)
-                }
-                .pickerStyle(.segmented)
+            VStack(alignment: .leading, spacing: 20) {
+                companyHeader
 
                 if let digest {
                     digestContent(digest)
@@ -50,15 +49,23 @@ struct DigestView: View {
                         Button("다시 시도") {
                             Task { await load() }
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
                     }
                 }
             }
-            .padding()
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 24)
         }
-        .navigationTitle(company.name)
+        .paperBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("FILING DIGEST")
+                    .font(Theme.sectionLabel)
+                    .tracking(2)
+                    .foregroundStyle(Theme.inkMuted)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
                     AnswerView(client: client, company: company)
@@ -72,39 +79,95 @@ struct DigestView: View {
         }
     }
 
+    // MARK: Header
+
+    private var companyHeader: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(company.name)
+                    .font(Theme.display(30))
+                    .foregroundStyle(Theme.ink)
+                Spacer()
+                SourceBadge(source: company.source)
+            }
+            Text(
+                [company.nameEn != company.name ? company.nameEn : nil,
+                 company.ticker,
+                 company.market?.rawValue]
+                    .compactMap(\.self)
+                    .joined(separator: " · ")
+            )
+            .font(.caption)
+            .foregroundStyle(Theme.inkMuted)
+            .lineLimit(1)
+        }
+        .padding(.top, 8)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: Digest content
+
     @ViewBuilder
     private func digestContent(_ digest: CompanyDigest) -> some View {
-        HStack {
-            Text(digest.period)
-                .font(.title3.bold())
+        HStack(alignment: .firstTextBaseline) {
+            Text(filingContext(digest))
+                .font(.subheadline)
+                .foregroundStyle(Theme.inkMuted)
             Spacer()
-            SourceBadge(source: company.source)
+            Picker("언어", selection: $language) {
+                Text("한국어").tag(Language.ko)
+                Text("EN").tag(Language.en)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 140)
         }
 
-        LazyVGrid(columns: columns, spacing: 12) {
-            ForEach(digest.metrics) { metric in
-                MetricCardView(metric: metric, language: language)
+        if digest.metrics.isEmpty && digest.summary(for: language) == nil
+            && digest.citations.isEmpty {
+            ContentUnavailableView(
+                "아직 요약할 공시가 없습니다",
+                systemImage: "doc.text",
+                description: Text("이 회사의 공시가 수집되면 핵심 수치와 요약이 표시됩니다.")
+            )
+            .padding(.top, 20)
+        }
+
+        if !digest.metrics.isEmpty {
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(digest.metrics) { metric in
+                    MetricCardView(metric: metric, language: language)
+                }
             }
         }
 
         if let summary = digest.summary(for: language) {
-            Text(language == .ko ? "요약" : "Summary")
-                .font(.headline)
+            SectionHeader(title: language == .ko ? "요약" : "SUMMARY")
             Text(summary)
                 .font(.body)
+                .foregroundStyle(Theme.ink)
+                .lineSpacing(6)
         }
 
-        Text(language == .ko ? "인용" : "Citations")
-            .font(.headline)
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(digest.citations) { citation in
-                CitationRow(citation: citation)
+        if !digest.citations.isEmpty {
+            SectionHeader(title: language == .ko ? "출처" : "SOURCES")
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(digest.citations) { citation in
+                    CitationRow(citation: citation)
+                    Rectangle()
+                        .fill(Theme.hairline)
+                        .frame(height: 1)
+                }
             }
         }
+    }
 
-        Text("generated_at: \(digest.generatedAt)")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+    /// "사업보고서 2023 · 공시 2024-03-12" — humanized period plus the filing
+    /// date of the first citation (all metrics of a v0.1 digest come from a
+    /// single filing).
+    private func filingContext(_ digest: CompanyDigest) -> String {
+        let title = FigureDisplay.periodTitle(digest.period, language: language)
+        guard let filedAt = digest.citations.first?.filedAt else { return title }
+        return language == .ko ? "\(title) · 공시 \(filedAt)" : "\(title) · filed \(filedAt)"
     }
 
     private func load() async {
@@ -131,49 +194,30 @@ private struct MetricCardView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(metric.label(for: language))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.inkMuted)
                 .lineLimit(1)
-            Text(numberText)
-                .font(.title3.bold())
+            Text(valueText)
+                .font(.title3.weight(.semibold))
                 .monospacedDigit()
+                .foregroundStyle(Theme.ink)
                 .lineLimit(1)
-                .minimumScaleFactor(0.5)
-            if let unitText {
-                Text(unitText)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+                .minimumScaleFactor(0.6)
             if let delta = metric.yoyDeltaPct {
                 Text(deltaText(delta))
-                    .font(.caption.bold())
+                    .font(.caption.weight(.semibold))
                     .monospacedDigit()
-                    .foregroundStyle(delta >= 0 ? Color.green : Color.red)
-            } else {
-                Text("YoY —")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(delta >= 0 ? Color.accentColor : Color(red: 0.72, green: 0.2, blue: 0.15))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemBackground))
-        )
+        .ledgerCard()
+        .accessibilityElement(children: .combine)
     }
 
-    /// nil value -> dash, per contract UI rule. Number and unit render as
-    /// separate texts so the unit suffix never competes with the digits for
-    /// the (half-width) card's horizontal space.
-    private var numberText: String {
+    /// nil value -> dash, per contract UI rule. Large KRW/USD values are
+    /// abbreviated for readability (display-only; the wire value is exact).
+    private var valueText: String {
         guard let value = metric.value else { return "—" }
-        return value.formatted(.number.precision(.fractionLength(0...2)))
-    }
-
-    /// nil when there is no value or no unit — the number line then stands alone.
-    private var unitText: String? {
-        guard metric.value != nil, !metric.unit.isEmpty else { return nil }
-        return FigureDisplay.unitName(metric.unit, language: language)
+        return FigureDisplay.formattedValue(value, unit: metric.unit, language: language)
     }
 
     private func deltaText(_ delta: Double) -> String {
@@ -184,40 +228,37 @@ private struct MetricCardView: View {
 
 // MARK: - Citation row
 
-/// Citation cell shared by DigestView and AnswerView.
+/// Source row shared by DigestView and AnswerView: hairline-separated,
+/// title links to the original filing, mono metadata line.
 struct CitationRow: View {
     let citation: Citation
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .top) {
-                if let url = URL(string: citation.url) {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                if let url = URL(string: citation.url), !citation.url.isEmpty {
                     Link(citation.title, destination: url)
-                        .font(.subheadline.bold())
+                        .font(.subheadline.weight(.semibold))
                 } else {
                     Text(citation.title)
-                        .font(.subheadline.bold())
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
                 }
-                Spacer()
-                SourceBadge(source: citation.source)
+                if let filedAt = citation.filedAt {
+                    Text(filedAt)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Theme.inkMuted)
+                }
+                if let excerpt = citation.excerpt {
+                    Text(excerpt)
+                        .font(.caption)
+                        .foregroundStyle(Theme.inkMuted)
+                        .lineLimit(2)
+                }
             }
-            if let filedAt = citation.filedAt {
-                Text(filedAt)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if let excerpt = citation.excerpt {
-                Text(excerpt)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-            }
+            Spacer()
+            SourceBadge(source: citation.source)
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(.secondarySystemBackground))
-        )
+        .padding(.vertical, 12)
     }
 }
