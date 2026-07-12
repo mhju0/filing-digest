@@ -1,5 +1,7 @@
 # filing-digest
 
+<img src="docs/design/logos/11_lockup.png" width="340" alt="[F] Filing Digest — the brackets are the brand: every claim carries a citation">
+
 [![CI](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml/badge.svg)](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1d5c45.svg)](LICENSE)
 ![Python 3.11](https://img.shields.io/badge/Python-3.11-3776ab.svg)

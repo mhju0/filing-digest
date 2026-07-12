@@ -68,6 +68,21 @@ Fey/Bloomberg 계열 무드. A를 채택하되, A의 다크 모드를 설계할 
   쉽게 만드는 위계. <https://toss.tech/design>,
   <https://developers-apps-in-toss.toss.im/design/components.html>
 
+## 브랜드 시스템 (2026-07-13 확정)
+
+브랜드 약속: **"모든 문장에 영수증이 있다"** — 마크는 인용 그 자체다.
+
+| 역할 | 마크 | 쓰임 |
+|---|---|---|
+| 프라이머리 심볼 | **[F]** — 그린 브래킷 + 잉크 Didot F ([10_bracket_f.png](logos/10_bracket_f.png)) | 앱 아이콘, GitHub 아바타 |
+| 브랜드 원자 | **[■]** — 괄호 안의 그린 사각형 ([9_bracket_fact.png](logos/9_bracket_fact.png)) | 파비콘·로딩 인디케이터·장식. "괄호 안 = 검증된 사실" |
+| 락업 | **[F] Filing Digest** ([11_lockup.png](logos/11_lockup.png)) | README 헤더, 소셜 프리뷰, 발표 자료 |
+
+영문 태그라인: *Every claim carries a citation.* / 한국어: **"공시를 읽다"**.
+이니셜 모노그램(FD 계열)은 탐색 후 기각 — 모노그램은 기성 브랜드의
+문법이라 무명 제품에선 가치를 전달하지 못한다. 기각 시안 포함 전체 탐색은
+[logos/](logos/) 참조.
+
 ## 구현 시 반드시 지울 것 (안티패턴 목록)
 
 1. `2023-annual` 제목 → "사업보고서 2023" 등 사람 언어로
