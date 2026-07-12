@@ -1,20 +1,31 @@
-# filing-digest
+<div align="center">
 
-<img src="docs/design/logos/11_lockup.png" width="340" alt="[F] Filing Digest — the brackets are the brand: every claim carries a citation">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/design/logos/mark_dark.png">
+  <img src="docs/design/logos/mark_light.png" width="130" alt="[F] — the brackets are the brand: every claim carries a citation">
+</picture>
+
+# Filing Digest
+
+**Every claim carries a citation.**
+
+Bilingual (KO/EN) corporate-filings digest & Q&A — DART + SEC EDGAR,<br>
+FastAPI + pgvector RAG with deterministic anti-hallucination guards, SwiftUI client.
 
 [![CI](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml/badge.svg)](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1d5c45.svg)](LICENSE)
 ![Python 3.11](https://img.shields.io/badge/Python-3.11-3776ab.svg)
 ![iOS 17+](https://img.shields.io/badge/iOS-17%2B-black.svg)
 
+</div>
+
 > **Status**: `v0.2` — feature-complete portfolio project. Everything shown
 > below was verified against the live pipeline; run it locally with your own
 > DART / Upstage API keys (see [Local setup](#local-setup)). Not actively
 > maintained.
 
-A bilingual (KO/EN), citation-grounded digest & Q&A service for corporate
-filings. Dual-source and live end-to-end: Korean disclosures via DART OpenAPI
-and US filings via SEC EDGAR. The corpus holds **8 companies** — Samsung
+Dual-source and live end-to-end: Korean disclosures via DART OpenAPI and US
+filings via SEC EDGAR. The corpus holds **8 companies** — Samsung
 Electronics, SK Hynix, NAVER, Hyundai Motor (DART annual reports) and Apple,
 Microsoft, NVIDIA, Tesla (SEC 10-Ks) — each ingested with one CLI command:
 
@@ -170,21 +181,21 @@ curl -s -X POST http://127.0.0.1:8001/answer \
 
 ## Screenshots
 
-Full flow in one loop — browse-first home → type-to-filter → DART/SEC
-digests → a cited answer → a guard-blocked figure question (figures still
-delivered):
+<div align="center">
 
-<img src="docs/screenshots/walkthrough.gif" width="300" alt="Full flow: browse, filter, digest, cited Q&A, guard-blocked figures">
+**Full flow in one loop** — browse → filter → digest → cited answer → guard-blocked figures:
 
-| Search | Digest | Answer | Figures & Sources |
-|---|---|---|---|
-| <img src="docs/screenshots/search.png" width="220"> | <img src="docs/screenshots/digest.png" width="220"> | <img src="docs/screenshots/answer_ok.png" width="220"> | <img src="docs/screenshots/answer_figures.png" width="220"> |
-| Browse-first home: the whole corpus, grouped by source, filtered as you type | Structured figures + guarded KO/EN summary | Citation-anchored narrative segments | Numbers exclusively from the structured filing track, with citation |
+<img src="docs/screenshots/walkthrough.gif" width="240" alt="Full flow: browse, filter, digest, cited Q&A, guard-blocked figures">
 
-| SEC search | SEC digest | 3-state answer flow |
-|---|---|---|
-| <img src="docs/screenshots/search_sec.png" width="220"> | <img src="docs/screenshots/digest_sec.png" width="220"> | <img src="docs/screenshots/answer_states.gif" width="220"> |
-| SEC source badge, zero iOS changes | Korean summary generated from an English 10-K — cross-lingual retrieval | `ok` → `blocked` → `no_results`: the guard pipeline rendered live |
+| Browse | Digest | Answer | Figures |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/search.png" width="200"> | <img src="docs/screenshots/digest.png" width="200"> | <img src="docs/screenshots/answer_ok.png" width="200"> | <img src="docs/screenshots/answer_figures.png" width="200"> |
+| The whole corpus, grouped by source, filtered as you type | Structured figures + guarded KO/EN summary | Citation-anchored narrative segments | Numbers exclusively from the structured filing track |
+| **SEC digest** | **3-state answers** | **Dark mode** | **Cross-lingual** |
+| <img src="docs/screenshots/digest_sec.png" width="200"> | <img src="docs/screenshots/answer_states.gif" width="200"> | <img src="docs/screenshots/digest_dark.png" width="200"> | <img src="docs/screenshots/search_sec.png" width="200"> |
+| Korean summary from an English 10-K | `ok` → `blocked` → `no_results`, rendered live | Warm charcoal counterpart, automatic | Same client, both sources |
+
+</div>
 
 The UI follows the "Ledger" design system — paper/ink palette, one
 ledger-green accent, hairline borders, square citation markers, system fonts
