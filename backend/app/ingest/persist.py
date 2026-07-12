@@ -49,6 +49,7 @@ duplicate row instead of updating the existing one.
 import logging
 import uuid
 from dataclasses import dataclass
+from decimal import Decimal
 
 import httpx
 from sqlalchemy import delete, func, insert
@@ -270,35 +271,76 @@ def financial_rows(
       nullable.
     - ``value`` keeps its type: ``int`` (absolute KRW) or ``Decimal`` (EPS, exact,
       never float) -- ``numeric(24,4)`` holds both.
+    - **annual filings also emit the prior-period row** from ``frmtrm_amount``
+      (fiscal_year - 1, ``"<year-1>-annual"``): the filing document itself
+      reports the 전기 figure, so citing it to this ``filing_id`` is honest,
+      and the stored row is what ``/digest`` YoY deltas compare against.
+      Quarterly filings do NOT emit prior rows (전기 semantics differ); if the
+      prior year's own annual report is ingested later, its current-period row
+      upserts over this one with an identical value (same reported figure).
 
     ``company_id``/``filing_id`` are injected from the upserts' RETURNING ids.
     Pure -> unit-tested.
     """
+
+    def row(
+        metric: str,
+        value: int | Decimal,
+        fiscal_year: int,
+        period: str,
+        currency: str | None,
+    ) -> dict:
+        return {
+            "company_id": company_id,
+            "filing_id": filing_id,  # citation: always populated
+            "fiscal_year": fiscal_year,
+            "fiscal_quarter": descriptor.fiscal_quarter,
+            "period": period,
+            "metric": metric,
+            "value": value,  # int (KRW) | Decimal (EPS)
+            "unit": unit_for(metric),
+            "currency": currency or default_currency,
+            "source": source,
+        }
+
+    is_annual = descriptor.fiscal_quarter is None
+    prior_period = f"{descriptor.fiscal_year - 1}-annual"
+
     rows: list[dict] = []
     seen: set[str] = set()
+    seen_prior: set[str] = set()
     for item in items:
         metric = item.metric
         if metric is None:
             continue  # unmapped account: no standard key for a NOT NULL column
         if item.thstrm_amount is None:
             continue  # empty/unparseable current value: never fabricate (§3)
-        if metric in seen:
-            continue  # duplicate statement copy -> avoid in-batch ON CONFLICT clash
-        seen.add(metric)
-        rows.append(
-            {
-                "company_id": company_id,
-                "filing_id": filing_id,  # citation: always populated
-                "fiscal_year": descriptor.fiscal_year,
-                "fiscal_quarter": descriptor.fiscal_quarter,
-                "period": descriptor.period,
-                "metric": metric,
-                "value": item.thstrm_amount,  # int (KRW) | Decimal (EPS)
-                "unit": unit_for(metric),
-                "currency": item.currency or default_currency,
-                "source": source,
-            }
-        )
+        if metric not in seen:
+            seen.add(metric)
+            rows.append(
+                row(
+                    metric,
+                    item.thstrm_amount,
+                    descriptor.fiscal_year,
+                    descriptor.period,
+                    item.currency,
+                )
+            )
+        if (
+            is_annual
+            and item.frmtrm_amount is not None
+            and metric not in seen_prior
+        ):
+            seen_prior.add(metric)
+            rows.append(
+                row(
+                    metric,
+                    item.frmtrm_amount,
+                    descriptor.fiscal_year - 1,
+                    prior_period,
+                    item.currency,
+                )
+            )
     return rows
 
 

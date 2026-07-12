@@ -239,6 +239,39 @@ def test_financial_rows_amount_uses_krw_unit_and_default_currency() -> None:
     assert rows[0]["currency"] == "KRW"  # blank currency -> DEFAULT_CURRENCY
 
 
+def test_financial_rows_annual_emits_prior_period_row_from_frmtrm() -> None:
+    # The 사업보고서 itself reports the 전기 figure, so a "<year-1>-annual" row
+    # cited to the same filing powers /digest YoY without a second ingest.
+    item = _fin_item("revenue", 258935494000000)
+    item = FinancialItem(**{**item.__dict__, "frmtrm_amount": 302231360000000})
+    rows = financial_rows([item], _COMPANY_ID, _FILING_ID, period_descriptor("2023", "11011"))
+
+    assert [(r["period"], r["fiscal_year"], r["value"]) for r in rows] == [
+        ("2023-annual", 2023, 258935494000000),
+        ("2022-annual", 2022, 302231360000000),
+    ]
+    # Citation rule: the prior row still points at THIS filing.
+    assert all(r["filing_id"] == _FILING_ID for r in rows)
+
+
+def test_financial_rows_prior_row_skipped_when_frmtrm_missing() -> None:
+    rows = financial_rows(
+        [_fin_item("revenue", 258935494000000)],  # frmtrm_amount=None
+        _COMPANY_ID,
+        _FILING_ID,
+        period_descriptor("2023", "11011"),
+    )
+    assert [r["period"] for r in rows] == ["2023-annual"]
+
+
+def test_financial_rows_quarterly_never_emits_prior_rows() -> None:
+    # 전기 semantics differ for interim reports; only annuals emit prior rows.
+    item = _fin_item("revenue", 71000000000000)
+    item = FinancialItem(**{**item.__dict__, "frmtrm_amount": 63000000000000})
+    rows = financial_rows([item], _COMPANY_ID, _FILING_ID, period_descriptor("2023", "11013"))
+    assert [r["period"] for r in rows] == ["2023-Q1"]
+
+
 # -- chunk_rows ---------------------------------------------------------------
 
 
