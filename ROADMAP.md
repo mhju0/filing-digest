@@ -21,18 +21,17 @@ mockups in `docs/design/mockups/`).
 
 ## Phase A — Repo polish (fast wins, do first)
 
-- [ ] **CI**: GitHub Actions workflow running `ruff check` + `pytest`
-      (offline suite only — no DB, no network, `embedding_warmup_enabled=false`).
-      Add the badge to README.
-- [ ] **Lint**: add `ruff` config to `backend/pyproject.toml` (lint + format),
-      fix whatever it flags.
-- [ ] **English architecture doc**: translate `docs/ARCHITECTURE.md` to English
-      as the canonical version linked from README (keep the Korean original as
-      `ARCHITECTURE.ko.md` if desired). The README already promises this
-      content in English.
-- [ ] **README touch-ups**: badges (CI / MIT / Python 3.11 / iOS 17), fix the
-      stale test count (339 → current), fix the stale "in-memory stub data"
-      docstring at `backend/app/api/routes.py:1`.
+- [x] **CI**: GitHub Actions workflow running `ruff check` + the offline
+      pytest suite (`--ignore=tests/test_smoke.py`; smoke needs the local DB).
+      Badge added to README. *(2026-07-12)*
+- [x] **Lint**: ruff config in `backend/pyproject.toml` (E,F,W,I,UP,B), all
+      findings fixed — including a test that was missing its `assert`.
+      *(2026-07-12)*
+- [x] **English architecture doc**: `docs/ARCHITECTURE.md` is now English
+      (canonical, linked from README); Korean original kept as
+      `docs/ARCHITECTURE.ko.md`. *(2026-07-12)*
+- [x] **README touch-ups**: CI/MIT/Python/iOS badges, test count corrected
+      (339 → 368), stale "in-memory stub data" docstring fixed. *(2026-07-12)*
 
 Done when: repo shows a green CI badge and every doc a recruiter can click
 from README is English.
