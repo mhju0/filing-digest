@@ -222,6 +222,55 @@ def test_extract_dsd_prose_repairs_literal_ampersand_and_lt() -> None:
     assert "< TV 시장점유율 추이 >" in content
 
 
+def test_extract_dsd_prose_repairs_letter_led_prose_angle_quote() -> None:
+    # Korean angle-bracket quotation that STARTS with a letter: "<ACI 세미나>"
+    # (SK Hynix 2025 사업보고서 [Verified] — expat read it as a tag named ACI
+    # and died on the Hangul where an attribute belongs). Must parse as prose.
+    doc = (
+        "<DOCUMENT><SECTION-1><TITLE>교육</TITLE>"
+        "<P>- 제11회 <ACI 세미나> 참석</P>"
+        "<P>지속가능성 공시에 대비한 고려사항을 다루었습니다.</P>"
+        "</SECTION-1></DOCUMENT>"
+    )
+    sections = extract_dsd_prose(doc)
+    assert len(sections) == 1
+    content = sections[0].content
+    assert "<ACI 세미나>" in content
+    # Real attributed tags must survive the new repair untouched.
+    attributed = (
+        '<DOCUMENT><SECTION-1 ACLASS="MANDATORY"><TITLE>개요</TITLE>'
+        '<P ACODE="X">당사는 반도체를 생산합니다.</P>'
+        "</SECTION-1></DOCUMENT>"
+    )
+    assert "반도체" in extract_dsd_prose(attributed)[0].content
+
+
+def test_extract_dsd_prose_repairs_english_prose_angle_quote() -> None:
+    # English-only angle quotation: "<Manufacturing Excellence>" (Hyundai 2025
+    # 사업보고서 [Verified]). No Hangul, no '=', whitespace inside -> prose.
+    doc = (
+        '<DOCUMENT><SECTION-1><TITLE>전략</TITLE>'
+        '<P USERMARK="B"><Manufacturing Excellence></P>'
+        "<P>제조 경쟁력을 강화할 계획입니다.</P>"
+        "</SECTION-1></DOCUMENT>"
+    )
+    sections = extract_dsd_prose(doc)
+    assert "<Manufacturing Excellence>" in sections[0].content
+    assert "제조 경쟁력" in sections[0].content
+
+
+def test_extract_dsd_prose_repairs_doubled_attribute_quote() -> None:
+    # Unescaped quote inside an attribute value: ENG=""Snow Corporation"
+    # (NAVER 2025 사업보고서 [Verified]) breaks the attribute parse entirely.
+    doc = (
+        "<DOCUMENT><SECTION-1><TITLE>계열</TITLE>"
+        '<P ENG=""Snow Corporation" USERMARK="B">스노우 주식회사와 거래하였습니다.</P>'
+        "</SECTION-1></DOCUMENT>"
+    )
+    sections = extract_dsd_prose(doc)
+    assert "스노우 주식회사" in sections[0].content
+
+
 # -- _select_document_member (docs §4 ZIP member selection) -------------------
 
 

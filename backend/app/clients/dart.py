@@ -504,6 +504,18 @@ _LEADING_SKIP = chr(0xFEFF) + " \t\r\n"
 # SECTION/TITLE/P counts then match the docs §4 measurements [Verified].
 _BARE_AMP_RE = re.compile(r"&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)")
 _BARE_LT_RE = re.compile(r"<(?![a-zA-Z/!?])")
+# Prose pseudo-tags that DO start with a letter: angle-bracket quotations like
+# "<ACI 세미나>" (SK Hynix 2025) and "<Manufacturing Excellence>" (Hyundai 2025)
+# [Verified] — expat reads them as tags and dies where an attribute belongs.
+# A real XML attribute section always contains '=' (and quotes), so a
+# letter-led "tag" whose body has whitespace but no '='/'"' can only be prose;
+# the trailing character must not be '/' so self-closing tags stay markup.
+_PROSE_ANGLE_RE = re.compile(r"<([A-Za-z][\w.-]*\s[^<>=\"']*[^<>=\"'/\s])>")
+# Attribute values with unescaped embedded quotes: ENG=""Snow Corporation"
+# (NAVER 2025 사업보고서 [Verified]). The stray inner quote is dropped so the
+# attribute becomes well-formed; a genuinely empty value followed by another
+# attribute never matches because the next attribute carries its own '='.
+_DOUBLED_ATTR_QUOTE_RE = re.compile(r'=""([^"<>=]+)"')
 
 
 @dataclass(frozen=True)
@@ -628,6 +640,8 @@ def _repair_dsd_markup(text: str) -> str:
     unit-tested (indirectly, via :func:`extract_dsd_prose`).
     """
     text = _BARE_AMP_RE.sub("&amp;", text)
+    text = _DOUBLED_ATTR_QUOTE_RE.sub(r'="\1"', text)
+    text = _PROSE_ANGLE_RE.sub(r"&lt;\1&gt;", text)
     return _BARE_LT_RE.sub("&lt;", text)
 
 
