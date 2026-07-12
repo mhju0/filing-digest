@@ -88,9 +88,9 @@ filing-digest/
 | D3 | **DART/SEC 실제 응답 포맷** | [Verified] | DART는 실호출로 확인 완료(`docs/dart-api-notes.md`). SEC도 `SecClient`(submissions + companyfacts)로 실호출 검증 완료 — Apple(CIK 320193, accession `0000320193-25-000079`) 10-K로 라이브 검증(`backend/app/ingest/sec_ingest.py`). SEC `fy`는 필링의 기간을 나타낼 뿐 팩트 자체의 기간이 아니므로, `fiscal_year`는 각 팩트의 `period_end`에서 유도한다. |
 | D4 | **psycopg3 선택** (`postgresql+psycopg://` 드라이버) | [Verified] | psycopg2는 유지보수 모드, psycopg3(패키지명 `psycopg`)가 현행 권장 드라이버이며 SQLAlchemy 2.x가 `postgresql+psycopg` dialect로 공식 지원. `DATABASE_URL` 기본값과 docker-compose의 접속 문자열에 반영됨. |
 | D5 | **iOS 17 타깃 + 서드파티 의존성 없음** | [Verified] | SwiftUI + URLSession + Codable(async/await)만으로 v0.1 API 소비가 충분하다. 의존성 0개는 빌드 재현성과 리뷰 범위를 최소화한다. 기본 baseURL은 `http://127.0.0.1:8001` (시뮬레이터 로컬 개발). |
-| D6 | **초기 데이터 범위: 기업당 단일 공시, 소스 2개** | [Verified] | 삼성전자(dart, KOSPI, 005930) 2023년 사업보고서 + Apple(sec, CIK 320193) FY2025 10-K(accession `0000320193-25-000079`), 각 기업당 공시 1건씩 적재된 상태. DART·SEC 실연동 경로를 모두 검증한다. `/digest`·`/answer`는 실제 DB(`financials`, `filing_chunks`)를 읽고, 모든 `MetricCard.value`는 `citation_id`로 실제 `Citation`(원본 공시)과 연결된다(핵심 원칙 강제). 멀티필링/멀티이어 확장은 Phase 2. |
+| D6 | **초기 데이터 범위: 기업당 단일 공시, 소스 2개** | [Verified] | 삼성전자(dart, KOSPI, 005930) 2023년 사업보고서 + Apple(sec, CIK 320193) FY2025 10-K(accession `0000320193-25-000079`), 각 기업당 공시 1건씩 적재된 상태. DART·SEC 실연동 경로를 모두 검증한다. `/digest`·`/answer`는 실제 DB(`financials`, `filing_chunks`)를 읽고, 모든 `MetricCard.value`는 `citation_id`로 실제 `Citation`(원본 공시)과 연결된다(핵심 원칙 강제). 멀티필링/멀티이어 확장은 Phase 2. *2026-07-12 대체: `python -m app.ingest` CLI로 8개사(4 DART / 4 SEC)로 확장, 연차보고서의 전기 수치도 함께 저장해 YoY 지원.* |
 | D7 | **API CONTRACT v0.1 고정** (아래 5절 전문) | [Verified] | backend·iOS가 병렬 개발되므로 계약을 먼저 동결. JSON 필드는 snake_case. |
-| D8 | **벡터 인덱스(hnsw/ivfflat) 미생성** | [Verified] | 실데이터가 없어 인덱스 파라미터 튜닝이 불가능. init.sql에 Phase 2 TODO 주석으로만 남긴다. |
+| D8 | **벡터 인덱스(hnsw/ivfflat) 미생성** | [Verified] | 실데이터가 없어 인덱스 파라미터 튜닝이 불가능. init.sql에 Phase 2 TODO 주석으로만 남긴다. *2026-07-12 해소: 코퍼스가 8개사/약 1.2천 청크에 도달해 hnsw(`vector_cosine_ops`, 기본 파라미터) 생성.* |
 | D9 | **`filing_chunks`의 메타데이터 컬럼명은 `meta`** | [Verified] | `metadata`는 SQLAlchemy Declarative의 예약 속성명(`Base.metadata`)이라 충돌한다. 컬럼명 자체를 `meta`(jsonb)로 통일. |
 
 ## 5. API CONTRACT v0.1 (전문)
@@ -161,7 +161,7 @@ pg16 내장 `gen_random_uuid()` 사용)
 ## 7. Phase 2 TODO
 
 - [x] **DART/SEC 실연동**: httpx 기반 클라이언트, 응답 포맷 실측·확정(D3 해소), Apple 10-K 라이브 검증 완료
-- [ ] **멀티필링/멀티이어 확장**: 기업당 공시 1건 제약 해소, 연도 비교 지원
-- [ ] **파싱/청킹(parsing/chunking) 자동화**: 현재는 수동 ingest, 스케줄링/큐 기반 자동화 파이프라인
-- [ ] **벡터 인덱스 튜닝**: 실데이터 규모 확인 후 hnsw/ivfflat 인덱스 생성·파라미터 튜닝 (D8)
+- [x] **멀티필링/멀티이어 확장**: `python -m app.ingest` CLI로 8개사 확장(2026-07-12), YoY는 연차보고서의 전기 수치를 `<year-1>-annual` 행으로 저장해 지원
+- [ ] **파싱/청킹(parsing/chunking) 자동화**: ingest는 CLI 트리거, 스케줄링/큐 기반 자동화는 미착수
+- [x] **벡터 인덱스**: 8개사/약 1.2천 청크 규모에서 hnsw(`vector_cosine_ops`) 생성 (D8, 2026-07-12)
 - [ ] (부수) Alembic 도입 재검토(D1), ingest 잡의 실제 비동기 처리(큐/워커)

@@ -92,9 +92,9 @@ filing-digest/
 | D3 | **Actual DART/SEC response formats** | [Verified] | DART confirmed via live calls (`docs/dart-api-notes.md`). SEC likewise verified live through `SecClient` (submissions + companyfacts) — validated against Apple's 10-K (CIK 320193, accession `0000320193-25-000079`) via `backend/app/ingest/sec_ingest.py`. Since SEC's `fy` describes the filing's period rather than the period of each fact, `fiscal_year` is derived from each fact's `period_end`. |
 | D4 | **psycopg3 chosen** (`postgresql+psycopg://` driver) | [Verified] | psycopg2 is in maintenance mode; psycopg3 (package name `psycopg`) is the currently recommended driver and officially supported by SQLAlchemy 2.x via the `postgresql+psycopg` dialect. Reflected in the `DATABASE_URL` default and the docker-compose connection string. |
 | D5 | **iOS 17 target + zero third-party dependencies** | [Verified] | SwiftUI + URLSession + Codable (async/await) is sufficient to consume the v0.1 API. Zero dependencies minimizes build reproducibility risk and review surface. Default baseURL is `http://127.0.0.1:8001` (simulator local development). |
-| D6 | **Initial data scope: one filing per company, two sources** | [Verified] | Samsung Electronics (dart, KOSPI, 005930) FY2023 annual report (사업보고서) + Apple (sec, CIK 320193) FY2025 10-K (accession `0000320193-25-000079`) — one filing loaded per company. This exercises both the DART and SEC live-integration paths. `/digest` and `/answer` read from the real database (`financials`, `filing_chunks`), and every `MetricCard.value` is linked via `citation_id` to a real `Citation` (the original filing), enforcing the core principle. Multi-filing / multi-year expansion is Phase 2. |
+| D6 | **Initial data scope: one filing per company, two sources** | [Verified] | Samsung Electronics (dart, KOSPI, 005930) FY2023 annual report (사업보고서) + Apple (sec, CIK 320193) FY2025 10-K (accession `0000320193-25-000079`) — one filing loaded per company. This exercises both the DART and SEC live-integration paths. `/digest` and `/answer` read from the real database (`financials`, `filing_chunks`), and every `MetricCard.value` is linked via `citation_id` to a real `Citation` (the original filing), enforcing the core principle. Multi-filing / multi-year expansion is Phase 2. *Superseded 2026-07-12: corpus expanded to 8 companies (4 DART / 4 SEC) via the `python -m app.ingest` CLI; annual filings also persist their prior-period figures for YoY.* |
 | D7 | **API CONTRACT v0.1 frozen** (full text in section 5 below) | [Verified] | Backend and iOS are developed in parallel, so the contract was frozen first. JSON fields are snake_case. |
-| D8 | **No vector index (hnsw/ivfflat) created yet** | [Verified] | Without real data, index parameters cannot be tuned. Left only as a Phase 2 TODO comment in init.sql. |
+| D8 | **No vector index (hnsw/ivfflat) created yet** | [Verified] | Without real data, index parameters cannot be tuned. Left only as a Phase 2 TODO comment in init.sql. *Resolved 2026-07-12: hnsw (`vector_cosine_ops`, default parameters) created once the corpus reached 8 companies / ~1.2k chunks.* |
 | D9 | **The metadata column on `filing_chunks` is named `meta`** | [Verified] | `metadata` collides with a reserved attribute name in SQLAlchemy Declarative (`Base.metadata`). The column itself is standardized as `meta` (jsonb). |
 
 ## 5. API CONTRACT v0.1 (full text)
@@ -165,7 +165,7 @@ POST /ingest -> 202 (stub -- no worker yet)
 ## 7. Phase 2 TODO
 
 - [x] **Live DART/SEC integration**: httpx-based clients, response formats measured and finalized (resolves D3), live-verified against Apple's 10-K
-- [ ] **Multi-filing / multi-year expansion**: lift the one-filing-per-company constraint, support year-over-year comparison
-- [ ] **Automated parsing/chunking**: ingest is currently manual; move to a scheduled/queue-based automated pipeline
-- [ ] **Vector index tuning**: create and tune hnsw/ivfflat indexes once real data volume is known (D8)
+- [x] **Multi-filing / multi-year expansion**: corpus expanded to 8 companies via the `python -m app.ingest` CLI (2026-07-12); YoY comes from each annual filing's own prior-period figures, stored as `<year-1>-annual` rows
+- [ ] **Automated parsing/chunking**: ingest is CLI-triggered; a scheduled/queue-based pipeline is still open
+- [x] **Vector index**: hnsw (`vector_cosine_ops`) created at 8-company / ~1.2k-chunk scale (D8, 2026-07-12)
 - [ ] (Incidental) revisit Alembic adoption (D1), real async processing for ingest jobs (queue/worker)

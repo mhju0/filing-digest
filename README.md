@@ -7,9 +7,15 @@
 
 A bilingual (KO/EN), citation-grounded digest & Q&A service for corporate
 filings. Dual-source and live end-to-end: Korean disclosures via DART OpenAPI
-and US filings via SEC EDGAR. The corpus currently holds Samsung Electronics'
-2023 annual report (DART) and Apple's FY2025 10-K (SEC, accession
-`0000320193-25-000079`).
+and US filings via SEC EDGAR. The corpus holds **8 companies** — Samsung
+Electronics, SK Hynix, NAVER, Hyundai Motor (DART annual reports) and Apple,
+Microsoft, NVIDIA, Tesla (SEC 10-Ks) — each ingested with one CLI command:
+
+```bash
+cd backend
+python -m app.ingest --source dart --ticker 000660   # SK Hynix, latest 사업보고서
+python -m app.ingest --source sec --ticker NVDA      # NVIDIA, latest 10-K
+```
 
 > **Core principle:** every financial figure comes exclusively from a
 > structured filing API (DART, SEC) — never from the LLM. The
@@ -29,8 +35,9 @@ SwiftUI (iOS 17+, zero 3rd-party deps) → FastAPI (Python 3.11) → PostgreSQL 
 ```
 
 - **Embeddings**: [KURE-v1](https://huggingface.co/nlpai-lab/KURE-v1)
-  (`nlpai-lab/KURE-v1`), 1024-dim, cosine distance (`vector_cosine_ops`).
-  Cross-lingual KO/EN semantic search over `filing_chunks`.
+  (`nlpai-lab/KURE-v1`), 1024-dim, cosine distance (`vector_cosine_ops`)
+  under an hnsw index. Cross-lingual KO/EN semantic search over
+  `filing_chunks`.
 - **LLM**: Upstage Solar Pro 3 (`solar-pro3`), called through a thin
   OpenAI-compatible `chat/completions` adapter
   (`backend/app/llm/solar.py`) — prose generation only, never numbers.
@@ -134,14 +141,13 @@ curl -s -X POST http://127.0.0.1:8001/answer \
 # guards are deterministic, model output is not)
 ```
 
-**3. `no_results`** — a year the corpus doesn't cover (this is the exact
-query behind the regression test for the all-empty-citation fix, see
-`backend/tests/test_answer_route.py:333`):
+**3. `no_results`** — an off-topic question retrieval can't ground (nothing
+clears the similarity floor, so no narrative is attempted):
 
 ```bash
 curl -s -X POST http://127.0.0.1:8001/answer \
   -H "Content-Type: application/json" \
-  -d '{"query": "삼성 매출액 2024년꺼 알려줘", "company_id": "<company_id>"}'
+  -d '{"query": "오늘 날씨 어때?", "company_id": "<company_id>"}'
 # expected: narrative_status = "no_results"
 ```
 
@@ -173,8 +179,9 @@ only (spec: [docs/design/DESIGN.md](docs/design/DESIGN.md)).
 
 ## Known Limitations
 
-- **Two companies, one filing each** — Samsung Electronics' 2023 annual
-  report (DART) and Apple's FY2025 10-K (SEC). No multi-year comparison yet.
+- **One filing type per source** — DART 사업보고서 (annual) and SEC 10-K only;
+  quarterly/interim reports and DART xforms documents are not parsed yet.
+  YoY deltas come from each annual filing's own prior-period figures.
 - **Nonexistent-year queries can land in either `blocked` or `no_results`**,
   depending on whether the LLM's refusal states a bare number without a
   citation, or omits citations entirely — the guards are deterministic, but
@@ -184,7 +191,8 @@ only (spec: [docs/design/DESIGN.md](docs/design/DESIGN.md)).
   vocabulary with an unrelated chunk can still clear it — there's no
   separate semantic-groundedness check, only the similarity floor.
 - **`POST /ingest` is a stub** (`backend/app/api/routes.py:318-332`) —
-  accepts and logs a job id, but there's no worker; ingestion is manual.
+  accepts and logs a job id, but there's no worker; ingestion runs through
+  the `python -m app.ingest` CLI instead.
 
 ## Stack & tests
 

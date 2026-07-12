@@ -77,23 +77,25 @@ non-goal** (IFRS financial-sector account mapping is a separate project).
 Format quirks surfaced by the new companies double as parser-robustness
 evidence.
 
-- [ ] **C1 — Ingest CLI**: `python -m app.ingest --source dart|sec
-      --ticker …` resolves the company, ingests its latest annual filing
-      (DART 사업보고서 / SEC 10-K), and runs the embedding backfill. Closes
-      the "logic complete, no trigger" gap.
-- [ ] **C2 — Six new companies** via the CLI (SK Hynix, NAVER, Hyundai
-      Motor; Microsoft, NVIDIA, Tesla), fixing per-company parser issues as
-      they surface. Live-verify /digest and /answer for each.
-- [ ] **C3 — YoY for DART**: verify whether prior-period (전기) amounts
-      already flow through `fnlttSinglAcntAll` into `financials`; if yes,
-      YoY is free — if not, ingest Samsung's 2024 annual report only
-      (two-year depth for every company is over-investment). SEC YoY
-      already works via companyfacts comparative rows.
-- [ ] **C4 — Vector index**: with the corpus at 8 companies, create the
-      hnsw index (`vector_cosine_ops`) in `db/init.sql` + live DB + a note
-      in the README.
-- [ ] **C5 — Docs refresh**: README demo script and Known Limitations
-      ("two companies, one filing each") updated to the 8-company corpus.
+- [x] **C1 — Ingest CLI**: `python -m app.ingest --source dart|sec
+      --ticker …` — resolves the company, ingests the latest annual filing,
+      backfills embeddings; selection/matching logic pure + unit-tested,
+      crtfc_key masking active on the CLI path. *(2026-07-12)*
+- [x] **C2 — Six new companies** ingested live (SK Hynix, NAVER, Hyundai
+      Motor; Microsoft, NVIDIA, Tesla). Surfaced and fixed three real DSD
+      malformation classes (angle-bracket prose quotes KO/EN, doubled
+      attribute quotes) — each regression test proven to fail unfixed.
+      *(2026-07-12)*
+- [x] **C3 — YoY for DART**: prior-period (전기) amounts were parsed but
+      dropped at persist; annual filings now also write `<year-1>-annual`
+      rows cited to the same filing. Live: SK Hynix op-income YoY +101.2%.
+      *(2026-07-12)*
+- [x] **C4 — Vector index**: hnsw (`vector_cosine_ops`) in init.sql +
+      models.py + live DB; EXPLAIN confirms the planner uses it.
+      *(2026-07-12)*
+- [x] **C5 — Docs refresh**: README (8-company corpus, CLI usage, demo
+      script, limitations) and both ARCHITECTURE docs (D6/D8 resolution
+      notes, Phase-2 TODO) updated. *(2026-07-12)*
 - [ ] Smaller gaps, if time allows: `/search` period/source filters, DART
       `list_filings` pagination, CORS middleware for on-device testing.
 
