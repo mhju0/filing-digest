@@ -183,17 +183,13 @@ curl -s -X POST http://127.0.0.1:8001/answer \
 
 <div align="center">
 
-**Full flow in one loop** — browse → filter → digest → cited answer → guard-blocked figures:
+<img src="docs/screenshots/strip_core.png" alt="Browse-first home, digest with structured figures, citation-anchored answer, guard-blocked figures">
 
-<img src="docs/screenshots/walkthrough.gif" width="240" alt="Full flow: browse, filter, digest, cited Q&A, guard-blocked figures">
+<img src="docs/screenshots/strip_more.png" alt="SEC digest, cross-lingual search, dark mode, no-results guard">
 
-| Browse | Digest | Answer | Figures |
-|:---:|:---:|:---:|:---:|
-| <img src="docs/screenshots/search.png" width="200"> | <img src="docs/screenshots/digest.png" width="200"> | <img src="docs/screenshots/answer_ok.png" width="200"> | <img src="docs/screenshots/answer_figures.png" width="200"> |
-| The whole corpus, grouped by source, filtered as you type | Structured figures + guarded KO/EN summary | Citation-anchored narrative segments | Numbers exclusively from the structured filing track |
-| **SEC digest** | **3-state answers** | **Dark mode** | **Cross-lingual** |
-| <img src="docs/screenshots/digest_sec.png" width="200"> | <img src="docs/screenshots/answer_states.gif" width="200"> | <img src="docs/screenshots/digest_dark.png" width="200"> | <img src="docs/screenshots/search_sec.png" width="200"> |
-| Korean summary from an English 10-K | `ok` → `blocked` → `no_results`, rendered live | Warm charcoal counterpart, automatic | Same client, both sources |
+**Live flows** — the full walkthrough (left) and the `ok` → `blocked` → `no_results` guard states (right):
+
+<img src="docs/screenshots/walkthrough.gif" alt="Full flow: browse, filter, DART and SEC digests, cited answer, guarded figures"> &nbsp; <img src="docs/screenshots/answer_states.gif" alt="Answer states: ok, blocked, no_results">
 
 </div>
 
