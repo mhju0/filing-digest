@@ -1,0 +1,94 @@
+# Roadmap — portfolio-ready filing-digest
+
+Goal: make this repo something a recruiter or hiring engineer can open,
+understand in two minutes, and be impressed by — a designed iOS app on top of
+an already-solid citation-grounded RAG backend.
+
+State as of 2026-07-12 (full audit: backend, iOS, repo hygiene):
+
+| Area | State |
+|---|---|
+| Backend logic | Complete: DART + SEC live ingest, KURE-v1 embeddings, deterministic guard pipeline, 3-state `/answer` |
+| Tests | 357 offline tests pass (`pytest`, DB-less); 5 smoke tests need the Docker DB |
+| README | English, strong, with screenshots and honest limitations |
+| iOS presentation | Undesigned: stock SwiftUI, no asset catalog, no app icon, raw strings on screen |
+| CI / lint | None — no `.github/`, no ruff config |
+| Deep docs | Korean-only (`docs/ARCHITECTURE.md`), linked from the English README |
+
+Design direction for Phase B is locked in
+[docs/design/DESIGN.md](docs/design/DESIGN.md) ("Ledger" editorial system,
+mockups in `docs/design/mockups/`).
+
+## Phase A — Repo polish (fast wins, do first)
+
+- [ ] **CI**: GitHub Actions workflow running `ruff check` + `pytest`
+      (offline suite only — no DB, no network, `embedding_warmup_enabled=false`).
+      Add the badge to README.
+- [ ] **Lint**: add `ruff` config to `backend/pyproject.toml` (lint + format),
+      fix whatever it flags.
+- [ ] **English architecture doc**: translate `docs/ARCHITECTURE.md` to English
+      as the canonical version linked from README (keep the Korean original as
+      `ARCHITECTURE.ko.md` if desired). The README already promises this
+      content in English.
+- [ ] **README touch-ups**: badges (CI / MIT / Python 3.11 / iOS 17), fix the
+      stale test count (339 → current), fix the stale "in-memory stub data"
+      docstring at `backend/app/api/routes.py:1`.
+
+Done when: repo shows a green CI badge and every doc a recruiter can click
+from README is English.
+
+## Phase B — iOS redesign ("Ledger", docs/design/DESIGN.md)
+
+- [ ] **Design tokens**: create `Assets.xcassets` (AccentColor = ledger green,
+      Paper/Ink/InkMuted colors with dark variants), app icon, and a small
+      `Theme.swift` (serif display styles, tabular numeral helpers). Zero
+      third-party deps — New York / SF Pro / SF Mono only.
+- [ ] **Restyle screens** in order: SearchView → DigestView → AnswerView.
+      Hairline-border cards, square citation markers, small-caps section
+      headers, pull-quote question block, green-bordered figures callout.
+- [ ] **Kill raw strings on screen**: `2023-annual` → human title,
+      remove `generated_at`, abbreviate KRW figures (조/억), hide empty
+      `YoY —` rows. (Anti-pattern list in DESIGN.md.)
+- [ ] **Missing states**: DigestView empty/no-metrics state; wrapping layout
+      for citation chips (known limitation in README).
+- [ ] **Accessibility + i18n**: accessibility labels on cards/badges/buttons,
+      String Catalog for UI chrome (KO base, EN localization).
+- [ ] **Refresh README media**: re-shoot the 6 screenshots, add a short demo
+      GIF of the 3-state answer flow.
+
+Done when: screenshots in README look like a designed product, not a default
+SwiftUI app.
+
+## Phase C — Backend productization (selective, portfolio depth)
+
+- [ ] **Ingest entry point**: `python -m app.ingest` CLI (company + source →
+      runs DART/SEC ingest + embedding backfill). Closes the "logic complete,
+      no trigger" gap; optionally wire `POST /ingest` to it via BackgroundTasks.
+- [ ] **Second filing year**: ingest Samsung 2024 annual report (and/or a
+      prior Apple 10-K) so YoY deltas become real — this also unblocks the
+      YoY UI in Phase B.
+- [ ] **Vector index**: create the hnsw index (`vector_cosine_ops`) once the
+      corpus is multi-filing; note the before/after query plan in the README.
+- [ ] Smaller gaps, if time allows: `/search` period/source filters, DART
+      `list_filings` pagination, CORS middleware for on-device testing.
+
+Done when: a stranger can ingest a new company end-to-end with one command.
+
+## Phase D — Ship
+
+- [ ] Tag `v0.2.0`, write GitHub repo description + topics, set the social
+      preview image (use a mockup or the digest screenshot).
+- [ ] Optional: 60–90s screen-recording demo video linked from README.
+
+## Non-goals (deliberately out of scope for the portfolio)
+
+- Auth / rate limiting / multi-tenant concerns — single-user demo service.
+- Alembic migrations — `db/init.sql` stays the single schema source (D1).
+- Production deployment / k8s — local Docker + host uvicorn is the story.
+- DART xforms parsing, attachment ingestion — documented Phase-2 TODOs in code.
+
+## Working agreement
+
+Work top-to-bottom within a phase; commit at each verified checkpoint
+(conventional commits, English). Every figure-related change must keep the
+core principle: numbers only from structured filing APIs, never from the LLM.
