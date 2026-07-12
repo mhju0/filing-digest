@@ -104,8 +104,13 @@ and searching any household-name KR/US ticker returns a real digest.
 
 ## Phase D — Ship
 
-- [ ] Tag `v0.2.0`, write GitHub repo description + topics, set the social
-      preview image (use a mockup or the digest screenshot).
+- [x] Tag `v0.2.0` (Ledger redesign + 8-company corpus + ingest CLI).
+      *(2026-07-12)*
+- [x] Search screenshot re-shot with the mixed KR/US result set; social
+      preview image generated at `docs/social-preview.png`. *(2026-07-12)*
+- [ ] **Manual (1 min, github.com)**: paste the repo description + topics
+      (text in the session notes / PR description), and upload
+      `docs/social-preview.png` under Settings → Social preview.
 - [ ] Optional: 60–90s screen-recording demo video linked from README.
 
 ## Non-goals (deliberately out of scope for the portfolio)
