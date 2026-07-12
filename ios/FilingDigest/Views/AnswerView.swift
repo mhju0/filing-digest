@@ -2,8 +2,11 @@
 //  AnswerView.swift
 //  FilingDigest
 //
-//  Single-shot Q&A against POST /answer for one company: question field on
-//  top, then a 3-state render keyed on narrative_status (ok / blocked /
+//  Single-shot Q&A against POST /answer for one company, Ledger system
+//  (docs/design/DESIGN.md): the asked question renders as an editorial
+//  pull-quote, narrative segments are plain paragraphs with square citation
+//  markers, figures live in a green-bordered callout, and the input bar sits
+//  at the bottom. 3-state render keyed on narrative_status (ok / blocked /
 //  no_results). Figures are rendered in every state — they come from the
 //  structured filing API and are independent of the narrative track, which
 //  is the only thing the backend can withhold.
@@ -16,40 +19,72 @@ struct AnswerView: View {
     let company: Company
 
     @State private var query = ""
+    /// The question the current `response` answers — shown as the pull-quote.
+    @State private var askedQuery = ""
     @State private var response: AnswerResponse?
     @State private var isLoading = false
     @State private var errorMessage: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            inputBar
-            Divider()
-            content
-        }
-        .navigationTitle(company.name)
-        .navigationBarTitleDisplayMode(.inline)
+        content
+            .paperBackground()
+            .safeAreaInset(edge: .bottom) { inputBar }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(company.name)
+                        .font(Theme.display(17))
+                        .foregroundStyle(Theme.ink)
+                }
+            }
+            .task {
+                #if DEBUG
+                // Screenshot automation: auto-ask (see ContentView).
+                if let q = ProcessInfo.processInfo.environment["FD_QUERY"], response == nil {
+                    query = q
+                    await ask()
+                }
+                #endif
+            }
     }
 
-    // MARK: Input bar
+    // MARK: Input bar (bottom)
 
     private var inputBar: some View {
-        HStack(spacing: 8) {
-            TextField("이 회사에 대해 질문하세요", text: $query, axis: .vertical)
-                .lineLimit(1...4)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit {
-                    Task { await ask() }
-                }
+        HStack(spacing: 10) {
+            TextField(
+                response == nil ? "이 회사에 대해 질문하세요" : "이어서 질문하기",
+                text: $query,
+                axis: .vertical
+            )
+            .lineLimit(1...4)
+            .font(.body)
+            .foregroundStyle(Theme.ink)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 2)
+                    .strokeBorder(Theme.hairline, lineWidth: 1)
+            )
+            .onSubmit {
+                Task { await ask() }
+            }
+
             Button {
                 Task { await ask() }
             } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.title2)
+                Image(systemName: "arrow.up")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.paper)
+                    .frame(width: 40, height: 40)
+                    .background(Rectangle().fill(canAsk ? Theme.ink : Theme.inkMuted))
             }
             .disabled(!canAsk)
             .accessibilityLabel("질문 전송")
         }
-        .padding()
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(Theme.paper)
     }
 
     private var canAsk: Bool {
@@ -72,14 +107,17 @@ struct AnswerView: View {
                 Button("다시 시도") {
                     Task { await ask() }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
             }
         } else if let response {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 18) {
+                    questionQuote
                     resultContent(response)
                 }
-                .padding()
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
             }
         } else {
             ContentUnavailableView(
@@ -88,6 +126,21 @@ struct AnswerView: View {
                 description: Text("질문하면 공시 인용이 붙은 답변과 확정 수치를 보여줍니다.")
             )
         }
+    }
+
+    /// The asked question as an editorial pull-quote: 2px ink rule + serif.
+    private var questionQuote: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Rectangle()
+                .fill(Theme.ink)
+                .frame(width: 2)
+            Text(askedQuery)
+                .font(.system(.title3, design: .serif))
+                .italic()
+                .foregroundStyle(Theme.ink)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityLabel("질문: \(askedQuery)")
     }
 
     // MARK: 3-state result
@@ -110,8 +163,7 @@ struct AnswerView: View {
     @ViewBuilder
     private func narrativeSection(_ answer: Answer, citations: [Citation]) -> some View {
         let filingIndex = Self.buildFilingIndex(citations: citations)
-        Text("답변")
-            .font(.headline)
+        SectionHeader(title: "답변")
         ForEach(Array(answer.answerSegments.enumerated()), id: \.offset) { _, segment in
             SegmentView(segment: segment, citationIndex: filingIndex.chunkToIndex)
         }
@@ -121,20 +173,19 @@ struct AnswerView: View {
     }
 
     /// Sources section: one `CitationRow` per unique filing, numbered to match
-    /// the `[n]` chips rendered inline in `SegmentView`.
+    /// the square markers rendered inline in `SegmentView`.
     private func sourcesSection(_ filings: [Citation]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("출처")
-                .font(.headline)
-            VStack(spacing: 8) {
-                ForEach(Array(filings.enumerated()), id: \.offset) { index, citation in
-                    HStack(alignment: .top, spacing: 6) {
-                        Text("[\(index + 1)]")
-                            .font(.caption.bold())
-                            .foregroundStyle(.secondary)
-                        CitationRow(citation: citation)
-                    }
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(title: "출처")
+            ForEach(Array(filings.enumerated()), id: \.offset) { index, citation in
+                HStack(alignment: .top, spacing: 10) {
+                    CitationMarker(index: index + 1)
+                        .padding(.top, 14)
+                    CitationRow(citation: citation)
                 }
+                Rectangle()
+                    .fill(Theme.hairline)
+                    .frame(height: 1)
             }
         }
     }
@@ -170,21 +221,17 @@ struct AnswerView: View {
     private var blockedNotice: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "shield.lefthalf.filled")
-                .foregroundStyle(Color.orange)
+                .foregroundStyle(Color.accentColor)
             VStack(alignment: .leading, spacing: 4) {
                 Text("정확한 수치는 아래 표에서 확인하세요")
-                    .font(.subheadline.bold())
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
                 Text("수치 정확성을 위해 AI 서술에는 숫자를 표시하지 않습니다. 아래 확정 수치는 공시 원문에서 직접 가져온 값입니다.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.inkMuted)
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.orange.opacity(0.12))
-        )
+        .ledgerCard(borderColor: Color.accentColor.opacity(0.5))
     }
 
     private var noResultsNotice: some View {
@@ -198,13 +245,27 @@ struct AnswerView: View {
     @ViewBuilder
     private func figuresSection(_ figures: [Figure]) -> some View {
         if !figures.isEmpty {
-            Text("확정 수치")
-                .font(.headline)
-            VStack(spacing: 8) {
-                ForEach(Array(figures.enumerated()), id: \.offset) { _, figure in
+            VStack(alignment: .leading, spacing: 0) {
+                Text("확정 수치 — 구조화 공시 데이터")
+                    .font(Theme.sectionLabel)
+                    .tracking(1)
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.bottom, 4)
+                ForEach(Array(figures.enumerated()), id: \.offset) { index, figure in
+                    if index > 0 {
+                        Rectangle()
+                            .fill(Theme.hairline)
+                            .frame(height: 1)
+                    }
                     FigureRow(figure: figure)
                 }
             }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(
+                RoundedRectangle(cornerRadius: 2)
+                    .strokeBorder(Color.accentColor.opacity(0.6), lineWidth: 1)
+            )
         }
     }
 
@@ -220,6 +281,7 @@ struct AnswerView: View {
 
         isLoading = true
         errorMessage = nil
+        askedQuery = trimmed
         defer { isLoading = false }
 
         do {
@@ -233,12 +295,13 @@ struct AnswerView: View {
 
 // MARK: - Segment
 
-/// One narrated span plus compact `[n]` citation chips. Each chunk id in
-/// `segment.citations` is resolved against `citationIndex` (chunk_id -> the
-/// unique filing's 1-based position, built by `AnswerView.buildFilingIndex`)
-/// into a small capsule; an unmatched id falls back to the raw chunk_id
-/// capsule, which surfaces a citation-contract violation instead of hiding
-/// it. The full per-filing detail lives once in the "출처" section below.
+/// One narrated paragraph plus square citation markers in a wrapping row.
+/// Each chunk id in `segment.citations` is resolved against `citationIndex`
+/// (chunk_id -> the unique filing's 1-based position, built by
+/// `AnswerView.buildFilingIndex`) into a `CitationMarker`; an unmatched id
+/// falls back to the raw chunk_id, which surfaces a citation-contract
+/// violation instead of hiding it. The full per-filing detail lives once in
+/// the "출처" section below.
 private struct SegmentView: View {
     let segment: AnswerSegment
     let citationIndex: [String: Int]
@@ -269,36 +332,28 @@ private struct SegmentView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(segment.text)
                 .font(.body)
+                .foregroundStyle(Theme.ink)
+                .lineSpacing(6)
             if !chips.isEmpty {
-                HStack(spacing: 6) {
+                FlowLayout(spacing: 6) {
                     ForEach(chips) { chip in
                         switch chip {
                         case .filing(let index):
-                            Text("[\(index)]")
-                                .font(.caption2.bold())
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(Color.accentColor.opacity(0.15)))
-                                .foregroundStyle(Color.accentColor)
+                            CitationMarker(index: index)
                         case .raw(let chunkID):
                             Text(chunkID)
                                 .font(.caption2.monospaced())
                                 .lineLimit(1)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(Capsule().fill(Color.accentColor.opacity(0.12)))
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(Theme.inkMuted)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .overlay(Rectangle().strokeBorder(Theme.hairline, lineWidth: 1))
                         }
                     }
                 }
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemBackground))
-        )
+        .padding(.bottom, 4)
     }
 }
 
@@ -308,54 +363,66 @@ private struct FigureRow: View {
     let figure: Figure
 
     var body: some View {
-        // Label / number / metadata stacked vertically so a 15-digit value
-        // owns the full row width and never contends with the label.
-        VStack(alignment: .leading, spacing: 4) {
-            Text(FigureDisplay.metricName(figure.metric, language: .ko))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(numberText)
-                    .font(.title3.bold())
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(FigureDisplay.metricName(figure.metric, language: .ko))
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.ink)
+                Text(periodText)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(Theme.inkMuted)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(abbreviatedText)
+                    .font(.title3.weight(.semibold))
                     .monospacedDigit()
+                    .foregroundStyle(Theme.ink)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-                if let unitText {
-                    Text(unitText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .minimumScaleFactor(0.6)
+                if let exact = exactText {
+                    Text(exact)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(Theme.inkMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
             }
-            Text(periodText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(.secondarySystemBackground))
-        )
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
     }
 
     private var periodText: String {
+        let title = FigureDisplay.periodTitle(figure.period, language: .ko)
         if let quarter = figure.fiscalQuarter {
-            return "\(figure.period) · FY\(figure.fiscalYear) Q\(quarter)"
+            return "\(title) · FY\(figure.fiscalYear) Q\(quarter)"
         }
-        return "\(figure.period) · FY\(figure.fiscalYear)"
+        return "\(title) · FY\(figure.fiscalYear)"
     }
 
-    /// Formats the Decimal directly (Decimal.FormatStyle) — no Double round
-    /// trip, so numeric(24,4) precision is preserved end to end. Number and
-    /// unit are separate texts so the unit never steals width from the digits.
-    private var numberText: String {
-        figure.value.formatted(
-            .number.precision(.fractionLength(0...4)).grouping(.automatic)
+    /// Abbreviated display value (조/억) — readable at a glance.
+    private var abbreviatedText: String {
+        FigureDisplay.formattedValue(
+            NSDecimalNumber(decimal: figure.value).doubleValue,
+            unit: figure.unit,
+            language: .ko
         )
     }
 
-    private var unitText: String? {
-        figure.unit.isEmpty ? nil : FigureDisplay.unitName(figure.unit, language: .ko)
+    /// The exact structured-API value (lossless Decimal), shown under the
+    /// abbreviation whenever abbreviating actually dropped digits — the
+    /// authoritative track stays fully inspectable.
+    private var exactText: String? {
+        let exact = figure.value.formatted(
+            .number.precision(.fractionLength(0...4)).grouping(.automatic)
+        )
+        // Same no-space KO join as FigureDisplay.formattedValue, so an
+        // unabbreviated value compares equal and the duplicate line hides.
+        let unitText = figure.unit.isEmpty
+            ? ""
+            : FigureDisplay.unitName(figure.unit, language: .ko)
+        let full = "\(exact)\(unitText)"
+        return full == abbreviatedText ? nil : full
     }
 }
