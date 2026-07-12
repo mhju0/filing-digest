@@ -69,18 +69,36 @@ SwiftUI app.
 
 ## Phase C — Backend productization (selective, portfolio depth)
 
-- [ ] **Ingest entry point**: `python -m app.ingest` CLI (company + source →
-      runs DART/SEC ingest + embedding backfill). Closes the "logic complete,
-      no trigger" gap; optionally wire `POST /ingest` to it via BackgroundTasks.
-- [ ] **Second filing year**: ingest Samsung 2024 annual report (and/or a
-      prior Apple 10-K) so YoY deltas become real — this also unblocks the
-      YoY UI in Phase B.
-- [ ] **Vector index**: create the hnsw index (`vector_cosine_ops`) once the
-      corpus is multi-filing; note the before/after query plan in the README.
+Scope decision (2026-07-12): the demo corpus grows to **8 companies** so
+search feels like a product, not a fixture — DART: Samsung Electronics ✓,
+SK Hynix, NAVER, Hyundai Motor; SEC: Apple ✓, Microsoft, NVIDIA, Tesla.
+Non-financial large caps only. **Financial/holding companies are a
+non-goal** (IFRS financial-sector account mapping is a separate project).
+Format quirks surfaced by the new companies double as parser-robustness
+evidence.
+
+- [ ] **C1 — Ingest CLI**: `python -m app.ingest --source dart|sec
+      --ticker …` resolves the company, ingests its latest annual filing
+      (DART 사업보고서 / SEC 10-K), and runs the embedding backfill. Closes
+      the "logic complete, no trigger" gap.
+- [ ] **C2 — Six new companies** via the CLI (SK Hynix, NAVER, Hyundai
+      Motor; Microsoft, NVIDIA, Tesla), fixing per-company parser issues as
+      they surface. Live-verify /digest and /answer for each.
+- [ ] **C3 — YoY for DART**: verify whether prior-period (전기) amounts
+      already flow through `fnlttSinglAcntAll` into `financials`; if yes,
+      YoY is free — if not, ingest Samsung's 2024 annual report only
+      (two-year depth for every company is over-investment). SEC YoY
+      already works via companyfacts comparative rows.
+- [ ] **C4 — Vector index**: with the corpus at 8 companies, create the
+      hnsw index (`vector_cosine_ops`) in `db/init.sql` + live DB + a note
+      in the README.
+- [ ] **C5 — Docs refresh**: README demo script and Known Limitations
+      ("two companies, one filing each") updated to the 8-company corpus.
 - [ ] Smaller gaps, if time allows: `/search` period/source filters, DART
       `list_filings` pagination, CORS middleware for on-device testing.
 
-Done when: a stranger can ingest a new company end-to-end with one command.
+Done when: a stranger can ingest a new company end-to-end with one command,
+and searching any household-name KR/US ticker returns a real digest.
 
 ## Phase D — Ship
 
