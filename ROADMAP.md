@@ -59,8 +59,10 @@ from README is English.
       this product's bilingual mechanism; device-locale chrome localization
       would add a second competing language system for little demo value.
       Revisit only if the app ships to non-Korean testers.
-- [ ] **Refresh README media**: re-shoot the 6 screenshots, add a short demo
-      GIF of the 3-state answer flow.
+- [x] **Refresh README media**: all 6 screenshots re-shot on the redesigned
+      UI, plus `answer_states.gif` cycling the genuine ok → blocked →
+      no_results states; fixed-limitation bullet (non-wrapping citation
+      chips) removed from README. *(2026-07-12)*
 
 Done when: screenshots in README look like a designed product, not a default
 SwiftUI app.

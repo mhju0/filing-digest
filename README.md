@@ -162,10 +162,14 @@ curl -s -X POST http://127.0.0.1:8001/answer \
 | <img src="docs/screenshots/search.png" width="220"> | <img src="docs/screenshots/digest.png" width="220"> | <img src="docs/screenshots/answer_ok.png" width="220"> | <img src="docs/screenshots/answer_figures.png" width="220"> |
 | Company lookup via DART | Structured figures + guarded KO/EN summary | Citation-anchored narrative segments | Numbers exclusively from the structured filing track, with citation |
 
-| SEC search | SEC digest |
-|---|---|
-| <img src="docs/screenshots/search_sec.png" width="220"> | <img src="docs/screenshots/digest_sec.png" width="220"> |
-| SEC source badge, zero iOS changes | Korean summary generated from an English 10-K — cross-lingual retrieval |
+| SEC search | SEC digest | 3-state answer flow |
+|---|---|---|
+| <img src="docs/screenshots/search_sec.png" width="220"> | <img src="docs/screenshots/digest_sec.png" width="220"> | <img src="docs/screenshots/answer_states.gif" width="220"> |
+| SEC source badge, zero iOS changes | Korean summary generated from an English 10-K — cross-lingual retrieval | `ok` → `blocked` → `no_results`: the guard pipeline rendered live |
+
+The UI follows the "Ledger" design system — paper/ink palette, one
+ledger-green accent, hairline borders, square citation markers, system fonts
+only (spec: [docs/design/DESIGN.md](docs/design/DESIGN.md)).
 
 ## Known Limitations
 
@@ -179,13 +183,8 @@ curl -s -X POST http://127.0.0.1:8001/answer \
   is a single cosine-similarity cutoff. A query that shares surface
   vocabulary with an unrelated chunk can still clear it — there's no
   separate semantic-groundedness check, only the similarity floor.
-- **`POST /ingest` is a stub** (`backend/app/api/routes.py:213-227`) —
+- **`POST /ingest` is a stub** (`backend/app/api/routes.py:318-332`) —
   accepts and logs a job id, but there's no worker; ingestion is manual.
-- **iOS citation chips use a plain `HStack`** with no wrapping
-  (`ios/FilingDigest/Views/AnswerView.swift:273`) — fine as long as each
-  company has one filing (still true after SEC ingestion), will need a
-  wrapping layout once a company has multiple filings and answers routinely
-  cite more than one.
 
 ## Stack & tests
 
