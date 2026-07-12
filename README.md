@@ -5,6 +5,11 @@
 ![Python 3.11](https://img.shields.io/badge/Python-3.11-3776ab.svg)
 ![iOS 17+](https://img.shields.io/badge/iOS-17%2B-black.svg)
 
+> **Status**: `v0.2` — feature-complete portfolio project. Everything shown
+> below was verified against the live pipeline; run it locally with your own
+> DART / Upstage API keys (see [Local setup](#local-setup)). Not actively
+> maintained.
+
 A bilingual (KO/EN), citation-grounded digest & Q&A service for corporate
 filings. Dual-source and live end-to-end: Korean disclosures via DART OpenAPI
 and US filings via SEC EDGAR. The corpus holds **8 companies** — Samsung
@@ -162,6 +167,12 @@ curl -s -X POST http://127.0.0.1:8001/answer \
 ```
 
 ## Screenshots
+
+Full flow in one loop — browse-first home → type-to-filter → DART/SEC
+digests → a cited answer → a guard-blocked figure question (figures still
+delivered):
+
+<img src="docs/screenshots/walkthrough.gif" width="300" alt="Full flow: browse, filter, digest, cited Q&A, guard-blocked figures">
 
 | Search | Digest | Answer | Figures & Sources |
 |---|---|---|---|

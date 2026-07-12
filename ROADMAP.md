@@ -117,7 +117,19 @@ and searching any household-name KR/US ticker returns a real digest.
       the search field filters the list as you type. Server-side
       `/companies?q=` stays (initial load uses `q=""` = match-all; the local
       filter matches the same name/name_en/ticker fields).
-- [ ] Optional: 60–90s screen-recording demo video linked from README.
+- [x] **Walkthrough GIF + status note** (finalization, 2026-07-13): README
+      opens with a Status line (v0.2, feature-complete, not actively
+      maintained — repo-as-artifact per the finalization decision) and a
+      full-flow walkthrough GIF. Narrative prompt aligned with the number
+      guard so source-stated dates answer cleanly (founding-year fix).
+      A screen-recorded video stays optional and unnecessary.
+
+## Project complete
+
+Phases A–D are closed. Remaining manual touches (1 min each, github.com):
+repo description + topics, social-preview upload, optionally a GitHub
+Release created from the `v0.2.0` tag. Future work, if any, starts from the
+"smaller gaps" list in Phase C and the non-goals section — both deliberate.
 
 ## Non-goals (deliberately out of scope for the portfolio)
 
