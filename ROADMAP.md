@@ -38,20 +38,27 @@ from README is English.
 
 ## Phase B — iOS redesign ("Ledger", docs/design/DESIGN.md)
 
-- [ ] **Design tokens**: create `Assets.xcassets` (AccentColor = ledger green,
-      Paper/Ink/InkMuted colors with dark variants), app icon, and a small
-      `Theme.swift` (serif display styles, tabular numeral helpers). Zero
-      third-party deps — New York / SF Pro / SF Mono only.
-- [ ] **Restyle screens** in order: SearchView → DigestView → AnswerView.
-      Hairline-border cards, square citation markers, small-caps section
-      headers, pull-quote question block, green-bordered figures callout.
-- [ ] **Kill raw strings on screen**: `2023-annual` → human title,
-      remove `generated_at`, abbreviate KRW figures (조/억), hide empty
-      `YoY —` rows. (Anti-pattern list in DESIGN.md.)
-- [ ] **Missing states**: DigestView empty/no-metrics state; wrapping layout
-      for citation chips (known limitation in README).
-- [ ] **Accessibility + i18n**: accessibility labels on cards/badges/buttons,
-      String Catalog for UI chrome (KO base, EN localization).
+- [x] **Design tokens**: `Assets.xcassets` (AccentColor = ledger green,
+      Paper/Ink/InkMuted with dark variants), Didot "F." app icon,
+      `Theme.swift` (serif display, hairline card, SectionHeader,
+      CitationMarker, FlowLayout). Zero third-party deps held. *(2026-07-12)*
+- [x] **Restyle screens**: SearchView, DigestView, AnswerView — hairline
+      cards, square citation markers, small-caps section rules, pull-quote
+      question, green figures callout. Dark mode verified (warm charcoal
+      counterpart). *(2026-07-12)*
+- [x] **Kill raw strings on screen**: `periodTitle` ("2023-annual" →
+      "사업보고서 2023"), `formattedValue` (조/억, T/B/M abbreviation,
+      display-only), `generated_at` removed, empty `YoY —` hidden — both new
+      pure functions unit-tested. *(2026-07-12)*
+- [x] **Missing states**: DigestView no-filings empty state; citation chips
+      wrap via a FlowLayout (closes the README known limitation).
+      *(2026-07-12)*
+- [x] **Accessibility**: labels/traits on badges, markers, cards, rows,
+      section headers, send/clear buttons. *(2026-07-12)*
+      **String Catalog: deliberately deferred** — the in-app KO/EN toggle is
+      this product's bilingual mechanism; device-locale chrome localization
+      would add a second competing language system for little demo value.
+      Revisit only if the app ships to non-Korean testers.
 - [ ] **Refresh README media**: re-shoot the 6 screenshots, add a short demo
       GIF of the 3-state answer flow.
 

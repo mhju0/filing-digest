@@ -232,6 +232,7 @@ struct AnswerView: View {
             }
         }
         .ledgerCard(borderColor: Color.accentColor.opacity(0.5))
+        .accessibilityElement(children: .combine)
     }
 
     private var noResultsNotice: some View {
@@ -251,6 +252,7 @@ struct AnswerView: View {
                     .tracking(1)
                     .foregroundStyle(Color.accentColor)
                     .padding(.bottom, 4)
+                    .accessibilityAddTraits(.isHeader)
                 ForEach(Array(figures.enumerated()), id: \.offset) { index, figure in
                     if index > 0 {
                         Rectangle()
