@@ -1,5 +1,10 @@
 # filing-digest
 
+[![CI](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml/badge.svg)](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-1d5c45.svg)](LICENSE)
+![Python 3.11](https://img.shields.io/badge/Python-3.11-3776ab.svg)
+![iOS 17+](https://img.shields.io/badge/iOS-17%2B-black.svg)
+
 A bilingual (KO/EN), citation-grounded digest & Q&A service for corporate
 filings. Dual-source and live end-to-end: Korean disclosures via DART OpenAPI
 and US filings via SEC EDGAR. The corpus currently holds Samsung Electronics'
@@ -189,7 +194,9 @@ curl -s -X POST http://127.0.0.1:8001/answer \
   loader). Version ranges pinned in `backend/requirements.txt`.
 - **iOS**: SwiftUI, iOS 17.0 deployment target, Swift Testing (`import
   Testing`, no XCTest), zero third-party dependencies.
-- **Tests**: 339 offline backend tests (`pytest --collect-only -q`), plus
+- **Tests**: 368 backend tests (`pytest --collect-only -q`) — all offline
+  except `tests/test_smoke.py`, which needs the local Docker DB (CI runs the
+  offline suite), plus
   `ios/FilingDigestTests/FilingDigestTests.swift` covering JSON decoding and
   request construction.
 

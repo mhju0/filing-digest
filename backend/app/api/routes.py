@@ -1,4 +1,5 @@
-"""API CONTRACT v0.1 endpoints, served from in-memory stub data (Phase 1).
+"""API CONTRACT v0.1 endpoints, backed by the real database (POST /ingest is
+still a stub).
 
 Principle: numbers come only from structured APIs (DART/SEC structured data);
 the LLM narrates only; every claim carries a citation.
