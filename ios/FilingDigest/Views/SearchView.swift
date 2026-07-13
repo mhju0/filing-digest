@@ -45,12 +45,6 @@ struct SearchView: View {
             }
             .task {
                 await load()
-                #if DEBUG
-                // Screenshot automation: pre-filled filter (see ContentView).
-                if let q = ProcessInfo.processInfo.environment["FD_QUERY"], query.isEmpty {
-                    query = q
-                }
-                #endif
             }
         }
         .tint(Color.accentColor)

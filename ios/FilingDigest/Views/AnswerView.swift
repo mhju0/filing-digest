@@ -37,15 +37,6 @@ struct AnswerView: View {
                         .foregroundStyle(Theme.ink)
                 }
             }
-            .task {
-                #if DEBUG
-                // Screenshot automation: auto-ask (see ContentView).
-                if let q = ProcessInfo.processInfo.environment["FD_QUERY"], response == nil {
-                    query = q
-                    await ask()
-                }
-                #endif
-            }
     }
 
     // MARK: Input bar (bottom)
