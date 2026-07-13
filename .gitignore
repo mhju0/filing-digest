@@ -40,10 +40,23 @@ xcuserdata/
 # Handoff docs & spike scripts — regenerable, not for the repo.
 scratchpad/
 
+# Local caches and workspace state.
 .tokensave/
-.serena/
-
-# AI-assistant workspace config — local tooling, not for the public repo.
-CLAUDE.md
-.claude/
 .ruff_cache/
+
+# Local assistant and editor workspace config.
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.claude/
+.codex/
+.cursor/
+.aider*
+.continue/
+.gemini/
+.serena/
+.windsurf/
+.github/copilot-instructions.md
+.github/agents/
+.github/instructions/
+.github/prompts/

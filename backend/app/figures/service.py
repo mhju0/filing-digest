@@ -3,7 +3,7 @@
 Symmetric counterpart to the narrative/number guards in :mod:`app.llm`: those
 keep numbers OUT of LLM prose; this puts numbers into the answer authoritatively,
 straight from the structured filing API (DART/SEC financials) with a citation
-anchor and never through the LLM (CLAUDE.md: "숫자는 구조화 filing API에서만 온다").
+anchor and never through the LLM.
 
 Design mirrors :func:`app.search.service._row_to_result`: row -> schema shaping
 is a pure function (:func:`build_figures`), unit-testable without a DB. The

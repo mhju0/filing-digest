@@ -1,10 +1,9 @@
 """Smoke tests for DB-backed endpoints (API CONTRACT v0.2).
 
 Requires the local PostgreSQL database. The tests assert response shape rather
-than specific rows/counts because those depend on live DB
-content (mirrors the /search, /answer convention: DB-backed behavior is verified
-live, not pinned in pytest -- CLAUDE.md "테스트 PASSED만으로 실연동 스텝을 완료로
-치지 않는다"). Run from backend/: pytest
+than specific rows/counts because those depend on live DB content. DB-backed
+behavior is verified live rather than pinned to one database snapshot. Run from
+backend/: pytest
 """
 
 import logging

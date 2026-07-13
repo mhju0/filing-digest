@@ -1,8 +1,7 @@
 """Citation-bearing answer contract for LLM chat completions.
 
-Every claim the LLM produces must carry a citation back to a retrieved chunk
-(CLAUDE.md: "수치 환각은 절대 금지" / every claim needs a citation). This module is
-pure data + schema-building: no HTTP, no Solar call, no guard logic (see
+Every claim the LLM produces must carry a citation back to a retrieved chunk.
+This module is pure data + schema-building: no HTTP, no Solar call, no guard logic (see
 :mod:`app.llm.citation_guard` for the validation side).
 
 Nesting is kept to exactly 3 levels -- root -> segment -> citations array --

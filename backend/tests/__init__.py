@@ -1,1 +1,1 @@
-"""Backend tests (stub endpoints only; no DB required)."""
+"""Backend test suite."""

@@ -16,7 +16,7 @@ Design (locked):
 - ONE SOURCE OF TRUTH: the label->chunk_id map is built from the SAME injected
   list used to format the prompt, so citations remap and the guard's
   ``retrieved_ids`` cannot drift apart.
-- Numbers policy (CLAUDE.md: "수치 환각은 절대 금지"): the system prompt forbids
+- NUMBERS POLICY: the system prompt forbids
   producing/inventing FINANCIAL figures (amounts, percentages, ratios) while
   allowing source-stated non-financial facts such as dates and years -- the
   prompt is aligned with what the deterministic number guard

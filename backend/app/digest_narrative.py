@@ -12,7 +12,7 @@ FIXED, query-less business-overview summary for a company's filing:
   hand-authored (no ``$ref``/``$defs``, one level of nesting) for the same
   reason as :func:`app.llm.answer.build_answer_json_schema`: Solar rejects
   ref/recursive schemas.
-- NUMBER POLICY (CLAUDE.md "수치 환각은 절대 금지"): the prompt forbids ALL numerals
+- NUMBER POLICY: the prompt forbids ALL numerals
   in the prose, and :func:`_assert_summary_number_free` enforces it on BOTH the
   Korean AND English summary in two layers -- the shared financial-number guard
   (:func:`app.llm.number_guard.assert_number_free`, suffix-anchored on 원/%/배)
@@ -64,13 +64,13 @@ _DIGEST_TOP_K = 6
 _MAX_TOKENS = 512
 
 # Generated digest prose must be fully qualitative -- numbers come only from the
-# structured figures track (CLAUDE.md). Any digit (after NFKC normalization) is a
+# structured figures track. Any digit (after NFKC normalization) is a
 # violation, catching bare counts/years/English currency the suffix-anchored
 # financial guard cannot.
 _ANY_DIGIT_RE = re.compile(r"\d")
 
-# Process-local memo of SUCCESSFUL summaries, keyed by filing_id (CLAUDE.md: no
-# new deps -- a plain dict, no TTL). Guard-blocked/failed generations are never
+# Process-local memo of SUCCESSFUL summaries, keyed by filing_id (a plain dict
+# with no TTL or extra dependency). Guard-blocked/failed generations are never
 # stored so a later request gets a fresh attempt.
 _SUMMARY_CACHE: dict[uuid.UUID, tuple[str, str]] = {}
 

@@ -2,8 +2,8 @@
 
 Mirror of :mod:`app.llm.citation_guard`: pure validation, no repair, no network,
 no DB. In filing-digest, numbers come only from the structured filing API; the
-LLM narrates and must never emit figures of its own (CLAUDE.md: "수치 환각은 절대
-금지"). This module scans each answer segment's narrated ``text`` for financial
+LLM narrates and must never emit figures of its own. This module scans each
+answer segment's narrated ``text`` for financial
 number tokens -- currency amounts, percentages, and multiples -- and reports
 every one it finds. It NEVER scans ``segment.citations`` (those are chunk-id
 strings / UUIDs and would always false-positive). Callers decide what to do with

@@ -132,8 +132,7 @@ class Figure(BaseModel):
     Mirror of :class:`SearchHit`'s tone for the figures track: where a search hit
     anchors a NARRATED claim to its source, a Figure IS the number -- pulled
     deterministically from ``financials`` (never through the LLM), carrying its
-    own ``filing_id`` so each value is a self-contained citation anchor
-    (CLAUDE.md: "숫자는 구조화 filing API에서만 온다").
+    own ``filing_id`` so each value is a self-contained citation anchor.
 
     ``value`` is a :class:`~decimal.Decimal`, never ``float`` -- ``financials.value``
     is ``numeric(24,4)`` and its full precision (e.g. EPS ``2131.0000``, KRW
@@ -185,7 +184,7 @@ class AnswerResponse(BaseModel):
     The two tracks stay separate by design: ``answer`` carries LLM narrative
     (prose only, every segment cited, no numbers), while ``figures`` carries the
     numbers pulled deterministically from the structured filing API -- never
-    through the LLM (CLAUDE.md: "숫자는 구조화 filing API에서만 온다").
+    through the LLM.
 
     ``answer`` is nullable: when ``narrative_status`` is ``no_results`` or
     ``blocked`` there is no prose to return, but ``figures`` still is.
