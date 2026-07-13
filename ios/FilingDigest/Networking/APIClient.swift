@@ -2,7 +2,7 @@
 //  APIClient.swift
 //  FilingDigest
 //
-//  Minimal URLSession-based client for API CONTRACT v0.1.
+//  Minimal URLSession-based client for API CONTRACT v0.2.
 //  - async/await only, no third-party dependencies.
 //  - snake_case JSON handled via key coding strategies, so the Codable models
 //    stay camelCase without hand-written CodingKeys.
@@ -126,11 +126,6 @@ struct APIClient {
         )
     }
 
-    /// POST /ingest
-    func makeIngestRequest(_ body: IngestRequest) throws -> URLRequest {
-        try makeRequest(path: "/ingest", method: "POST", body: encoder.encode(body))
-    }
-
     /// POST /answer
     func makeAnswerRequest(_ body: AnswerRequest) throws -> URLRequest {
         try makeRequest(path: "/answer", method: "POST", body: encoder.encode(body))
@@ -150,11 +145,6 @@ struct APIClient {
         try await send(makeDigestRequest(companyID: companyID, language: language))
     }
 
-    /// POST /ingest (backend answers 202 with a queued job id).
-    func startIngest(_ request: IngestRequest) async throws -> IngestResponse {
-        try await send(makeIngestRequest(request))
-    }
-
     /// POST /answer — citation-bearing narrative plus authoritative figures.
     func sendAnswer(query: String, companyId: UUID, period: String? = nil) async throws -> AnswerResponse {
         try await send(makeAnswerRequest(AnswerRequest(query: query, companyId: companyId, period: period)))
@@ -162,8 +152,7 @@ struct APIClient {
 
     // MARK: Transport
 
-    /// Executes a request, validates the HTTP status (2xx, which covers both
-    /// 200 and the 202 returned by /ingest), and decodes the JSON body.
+    /// Executes a request, validates the HTTP status, and decodes the JSON body.
     private func send<T: Decodable>(_ request: URLRequest) async throws -> T {
         let data: Data
         let response: URLResponse

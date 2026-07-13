@@ -21,8 +21,7 @@ Chunk -> ``filing_chunks`` mapping (the NEXT step wires this to the DB, docs §6
     filing_chunks.meta        <- {rcept_no, section_title, section_order,
                                   part_index}   (citation anchor)
 
-Design source of truth: docs/dart-api-notes.md §4 (청킹 설계 메모) and §6
-(filing_chunks 매핑). The chunking rules below are the "확정된 청킹 설계".
+The chunking rules and citation metadata mapping below are the source of truth.
 """
 
 import logging
@@ -198,7 +197,7 @@ def _log_distribution(
     sections: list[ProseSection],
     chunks: list[Chunk],
     skipped: int,
-    rcept_no: str,
+    rcept_no: str | None,
 ) -> None:
     """INFO-log the chunk-length distribution so a human can eyeball the split.
 

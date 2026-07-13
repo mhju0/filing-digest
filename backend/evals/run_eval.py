@@ -1,4 +1,4 @@
-"""Offline eval harness for filing-digest. Calls the live API (httpx), never
+"""Live eval harness for filing-digest. Calls the HTTP API (httpx), never
 service functions directly. See README.md for usage.
 """
 
@@ -36,22 +36,8 @@ COMPANY_QUERY = {
     "msft": "Microsoft",
 }
 
-# Static filing_id -> "FYxxxx" map, replacing the old build_period_cache()
-# which hit POST /answer once per company (3 LLM calls, ~10s/company on the
-# retrieval tier) purely to resolve fiscal years for expected_filing_hint
-# checks. Sourced from reports/eval_20260709T085553Z.json (retrieval-tier
-# run, 2026-07-09):
-#   - Samsung: single filing_id observed across both Samsung retrieval cases
-#     (overlap-samsung-azure-ko, retrieval-samsung-baseline-ko), both with
-#     observed=['FY2023'] only -- matches golden_set.yaml's documented
-#     single-filing (FY2023 annual report) corpus assumption. rcept_no
-#     20240312000736 (filed 2024-03-12) is consistent with a FY2023 annual
-#     report.
-#   - MSFT: 3 filing_ids observed (overlap-msft-iphone-ko), cross-validated
-#     against the live-measured values supplied by the project owner.
-#   - Apple: 3 filing_ids observed across the Apple retrieval cases.
-#     Mapped to FY2023–FY2025 via live psql verification (2026-07-09,
-#     filings table, sec_accession_no cross-validated).
+# Static filing_id -> fiscal-year hints for the reference local corpus. A fresh
+# database may generate different UUIDs; see evals/README.md for refresh guidance.
 FILING_FY_MAP = {
     # Samsung Electronics (DART, rcept_no 20240312000736)
     "07b006e9-1405-4ed4-9231-580520897f91": "FY2023",
@@ -216,7 +202,7 @@ def print_summary_table(results: list[dict]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="filing-digest offline eval harness")
+    parser = argparse.ArgumentParser(description="filing-digest live eval harness")
     parser.add_argument("--tier", choices=["retrieval", "full", "all"], default="all")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument("--only", default=None, help="run a single case id")

@@ -11,16 +11,38 @@ import decimal
 import uuid
 from types import SimpleNamespace
 
+import pytest
+from pydantic import ValidationError
+
 from app.api.routes import (
     compute_yoy_deltas,
+    escape_ilike_literal,
     select_latest_filing_id,
     select_previous_period,
     select_target_period,
 )
+from app.schemas import AnswerRequest, SearchRequest
 
 _FID_2023 = uuid.UUID("11111111-1111-1111-1111-111111111111")
 _FID_2024 = uuid.UUID("22222222-2222-2222-2222-222222222222")
 _FID_2025 = uuid.UUID("33333333-3333-3333-3333-333333333333")
+
+
+def test_escape_ilike_literal_treats_wildcards_as_text() -> None:
+    assert escape_ilike_literal(r"50%_off\today") == r"50\%\_off\\today"
+
+
+def test_search_request_rejects_oversized_query() -> None:
+    with pytest.raises(ValidationError):
+        SearchRequest(query="x" * 501)
+
+
+def test_answer_request_rejects_oversized_query_and_period() -> None:
+    company_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    with pytest.raises(ValidationError):
+        AnswerRequest(query="x" * 1_001, company_id=company_id)
+    with pytest.raises(ValidationError):
+        AnswerRequest(query="valid", company_id=company_id, period="x" * 33)
 
 
 def _filing(fid: uuid.UUID, filed_at: datetime.date | None) -> SimpleNamespace:

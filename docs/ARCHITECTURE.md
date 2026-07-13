@@ -1,171 +1,139 @@
-# filing-digest Architecture
+# Filing Digest Architecture
 
-*Korean original: [ARCHITECTURE.ko.md](ARCHITECTURE.ko.md)*
+This document describes the final v0.2.0 portfolio architecture and API
+contract v0.2.
 
-v0.1 architecture document for a service that ingests Korean (DART) and US (SEC EDGAR)
-regulatory filings and serves **citation-grounded**, bilingual (KO/EN) summaries and Q&A.
+## System overview
 
----
-
-## 1. System Overview
-
-```
-                 ┌─────────────────────────────┐
-                 │        iOS App (SwiftUI)     │
-                 │  iOS 17+, no third-party deps│
-                 └──────────────┬──────────────┘
-                                │ HTTP (JSON, snake_case)
-                                │ baseURL: http://127.0.0.1:8001
-                                ▼
-┌───────────────────────────────────────────────────────────────┐
-│                  Backend (FastAPI, Python 3.11)                │
-│                                                               │
-│  GET  /health                     GET /companies?q=           │
-│  GET  /companies/{id}/digest      POST /search  POST /answer  │
-│                                    POST /ingest (stub)         │
-│                                                               │
-│  ┌─────────────┐   ┌──────────────┐   ┌───────────────────┐  │
-│  │ PostgreSQL   │   │ Ingest (stub) │   │ Search / Answer    │  │
-│  │ (real reads) │   │ job queue     │   │ (KURE-v1 + Solar)  │  │
-│  └─────────────┘   └──────────────┘   └───────────────────┘  │
-└───────┬──────────────────────┬────────────────────────────────┘
-        │ SQLAlchemy 2.x       │  httpx (async)
-        │ (psycopg3)           ▼
-        ▼               ┌─────────────────┐  ┌─────────────────┐
-┌────────────────┐      │  DART Open API   │  │  SEC EDGAR API   │
-│ PostgreSQL 16  │      │ (opendart.fss.   │  │ (data.sec.gov)   │
-│ + pgvector     │      │  or.kr/api)      │  │  UA must include │
-│ (host 5433 ->  │      └─────────────────┘  │  contact info    │
-│  container     │                           └─────────────────┘
-│  5432)         │
-└────────────────┘
+```text
+┌──────────────────────┐       JSON/HTTP        ┌────────────────────────┐
+│ SwiftUI iOS 17 client├──────────────────────>│ FastAPI / Python 3.11  │
+│ URLSession + Codable │   127.0.0.1:8001       │ Pydantic + SQLAlchemy  │
+└──────────────────────┘                         └───────┬────────┬───────┘
+                                                        │        │
+                              ┌─────────────────────────┘        └──────────────┐
+                              v                                                v
+                 ┌────────────────────────┐                        ┌────────────────────┐
+                 │ PostgreSQL 16          │                        │ External services  │
+                 │ pgvector / HNSW cosine │                        │ DART, SEC, Solar   │
+                 └────────────────────────┘                        └────────────────────┘
 ```
 
-- **Current state**: both DART and SEC are wired up with real API calls
-  (`backend/app/clients/dart.py`, `backend/app/clients/sec.py`, `sec_document.py`,
-  `backend/app/ingest/sec_ingest.py`). `/companies`, `/companies/{id}/digest`,
-  `/search`, and `/answer` read from the real database (`companies`, `filings`,
-  `filing_chunks`, `financials`). `filings.sec_accession_no` serves as the natural
-  key for idempotent upserts on the SEC side.
-- **Phase 2**: automated parsing/chunking, vector index tuning, multi-filing /
-  multi-year expansion.
+The repository contains two deployable components:
 
-## 2. Monorepo Layout
+- `backend/`: FastAPI application, ingestion CLI, retrieval/generation services,
+  database schema, eval harness, and pytest suite.
+- `ios/`: SwiftUI client and Swift Testing target with no third-party packages.
 
-```
-filing-digest/
-├── backend/                 # FastAPI backend (Python 3.11)
-│   ├── app/                 #   routers, schemas (pydantic), settings, LLM guards
-│   ├── db/init.sql          #   DB schema v0.1 (single init script instead of a migration tool)
-│   ├── tests/               #   pytest
-│   ├── Dockerfile
-│   └── requirements.txt
-├── ios/                     # SwiftUI client (FilingDigest.xcodeproj)
-├── docs/                    # architecture & decision docs (this document)
-├── docker-compose.yml       # local dev stack (db + backend)
-└── README.md
-```
+Docker Compose starts PostgreSQL by default. The backend container is optional
+under the `container` profile; native uvicorn is the normal development path.
 
-## 3. Core Principles
+## Trust boundary and data flow
 
-> **"Numbers come only from structured APIs; the LLM handles narrative only; every claim carries a citation."**
+### Ingestion
 
-1. **Every numeric value (`MetricCard.value`) comes exclusively from DART/SEC
-   structured data.** The LLM never generates, estimates, or adjusts numbers.
-   Values in the `financials` table are all linked via `citation_id` to a real
-   `Citation` (the original filing), which enforces this pipeline contract.
-2. **The LLM is responsible for narrative only.** The digest's
-   `summary_ko`/`summary_en` and the `/answer` endpoint's `answer` are the LLM's
-   territory — and even there, "making up" numbers is forbidden (enforced by the
-   `number_guard` / bare-digit floor). Any figure that appears in narrative text
-   quotes the structured data verbatim.
-3. **Every narrative claim is linked to evidence via `citations[]`.**
-   Sentences without supporting evidence are never included in a response.
-   (`Citation.url` links back to the original filing.)
+1. `python -m app.ingest` resolves a ticker through DART or SEC.
+2. The source client fetches an annual filing and structured financial facts.
+3. DART DSD or SEC HTML parsing removes tables before prose extraction.
+4. Prose is chunked with source metadata and stored in `filing_chunks`.
+5. KURE-v1 creates normalized 1024-dimensional vectors.
+6. Structured facts are stored separately in `financials` as
+   `numeric(24,4)` values linked to their filing.
 
-## 4. Decision Log
+DART receipt numbers and SEC accession numbers are natural keys for idempotent
+filing upserts. Re-ingestion replaces a filing's chunks inside one transaction.
 
-| # | Decision | Tag | Rationale |
-|---|------|------|------|
-| D1 | **Adopt a single `backend/db/init.sql` script instead of Alembic** | [Verified] | v0.1 has only four tables (companies, filings, filing_chunks, financials) and no production data, so migration-history management adds no value. Mounting it read-only into `docker-entrypoint-initdb.d` guarantees a reproducible schema from `compose up` alone. Revisit Alembic in Phase 2 once the schema starts evolving. |
-| D2 | **pgvector embedding dimension 1024** | [Verified] | Embedding model finalized as KURE-v1 (nlpai-lab/KURE-v1). The dense dimension was cross-checked against `hidden_size=1024` in the HuggingFace `config.json` (bge-m3-based XLM-RoBERTa) and `word_embedding_dimension=1024` in `1_Pooling/config.json`. Reflected in the `EMBEDDING_DIM` environment variable (default 1024) and `filing_chunks.embedding vector(1024)`. |
-| D3 | **Actual DART/SEC response formats** | [Verified] | DART confirmed via live calls (`docs/dart-api-notes.md`). SEC likewise verified live through `SecClient` (submissions + companyfacts) — validated against Apple's 10-K (CIK 320193, accession `0000320193-25-000079`) via `backend/app/ingest/sec_ingest.py`. Since SEC's `fy` describes the filing's period rather than the period of each fact, `fiscal_year` is derived from each fact's `period_end`. |
-| D4 | **psycopg3 chosen** (`postgresql+psycopg://` driver) | [Verified] | psycopg2 is in maintenance mode; psycopg3 (package name `psycopg`) is the currently recommended driver and officially supported by SQLAlchemy 2.x via the `postgresql+psycopg` dialect. Reflected in the `DATABASE_URL` default and the docker-compose connection string. |
-| D5 | **iOS 17 target + zero third-party dependencies** | [Verified] | SwiftUI + URLSession + Codable (async/await) is sufficient to consume the v0.1 API. Zero dependencies minimizes build reproducibility risk and review surface. Default baseURL is `http://127.0.0.1:8001` (simulator local development). |
-| D6 | **Initial data scope: one filing per company, two sources** | [Verified] | Samsung Electronics (dart, KOSPI, 005930) FY2023 annual report (사업보고서) + Apple (sec, CIK 320193) FY2025 10-K (accession `0000320193-25-000079`) — one filing loaded per company. This exercises both the DART and SEC live-integration paths. `/digest` and `/answer` read from the real database (`financials`, `filing_chunks`), and every `MetricCard.value` is linked via `citation_id` to a real `Citation` (the original filing), enforcing the core principle. Multi-filing / multi-year expansion is Phase 2. *Superseded 2026-07-12: corpus expanded to 8 companies (4 DART / 4 SEC) via the `python -m app.ingest` CLI; annual filings also persist their prior-period figures for YoY.* |
-| D7 | **API CONTRACT v0.1 frozen** (full text in section 5 below) | [Verified] | Backend and iOS are developed in parallel, so the contract was frozen first. JSON fields are snake_case. |
-| D8 | **No vector index (hnsw/ivfflat) created yet** | [Verified] | Without real data, index parameters cannot be tuned. Left only as a Phase 2 TODO comment in init.sql. *Resolved 2026-07-12: hnsw (`vector_cosine_ops`, default parameters) created once the corpus reached 8 companies / ~1.2k chunks.* |
-| D9 | **The metadata column on `filing_chunks` is named `meta`** | [Verified] | `metadata` collides with a reserved attribute name in SQLAlchemy Declarative (`Base.metadata`). The column itself is standardized as `meta` (jsonb). |
+### Search and answers
 
-## 5. API CONTRACT v0.1 (full text)
+`POST /search` embeds a bounded query with the same model and retrieves at most
+50 HNSW-ranked chunks by cosine distance. Optional company scoping joins through
+`filings`.
 
-The contract every component (backend, iOS) must follow exactly. JSON fields are snake_case.
+`POST /answer` keeps generated prose and financial values on separate tracks:
 
-```
-GET /health -> 200
-  {"status": "ok", "version": "0.1.0"}
+- `fetch_financials` returns authoritative structured values. The LLM never sees
+  or calculates them.
+- Retrieved chunks are labelled positionally before being sent to Solar. The
+  response must match a JSON schema. Labels are then mapped back to real chunk
+  UUIDs.
+- The citation guard rejects missing or fabricated citation IDs. The number
+  guard rejects currency, percentage, and multiplier tokens in prose.
 
-GET /companies?q=<string> -> 200 CompanySearchResponse
-  CompanySearchResponse = {"items": [Company], "total": int}
-  Company = {"id": str(uuid), "name": str, "name_en": str|null, "ticker": str|null,
-             "market": "KOSPI"|"KOSDAQ"|"NYSE"|"NASDAQ"|null, "source": "dart"|"sec"}
+The response state is `ok`, `blocked`, or `no_results`. Figures can still be
+returned when the narrative is withheld.
 
-GET /companies/{company_id}/digest?lang=ko|en (defaults to ko when lang is omitted) -> 200 CompanyDigest, unknown id -> 404
-  CompanyDigest = {"company_id": str, "company_name": str, "period": str (e.g. "2026Q1"),
-                   "metrics": [MetricCard], "summary_ko": str, "summary_en": str,
-                   "citations": [Citation], "generated_at": str(ISO8601)}
-  MetricCard = {"key": "revenue"|"operating_income"|"net_income"|"eps"|"operating_margin",
-                "label_ko": str, "label_en": str, "value": float|null, "unit": str,
-                "yoy_delta_pct": float|null, "source": "dart"|"sec", "citation_id": str|null}
-  Citation = {"id": str, "source": "dart"|"sec", "title": str, "url": str,
-              "excerpt": str|null, "filed_at": str(ISO date)|null}
+## Component boundaries
 
-POST /search -> 200 SearchResponse
-  request  SearchRequest  = {"query": str(min length 1), "top_k": int(default 5, max 50), "company_id": str(uuid)|null}
-  SearchResponse = {"items": [SearchHit], "total": int}
-  SearchHit = {"chunk_id": str, "filing_id": str, "text": str, "score": float,
-               "rcept_no": str|null, "section_title": str|null, "section_order": int|null,
-               "part_index": int|null, "chunk_index": int}
+| Area | Primary modules |
+|---|---|
+| API and contracts | `backend/app/api/routes.py`, `backend/app/schemas.py` |
+| DART integration | `backend/app/clients/dart.py`, `backend/app/ingest/persist.py` |
+| SEC integration | `backend/app/clients/sec.py`, `sec_document.py`, `sec_ingest.py` |
+| Retrieval | `backend/app/embeddings/`, `backend/app/search/` |
+| Narrative guards | `backend/app/llm/`, `backend/app/digest_narrative.py` |
+| Database | `backend/db/init.sql`, `backend/app/db/models.py` |
+| iOS transport/models | `ios/FilingDigest/Networking/`, `ios/FilingDigest/Models/` |
+| iOS presentation | `ios/FilingDigest/Views/`, `ios/FilingDigest/Theme.swift` |
 
-POST /answer -> 200 AnswerResponse
-  request  AnswerRequest  = {"query": str(min length 1), "company_id": str(uuid), "period": str|null}
-  AnswerResponse = {"answer": Answer|null, "figures": [Figure], "citations": [Citation],
-                     "company_id": str, "narrative_status": "ok"|"blocked"|"no_results"}
+## API contract v0.2
 
-POST /ingest -> 202 (stub -- no worker yet)
-  request  IngestRequest  = {"company_id": str, "source": "dart"|"sec", "filing_types": [str]|null}
-  response IngestResponse = {"job_id": str(uuid), "status": "queued"}
-```
+All JSON fields are snake_case.
 
-- Ports: backend **8001**, postgres **5433(host) -> 5432(container)**. iOS default baseURL: `http://127.0.0.1:8001`
-- ENV variables (pydantic-settings, `.env`): `DART_API_KEY` (secret, only a placeholder is committed),
-  `DART_BASE_URL` (default `https://opendart.fss.or.kr/api`), `SEC_BASE_URL` (default `https://data.sec.gov`),
-  `SEC_USER_AGENT` (SEC requires a UA with contact info - placeholder),
-  `DATABASE_URL` (default `postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5433/filing_digest`),
-  `EMBEDDING_DIM` (default 1024)
+| Method | Path | Response |
+|---|---|---|
+| `GET` | `/health` | Liveness and application version |
+| `GET` | `/companies?q=` | Matching companies; empty query returns the corpus |
+| `GET` | `/companies/{id}/digest?lang=ko\|en` | Metrics, bilingual summaries, citations |
+| `POST` | `/search` | Up to 50 citation-bearing search hits |
+| `POST` | `/answer` | Guarded narrative, structured figures, citations |
 
-## 6. DB Schema v0.1 Summary
+Request limits protect model and embedding work: company query 100 characters,
+search query 500 characters, answer query 1,000 characters, and period 32
+characters. UUID fields are validated by Pydantic.
 
-`backend/db/init.sql` and the SQLAlchemy models must match exactly.
-(`CREATE EXTENSION IF NOT EXISTS vector;`, using pg16's built-in `gen_random_uuid()`)
+Ingestion is CLI-only. There is no remote write endpoint.
 
-- **companies**: id(uuid PK), name, name_en, ticker, market, source(`dart|sec` CHECK),
-  dart_corp_code UNIQUE, sec_cik UNIQUE, created_at
-- **filings**: id(uuid PK), company_id FK→companies ON DELETE CASCADE, source, filing_type,
-  title, period, filed_at(date), url, sec_accession_no(text, UNIQUE — natural key for
-  idempotent upserts on the SEC side), created_at; `idx_filings_company` index
-- **filing_chunks**: id(uuid PK), filing_id FK→filings ON DELETE CASCADE, chunk_index,
-  content, embedding `vector(1024)` [Verified - D2], meta(jsonb — avoids the reserved
-  name `metadata`, see D9), created_at; UNIQUE(filing_id, chunk_index)
-- **financials**: id(uuid PK), company_id FK→companies ON DELETE CASCADE,
-  filing_id FK→filings ON DELETE SET NULL, fiscal_year, fiscal_quarter, period, metric,
-  value numeric(24,4), unit, currency, source, created_at; UNIQUE(company_id, period, metric, source)
-- No vector index (hnsw/ivfflat) is created - Phase 2 TODO (D8)
+## Database
 
-## 7. Phase 2 TODO
+`backend/db/init.sql` is the schema source of truth and must match
+`backend/app/db/models.py`.
 
-- [x] **Live DART/SEC integration**: httpx-based clients, response formats measured and finalized (resolves D3), live-verified against Apple's 10-K
-- [x] **Multi-filing / multi-year expansion**: corpus expanded to 8 companies via the `python -m app.ingest` CLI (2026-07-12); YoY comes from each annual filing's own prior-period figures, stored as `<year-1>-annual` rows
-- [ ] **Automated parsing/chunking**: ingest is CLI-triggered; a scheduled/queue-based pipeline is still open
-- [x] **Vector index**: hnsw (`vector_cosine_ops`) created at 8-company / ~1.2k-chunk scale (D8, 2026-07-12)
-- [ ] (Incidental) revisit Alembic adoption (D1), real async processing for ingest jobs (queue/worker)
+- `companies`: source identity and optional DART/SEC natural keys.
+- `filings`: company-owned filing metadata; DART receipt and SEC accession
+  numbers are unique.
+- `filing_chunks`: filing-owned prose, citation metadata, optional
+  `vector(1024)`, unique `(filing_id, chunk_index)`, HNSW cosine index.
+- `financials`: company/filing-owned exact values, unique
+  `(company_id, period, metric, source)`.
+
+Foreign keys cascade company deletion to filings and chunks. Financial rows use
+`ON DELETE SET NULL` for their filing reference; application shaping fails loud
+if a figure lacks that citation anchor.
+
+The archived project intentionally uses a reproducible initialization script
+instead of migration history. A future production deployment with persistent
+data would need a migration strategy before changing this schema.
+
+## Key decisions
+
+- **KURE-v1 / 1024 dimensions:** one cross-lingual embedding space for Korean
+  and English; vectors are normalized and queried with cosine distance.
+- **Structured-number boundary:** exact values never pass through generated
+  prose. This is enforced in code, not only in prompts.
+- **Table removal:** filing tables are excluded before embedding to avoid
+  presenting prose retrieval as an authoritative numeric source.
+- **Async I/O:** external clients and SQLAlchemy request/ingest paths use async
+  APIs. Pure parsing and mapping logic remains independently testable.
+- **No iOS dependencies:** SwiftUI, URLSession, Codable, and Swift Testing keep
+  the client build surface small.
+- **Local demo security scope:** the API has no authentication, authorization,
+  rate limiting, or tenant isolation and is not intended for public exposure.
+
+## Known constraints
+
+- DART 사업보고서 and SEC 10-K only.
+- DART xforms documents and attachments are not parsed.
+- Retrieval uses one similarity threshold; it is not a full groundedness model.
+- Solar wording is nondeterministic, while guards and structured figures are
+  deterministic.
+- Request-scoped Solar clients favor explicit ownership over connection reuse.

@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS filing_chunks (
 -- hnsw over cosine distance (<=>), matching the /search ORDER BY. Default
 -- build parameters (m=16, ef_construction=64) are appropriate at the current
 -- corpus scale (~1k chunks); revisit only if the corpus grows by orders of
--- magnitude. Resolves the former Phase-2 TODO (decision D8).
+-- magnitude.
 CREATE INDEX IF NOT EXISTS idx_filing_chunks_embedding
     ON filing_chunks USING hnsw (embedding vector_cosine_ops);
 

@@ -1,7 +1,7 @@
 """Tests for DART list.json parsing (filing list -> FilingItem).
 
 All tests here are offline: they drive ``DartClient._parse_list_payload`` with
-inline JSON fixtures modeled on docs/dart-api-notes.md §2, so field cleaning and
+inline JSON fixtures modeled on measured DART responses, so field cleaning and
 status branching (000 / 013 / error) are checked without any network call.
 
 A separate live test (skipped unless DART_API_KEY is set) resolves 삼성전자 and

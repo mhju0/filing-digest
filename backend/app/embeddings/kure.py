@@ -73,9 +73,9 @@ def _is_model_cached(model_name: str, cache_root: Path) -> bool:
     does not count -- treating that as cached would force an offline load
     that then fails to find the actual weight files.
 
-    TODO: this only checks that the revision dir is non-empty, not that the
-    required weight file (e.g. model.safetensors) is present -- a partially
-    corrupted cache could still pass. Tighten if that's ever observed.
+    This only checks that the revision dir is non-empty, not that a required
+    weight file is present. SentenceTransformer remains the final authority and
+    will fail clearly if a partially corrupted cache is encountered.
     """
     snapshots = _model_snapshot_dir(model_name, cache_root)
     if not snapshots.is_dir():

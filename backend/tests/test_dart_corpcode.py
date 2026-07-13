@@ -91,5 +91,5 @@ def test_resolve_corp_code_live_samsung(tmp_path) -> None:
             await client.aclose()
 
     result = asyncio.run(_run())
-    assert result == "00126380"  # 삼성전자 (docs/dart-api-notes.md §1)
+    assert result == "00126380"  # Samsung Electronics reference corp code
     assert cache.exists()

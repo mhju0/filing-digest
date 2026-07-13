@@ -1,5 +1,4 @@
-"""API CONTRACT v0.1 endpoints, backed by the real database (POST /ingest is
-still a stub).
+"""API CONTRACT v0.2 endpoints, backed by the real database.
 
 Principle: numbers come only from structured APIs (DART/SEC structured data);
 the LLM narrates only; every claim carries a citation.
@@ -11,10 +10,11 @@ from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import __version__
 from app.db.models import Company as CompanyModel
 from app.db.models import Filing as FilingModel
 from app.db.models import Financial
@@ -35,8 +35,6 @@ from app.schemas import (
     CompanyDigest,
     CompanySearchResponse,
     HealthResponse,
-    IngestRequest,
-    IngestResponse,
     Language,
     MetricCard,
     NarrativeStatus,
@@ -52,27 +50,32 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def escape_ilike_literal(value: str) -> str:
+    """Escape user text before placing it inside an ILIKE pattern."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 @router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(status="ok", version="0.1.0")
+    return HealthResponse(status="ok", version=__version__)
 
 
 @router.get("/companies", response_model=CompanySearchResponse)
 async def search_companies(
-    q: str = Query(default=""),
+    q: str = Query(default="", max_length=100),
     session: AsyncSession = Depends(get_db_session),
 ) -> CompanySearchResponse:
     """Case-insensitive substring search over companies (name/name_en/ticker).
 
     Mirrors app.search.service.search_chunks's session/query pattern
     (session-first, select().where(), await session.execute()). Empty ``q``
-    matches every row (``ilike("%%")``), same as the stub it replaces.
+    matches every row. SQL wildcard characters in ``q`` are treated literally.
     """
-    pattern = f"%{q}%"
+    pattern = f"%{escape_ilike_literal(q)}%"
     stmt = select(CompanyModel).where(
-        CompanyModel.name.ilike(pattern)
-        | CompanyModel.name_en.ilike(pattern)
-        | CompanyModel.ticker.ilike(pattern)
+        CompanyModel.name.ilike(pattern, escape="\\")
+        | CompanyModel.name_en.ilike(pattern, escape="\\")
+        | CompanyModel.ticker.ilike(pattern, escape="\\")
     )
     rows = (await session.execute(stmt)).scalars().all()
     items = [
@@ -314,23 +317,6 @@ async def get_company_digest(
         citations=citations,
         generated_at=datetime.now(UTC).isoformat(),
     )
-
-
-@router.post(
-    "/ingest",
-    response_model=IngestResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-def ingest(request: IngestRequest) -> IngestResponse:
-    """Accept an ingest job (stub: no worker yet, TODO(Phase 2))."""
-    job_id = str(uuid.uuid4())
-    logger.info(
-        "ingest queued (stub): job_id=%s company_id=%s source=%s",
-        job_id,
-        request.company_id,
-        request.source,
-    )
-    return IngestResponse(job_id=job_id, status="queued")
 
 
 @router.post("/search", response_model=SearchResponse)

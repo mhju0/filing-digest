@@ -4,7 +4,7 @@ Every step before this one stopped at "fetch -> cleaned object"; this module is
 where those objects finally become rows. It wires the cleaned DART objects
 (:class:`~app.clients.dart.FilingItem`, :class:`~app.clients.dart.FinancialItem`,
 :class:`~app.ingest.chunking.Chunk`) onto ``companies`` / ``filings`` /
-``financials`` / ``filing_chunks`` (docs/dart-api-notes.md §6), as one atomic
+``financials`` / ``filing_chunks``, as one atomic
 async transaction per filing.
 
 Design (fixed -- do not relitigate):
@@ -79,7 +79,7 @@ SOURCE_DART = "dart"
 SOURCE_SEC = "sec"
 
 # Default currency for KRW-denominated DART numbers when a row omits `currency`
-# (domestic filings report in won). See docs/dart-api-notes.md §3.
+# (domestic filings report in won).
 DEFAULT_CURRENCY = "KRW"
 
 # financials.unit vocabulary. DART amounts are ABSOLUTE KRW (원) with no scaling
@@ -559,7 +559,7 @@ async def ingest_filing(
         sections = extract_dsd_prose(text)
         chunks = chunk_document(sections, rcept_no=rcept_no)
     else:
-        # xforms/unknown: no parser yet (Phase 2). Skip + log; never invent prose.
+        # xforms/unknown: unsupported. Skip + log; never invent prose.
         logger.warning(
             "ingest_filing: rcept_no=%s document format=%s not parseable yet; "
             "writing 0 chunks",

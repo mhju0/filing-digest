@@ -1,4 +1,4 @@
-"""Tests for DART document.xml -> clean prose (docs/dart-api-notes.md §4).
+"""Tests for DART document.xml -> clean prose.
 
 Offline and focused on the three pure functions this step adds:
 - ``decode_dart_bytes``     -- the encoding trap (euc-kr declared, UTF-8 bytes).

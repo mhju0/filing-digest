@@ -4,7 +4,7 @@ Implements:
 - ``corpCode.xml`` flow: fetch the ZIP, unzip in memory, parse ``CORPCODE.xml``
   with defusedxml, cache on disk, resolve ticker (stock_code) -> ``corp_code``.
 - ``list.json`` flow: query the filing (공시) list for a corp_code + date range
-  and return cleaned ``FilingItem`` records (see docs/dart-api-notes.md §2).
+  and return cleaned ``FilingItem`` records.
 - ``fnlttSinglAcntAll.json`` flow: fetch a single company's full financial
   statements and return cleaned ``FinancialItem`` records (docs §3). This is the
   *single source of numbers* in the system: financial values come only from this
@@ -14,17 +14,15 @@ Implements:
   (:func:`detect_document_format`), and extract *prose only* from the DSD format
   (:func:`extract_dsd_prose`). Numeric tables are excluded -- numbers come solely
   from the financials API (§3). This step stops at "raw bytes -> clean prose
-  sections"; chunking / embedding / DB writes are the NEXT step (Phase 2 ingest).
-
-``search_company`` remains a stub.
+  sections"; the downstream ingest pipeline handles chunking, embedding, and DB writes.
 
 SECURITY:
 - The API key lives in ``settings.dart_api_key`` as a SecretStr. Only call
   ``.get_secret_value()`` when building outgoing request params -- never log it,
   never put it in exceptions, and mask it as ``***`` in any logged URL/params.
 
-Design source of truth: docs/dart-api-notes.md, §1 (corpCode.xml), §2
-(list.json), §3 (financials), §4 (document.xml). Status codes follow §5.
+The parsers encode response shapes measured against live DART responses; their
+offline regression fixtures document the accepted variants.
 """
 
 import datetime
@@ -56,16 +54,16 @@ DEFAULT_CACHE_PATH = _BACKEND_DIR / "data" / "corpcode_snapshot.json"
 # is instead a plain ``<result><status>...</status></result>`` XML (see notes §5).
 _ZIP_MAGIC = b"PK"
 
-# Generous timeouts: the corpCode ZIP is ~3.5MB (see docs/dart-api-notes.md §1).
+# Generous timeouts: the corpCode ZIP is roughly 3.5 MB.
 _TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
-# JSON status codes (docs/dart-api-notes.md §5). Only these two are non-fatal;
+# JSON status codes measured from DART. Only these two are non-fatal;
 # any other code is surfaced as a DartApiError.
 _STATUS_OK = "000"  # 정상 [Verified]
 _STATUS_NO_DATA = "013"  # 조회된 데이터 없음(무자료) -> empty result, not an error
 
 # DART filing viewer link. rcept_no is the natural join key to document.xml and
-# financials; filings.url is built from it (docs/dart-api-notes.md §2, §6).
+# financials; filings.url is built from it.
 _VIEWER_URL = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"
 
 
@@ -83,10 +81,10 @@ class DartApiError(RuntimeError):
 
 @dataclass(frozen=True)
 class FilingItem:
-    """One cleaned filing from ``list.json`` (docs/dart-api-notes.md §2).
+    """One cleaned filing from ``list.json``.
 
     This is the raw-ish source object the later ingest step maps onto the
-    ``filings`` table. Mapping (see docs/dart-api-notes.md §6):
+    ``filings`` table. Mapping:
         filings.title   <- report_nm  (already right-trimmed here)
         filings.filed_at<- rcept_dt   (parsed YYYYMMDD -> date)
         filings.url     <- viewer_url (derived from rcept_no)
@@ -203,15 +201,14 @@ def _error_status_from_xml(xml_bytes: bytes) -> str:
 # -- fnlttSinglAcntAll.json (financials) -------------------------------------
 #
 # ★ Single source of truth for numbers. Every financial value in the system
-# comes from this structured API (docs/dart-api-notes.md §3); we never read an
+# comes from this structured API; we never read an
 # amount from LLM output or document prose. Parsing is deliberately over-
 # defensive: when a value is ambiguous we return None / skip the row and log --
 # we never fabricate a number.
 
 # account_id (IFRS/DART taxonomy) -> standard metric key (MetricCard.key).
 # account_nm differs per company (삼성 labels revenue as "영업수익"), so we key
-# off the stable account_id and keep account_nm only as a display label
-# (docs/dart-api-notes.md §3 [Verified]).
+# off the stable account_id and keep account_nm only as a display label.
 _ACCOUNT_ID_TO_METRIC: dict[str, str] = {
     "ifrs-full_Revenue": "revenue",
     "dart_OperatingIncomeLoss": "operating_income",  # DART extension taxonomy
@@ -228,8 +225,8 @@ _ACCOUNT_ID_TO_METRIC: dict[str, str] = {
 
 # Profit-loss family accounts are emitted redundantly under multiple statements
 # (ifrs-full_ProfitLoss appears once each under IS/CIS/CF; the owners-of-parent
-# subset appears under IS/CIS) with identical values (docs/dart-api-notes.md §3
-# [Verified]). Keep only the IS row *per account_id* so the financials
+# subset appears under IS/CIS) with identical values. Keep only the IS row
+# *per account_id* so the financials
 # UNIQUE(company_id, period, metric, source) constraint is not violated by the
 # duplicates -- two distinct account_ids each keep their own IS row.
 _PROFIT_LOSS_ACCOUNT_IDS = frozenset(
@@ -254,7 +251,7 @@ _EPS_ACCOUNT_IDS = frozenset(
 def parse_dart_amount(raw: str | None) -> int | None:
     """Parse a DART amount string (thstrm/frmtrm/bfefrmtrm_amount) -> int.
 
-    Format rules measured against the live response (docs/dart-api-notes.md §3):
+    Format rules measured against live responses:
     - amounts are *strings* with no thousand separators; values are absolute KRW
       (원) integers with no unit scaling (e.g. ``"455905980000000"``).
     - negatives carry a leading ``-`` (e.g. ``"-4480835000000"``).
@@ -292,7 +289,7 @@ def parse_dart_decimal(raw: str | None) -> Decimal | None:
     Same defensive rules as :func:`parse_dart_amount` (empty/whitespace/None ->
     ``None``; commas stripped; leading ``-`` = negative), but a decimal point is
     *allowed* -- EPS can be fractional for other companies even though 삼성 2023
-    happens to be the integer ``"2131"`` (docs/dart-api-notes.md §3 [Verified]).
+    happens to be the integer ``"2131"`` in the reference fixture.
 
     Uses ``Decimal`` (never ``float``) so a value like ``"123.45"`` round-trips
     exactly with no binary-float rounding error. Per the project's core rule we
@@ -331,10 +328,10 @@ def account_id_to_metric(account_id: str | None) -> str | None:
 
 @dataclass(frozen=True)
 class FinancialItem:
-    """One cleaned row from ``fnlttSinglAcntAll.json`` (docs/dart-api-notes.md §3).
+    """One cleaned row from ``fnlttSinglAcntAll.json``.
 
     The raw-ish source object the later ingest step maps onto the ``financials``
-    table (docs/dart-api-notes.md §6):
+    table:
         financials.value        <- thstrm_amount (current-period amount)
         financials.metric       <- account_id -> standard key (``metric`` here)
         financials.fiscal_year  <- bsns_year
@@ -459,11 +456,11 @@ def _dedup_profit_loss(items: list[FinancialItem]) -> list[FinancialItem]:
 
 # -- document.xml (원문 -> 산문 텍스트) ---------------------------------------
 #
-# document.xml is the source of filing_chunks.content (docs/dart-api-notes.md §4).
+# document.xml is the source of filing_chunks.content.
 # ★ CORE RULE: only *prose* (narrative) text is embedded. Numbers live solely in
 # the financials API (§3), so numeric tables are excluded here -- we never mix a
 # figure into prose. This step stops at "raw bytes -> clean prose sections";
-# chunking / embedding / DB writes are the next step (Phase 2 ingest).
+# Chunking, embedding, and DB writes live in the downstream ingest modules.
 
 # How much of the document head to sniff for a format marker. The DSD root
 # (<DOCUMENT ... dart4.xsd>) or the xforms root (<html>) always appears well
@@ -485,8 +482,8 @@ _PROSE_TAG = "P"  # narrative paragraph -> ProseSection.content (§4).
 _TABLE_TAG = "TABLE"  # numeric/XBRL table -> EXCLUDED from prose (§3/§4 rule).
 
 # Defensive: warn (do not fail) if a document is far larger than the observed
-# ~6MB 사업보고서 (docs §4). We parse the whole string for correctness; a
-# streaming/section-wise parse is a TODO (see extract_dsd_prose).
+# ~6MB 사업보고서. We parse the whole string for correctness; streaming is not
+# implemented.
 _LARGE_DOCUMENT_WARN_CHARS = 20_000_000
 
 # Leading noise to skip before sniffing the root tag: a UTF-8 BOM (decode keeps
@@ -522,8 +519,8 @@ _DOUBLED_ATTR_QUOTE_RE = re.compile(r'=""([^"<>=]+)"')
 class ProseSection:
     """One narrative section extracted from a DSD document (docs §4).
 
-    The raw-ish source object the *next* step (Phase 2 chunking) maps onto the
-    ``filing_chunks`` table (docs/dart-api-notes.md §4, §6):
+    The raw-ish source object the downstream chunking step maps onto the
+    ``filing_chunks`` table:
         filing_chunks.content     <- content      (prose only; tables excluded)
         filing_chunks.meta        <- {rcept_no, section_title}   (citation anchor)
         filing_chunks.chunk_index <- order  (section order within the document)
@@ -545,8 +542,8 @@ class DocumentPayload:
     normalizes encoding explicitly via :func:`decode_dart_bytes` (the DART
     encoding trap -- euc-kr declared but UTF-8 bytes -- means we never trust the
     declaration; docs §4). ``member_names`` lists every ZIP member so attachments
-    (``{rcept_no}_NNNNN.xml``) are visible; whether to ingest them is a Phase 2
-    decision (TODO), so only the body member is returned as ``content`` here.
+    (``{rcept_no}_NNNNN.xml``) are visible; attachments are deliberately not
+    ingested, so only the body member is returned as ``content`` here.
     """
 
     rcept_no: str
@@ -603,7 +600,7 @@ def detect_document_format(text: str) -> Literal["dsd", "xforms", "unknown"]:
       caller logs and skips (project rule: when ambiguous, skip -- never invent).
 
     Only ``"dsd"`` is parsed downstream in this step; the xforms branch is
-    detection-only (its parser is a Phase 2 TODO). Pure -> unit-tested.
+    detection-only; unsupported xforms documents are skipped. Pure -> unit-tested.
     """
     head = text[:_SNIFF_LEN].lstrip(_LEADING_SKIP).lower()
     if any(marker in head for marker in _DSD_MARKERS) or _DSD_ROOT_RE.search(head):
@@ -726,13 +723,13 @@ def extract_dsd_prose(text: str) -> list[ProseSection]:
     ProseSection -> filing_chunks mapping (the NEXT step wires this to the DB):
         content <- content, meta <- {rcept_no, section_title}, chunk_index <- order.
 
-    Whole-string parse for correctness on the ~6MB 사업보고서 (docs §4); a
-    streaming/section-wise parse is a TODO. Pure (no network) -> unit-tested.
+    Whole-string parse for correctness on the reference 사업보고서. Pure (no
+    network) -> unit-tested.
     """
     if len(text) > _LARGE_DOCUMENT_WARN_CHARS:
         logger.warning(
             "extract_dsd_prose: unusually large document (%d chars); parsing the "
-            "whole string (streaming is a TODO)",
+            "whole string (streaming is not implemented)",
             len(text),
         )
     # defusedxml on the decoded str: strip the declaration (so ElementTree accepts
@@ -914,16 +911,7 @@ class DartClient:
             self._client = httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True)
         return self._client
 
-    # -- API endpoints (search_company still a stub) ------------------------
-
-    async def search_company(self, name: str) -> Any:
-        """Search DART corp codes by company name.
-
-        TODO(next step): the corpCode snapshot can back a name search, but the
-        current step only implements ticker -> corp_code resolution.
-        """
-        raise NotImplementedError("DartClient.search_company: TODO(next step)")
-
+    # -- API endpoints -------------------------------------------------------
     async def list_filings(
         self,
         corp_code: str,
@@ -942,13 +930,13 @@ class DartClient:
         Returns cleaned :class:`FilingItem` records for a single page. No DB
         write happens here -- persistence is handled by the later ingest step.
 
-        Status handling (docs/dart-api-notes.md §5):
+        Status handling:
         - ``000`` -> parse ``list`` into FilingItems.
         - ``013`` (무자료/no data) -> return ``[]`` (not an error).
         - anything else (``010`` bad key, ``020`` rate limit, ...) -> DartApiError.
 
-        TODO(next step): iterate all pages using ``total_page`` when the caller
-        needs the full history; this step intentionally fetches one page only.
+        This intentionally fetches one page only; callers that need more than
+        ``page_count`` rows must paginate explicitly.
         """
         params: dict[str, str] = {
             "crtfc_key": self._api_key(),
@@ -1178,9 +1166,9 @@ class DartClient:
         response is a ZIP (magic ``PK``); an error is a ``<result><status>`` XML,
         surfaced as :class:`DartApiError` (the API key is never referenced).
 
-        TODO(next step): attachments (``{rcept_no}_NNNNN.xml``) are listed in
-        ``member_names`` but not returned as content; xforms documents are
-        detected but not yet parsed; 6MB bodies are parsed whole (streaming TODO).
+        Attachments (``{rcept_no}_NNNNN.xml``) are listed in ``member_names`` but
+        not returned as content; xforms documents are detected but not parsed;
+        document bodies are parsed whole.
         """
         content = await self._fetch_document_zip(rcept_no)
         if content[:2] != _ZIP_MAGIC:

@@ -2,7 +2,7 @@
 //  APIModels.swift
 //  FilingDigest
 //
-//  Codable mirror of API CONTRACT v0.1.
+//  Codable mirror of API CONTRACT v0.2.
 //  JSON on the wire is snake_case; Swift properties are camelCase and rely on
 //  JSONDecoder.keyDecodingStrategy = .convertFromSnakeCase /
 //  JSONEncoder.keyEncodingStrategy = .convertToSnakeCase (see APIClient).
@@ -119,26 +119,4 @@ struct CompanyDigest: Codable, Hashable, Sendable {
     func summary(for language: Language) -> String? {
         language == .ko ? summaryKo : summaryEn
     }
-}
-
-// MARK: - Ingest
-
-/// POST /ingest request body.
-struct IngestRequest: Codable, Hashable, Sendable {
-    let companyId: String
-    let source: FilingSource
-    let filingTypes: [String]?
-
-    init(companyId: String, source: FilingSource, filingTypes: [String]? = nil) {
-        self.companyId = companyId
-        self.source = source
-        self.filingTypes = filingTypes
-    }
-}
-
-/// POST /ingest 202 response body.
-struct IngestResponse: Codable, Hashable, Sendable {
-    let jobId: String
-    /// "queued" per contract v0.1; kept as String for forward compatibility.
-    let status: String
 }

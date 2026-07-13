@@ -3,7 +3,7 @@
 Almost everything here is offline: pure functions (``parse_dart_amount``,
 ``account_id_to_metric``, ``_dedup_profit_loss``) and the static
 ``DartClient._parse_financials_payload`` are driven with inline fixtures modeled
-on docs/dart-api-notes.md §3. This is where the project's core rule -- "numbers
+on measured DART responses. This is where the project's core rule -- "numbers
 come only from this structured API, and we never fabricate one" -- is enforced,
 so amount edge cases are checked exhaustively.
 

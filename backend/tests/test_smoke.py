@@ -1,9 +1,7 @@
-"""Smoke tests for the stub/DB-backed endpoints (API CONTRACT v0.1).
+"""Smoke tests for DB-backed endpoints (API CONTRACT v0.2).
 
-Runs without a database -- only in-memory stub data is exercised, EXCEPT
-/companies and /companies/{id}/digest, which are DB-backed (they query the real
-``companies`` / ``financials`` / ``filings`` tables); their tests below only
-assert response shape, not specific rows/counts, since those depend on live DB
+Requires the local PostgreSQL database. The tests assert response shape rather
+than specific rows/counts because those depend on live DB
 content (mirrors the /search, /answer convention: DB-backed behavior is verified
 live, not pinned in pytest -- CLAUDE.md "테스트 PASSED만으로 실연동 스텝을 완료로
 치지 않는다"). Run from backend/: pytest
@@ -52,16 +50,10 @@ class _StubDigestClient:
         )
 
 UNKNOWN_ID = "99999999-9999-4999-8999-999999999999"
-# /ingest doesn't validate company_id against the DB (see test_ingest_accepted
-# below), so any UUID-shaped string works here -- this was formerly imported
-# from the now-deleted app.stub_data.SAMSUNG_ID.
-_STUB_COMPANY_ID = "11111111-1111-4111-8111-111111111111"
-
-
 def test_health() -> None:
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "version": "0.1.0"}
+    assert resp.json() == {"status": "ok", "version": "0.2.0"}
 
 
 def test_companies_search_all() -> None:
@@ -182,14 +174,3 @@ def test_digest_lang_en(monkeypatch) -> None:
 def test_digest_unknown_company_404() -> None:
     resp = client.get(f"/companies/{UNKNOWN_ID}/digest")
     assert resp.status_code == 404
-
-
-def test_ingest_accepted() -> None:
-    resp = client.post(
-        "/ingest",
-        json={"company_id": _STUB_COMPANY_ID, "source": "dart", "filing_types": ["분기보고서"]},
-    )
-    assert resp.status_code == 202
-    body = resp.json()
-    assert body["status"] == "queued"
-    assert body["job_id"]

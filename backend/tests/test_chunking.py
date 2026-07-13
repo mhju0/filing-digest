@@ -1,4 +1,4 @@
-"""Tests for prose-section chunking (backend/app/ingest/chunking.py, docs §4/§6).
+"""Tests for prose-section chunking (backend/app/ingest/chunking.py).
 
 Offline and focused on the two pure functions this step adds:
 - ``split_section``  -- paragraph accumulation to ~TARGET_CHARS, hard cap

@@ -11,7 +11,7 @@ import Foundation
 import Testing
 @testable import FilingDigest
 
-// MARK: - Sample payloads (snake_case, mirroring API CONTRACT v0.1)
+// MARK: - Sample payloads (snake_case, mirroring API CONTRACT v0.2)
 
 private let companyDigestJSON = """
 {
@@ -330,29 +330,6 @@ struct APIClientRequestTests {
         #expect(request.httpMethod == "GET")
         #expect(components.path == "/companies/11111111-1111-1111-1111-111111111111/digest")
         #expect(components.queryItems == [URLQueryItem(name: "lang", value: "en")])
-    }
-
-    @Test("Ingest: POST /ingest with snake_case keys")
-    func ingestRequest() throws {
-        let request = try client.makeIngestRequest(
-            IngestRequest(
-                companyId: "22222222-2222-2222-2222-222222222222",
-                source: .sec,
-                filingTypes: ["10-Q", "10-K"]
-            )
-        )
-        let url = try #require(request.url)
-
-        #expect(request.httpMethod == "POST")
-        #expect(url.path() == "/ingest")
-
-        let body = try #require(request.httpBody)
-        let object = try #require(
-            try JSONSerialization.jsonObject(with: body) as? [String: Any]
-        )
-        #expect(object["company_id"] as? String == "22222222-2222-2222-2222-222222222222")
-        #expect(object["source"] as? String == "sec")
-        #expect(object["filing_types"] as? [String] == ["10-Q", "10-K"])
     }
 
     @Test("Answer: POST /answer with snake_case body; nil period omitted")

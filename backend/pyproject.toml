@@ -2,7 +2,7 @@
 # (single source of truth) -- do NOT add [project.dependencies] here.
 [project]
 name = "filing-digest-backend"
-version = "0.1.0"
+version = "0.2.0"
 description = "Filing digest backend (FastAPI) - DART/SEC filings digest API"
 requires-python = "==3.11.*"
 

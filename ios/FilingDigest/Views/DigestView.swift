@@ -162,7 +162,7 @@ struct DigestView: View {
     }
 
     /// "사업보고서 2023 · 공시 2024-03-12" — humanized period plus the filing
-    /// date of the first citation (all metrics of a v0.1 digest come from a
+    /// date of the first citation (all metrics of a v0.2 digest come from a
     /// single filing).
     private func filingContext(_ digest: CompanyDigest) -> String {
         let title = FigureDisplay.periodTitle(digest.period, language: language)

@@ -1,4 +1,4 @@
-"""Pydantic v2 models for API CONTRACT v0.1.
+"""Pydantic v2 models for API CONTRACT v0.2.
 
 All JSON fields are snake_case. Principle: numbers come only from structured
 APIs (DART/SEC structured data); the LLM narrates only; every claim carries a
@@ -13,6 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app import __version__
 from app.llm.answer import Answer
 from app.search.constants import DEFAULT_TOP_K, MAX_TOP_K
 
@@ -34,7 +35,7 @@ class HealthResponse(BaseModel):
     """GET /health response."""
 
     status: Literal["ok"] = "ok"
-    version: str = "0.1.0"
+    version: str = __version__
 
 
 class Company(BaseModel):
@@ -90,25 +91,10 @@ class CompanyDigest(BaseModel):
     generated_at: str  # ISO 8601
 
 
-class IngestRequest(BaseModel):
-    """POST /ingest request body."""
-
-    company_id: str
-    source: Source
-    filing_types: list[str] | None = None
-
-
-class IngestResponse(BaseModel):
-    """POST /ingest response (202 Accepted)."""
-
-    job_id: str
-    status: Literal["queued"] = "queued"
-
-
 class SearchRequest(BaseModel):
     """POST /search request body."""
 
-    query: str = Field(min_length=1)
+    query: str = Field(min_length=1, max_length=500)
     top_k: int = Field(default=DEFAULT_TOP_K, ge=1, le=MAX_TOP_K)
     company_id: uuid.UUID | None = None
 
@@ -173,9 +159,9 @@ class AnswerRequest(BaseModel):
     ``period`` narrows the figures scope; None returns the whole company scope.
     """
 
-    query: str = Field(min_length=1)
+    query: str = Field(min_length=1, max_length=1_000)
     company_id: uuid.UUID
-    period: str | None = None
+    period: str | None = Field(default=None, max_length=32)
 
 
 class NarrativeStatus(StrEnum):

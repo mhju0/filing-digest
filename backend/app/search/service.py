@@ -18,8 +18,8 @@ Design:
   unbounded table scan/sort.
 - **``company_id`` scoping joins through ``filings``** (chunks have no
   ``company_id`` of their own). ``filing_id`` scoping (below) is a direct
-  column filter, no join needed. Period/source scoping is deliberately NOT
-  implemented yet -- see the TODO in :func:`search_chunks`.
+  column filter, no join needed. Period/source filters are not part of the
+  current API.
 - Row -> :class:`SearchResult` assembly is a pure function
   (:func:`_row_to_result`), unit-tested without a DB (implement-step pattern:
   persist.py, chunking.py, kure.py).
@@ -134,9 +134,8 @@ async def search_chunks(
     company's whole chunk corpus. ``None`` (the default for both) preserves the
     exact prior behavior -- ``/search`` never passes ``filing_id``.
 
-    TODO(Phase 2): period (e.g. fiscal year/quarter) and source (dart/sec)
-    filters -- not implemented this step; ``filings.period``/``filings.source``
-    are the columns to join/filter on when this lands.
+    Period and source filters are not part of the current API. ``filings.period``
+    and ``filings.source`` are available if that scope is added later.
     """
     k = clamp_top_k(top_k)
     [query_vector] = embed_texts([query])
@@ -165,8 +164,8 @@ async def search_chunks(
     rows = (await session.execute(stmt)).all()
     results = [_row_to_result(row) for row in rows]
     logger.info(
-        "search_chunks: query=%r top_k=%d company_id=%s filing_id=%s -> %d result(s)",
-        query,
+        "search_chunks: query_length=%d top_k=%d company_id=%s filing_id=%s -> %d result(s)",
+        len(query),
         k,
         company_id,
         filing_id,

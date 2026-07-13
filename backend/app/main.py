@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app import __version__
 from app.api.routes import router
 from app.config import get_settings
 from app.logging_config import configure_logging
@@ -43,9 +44,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="filing-digest backend",
-    version="0.1.0",
+    version=__version__,
     description=(
-        "DART/SEC filing digest API (v0.1). Numbers come only from "
+        "DART/SEC filing digest API. Numbers come only from "
         "structured DART/SEC data; the LLM narrates only; every claim "
         "carries a citation."
     ),
@@ -54,4 +55,4 @@ app = FastAPI(
 
 app.include_router(router)
 
-logger.info("filing-digest backend app initialized (version 0.1.0)")
+logger.info("filing-digest backend app initialized (version %s)", __version__)

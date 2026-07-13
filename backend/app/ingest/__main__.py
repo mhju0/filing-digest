@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 _ANNUAL_REPRT_CODE = "11011"
 # "사업보고서 (2023.12)" -> business year 2023. [Verified] report_nm shape in
-# docs/dart-api-notes.md §2.
+# DART annual-report naming convention.
 _REPORT_YEAR_RE = re.compile(r"\((\d{4})\.")
 # One page of 정기공시 over ~15 months always contains the latest annual report.
 _LOOKBACK_DAYS = 450

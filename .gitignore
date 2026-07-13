@@ -8,10 +8,22 @@ backend/evals/reports/
 __pycache__/
 *.pyc
 .pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+dist/
+*.egg-info/
 .venv/
 .env
 .env.*
 !.env.example
+*.log
+*.sqlite
+*.sqlite3
 
 # Xcode / Swift
 build/
@@ -22,6 +34,8 @@ xcuserdata/
 
 # macOS
 .DS_Store
+.idea/
+.vscode/
 
 # Handoff docs & spike scripts — regenerable, not for the repo.
 scratchpad/

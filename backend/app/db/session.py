@@ -1,30 +1,23 @@
-"""Lazy SQLAlchemy engine/session factories (sync + async).
+"""Lazy SQLAlchemy async engine/session factories.
 
 IMPORTANT: importing this module must NOT connect to the database. Engines are
 created on first get_*_engine() call only (and SQLAlchemy itself connects lazily
 on first use). Tests import app code without any DB running.
 
-Both a sync and an async stack are provided over the *same* ``DATABASE_URL``:
-the ``postgresql+psycopg://`` URL drives psycopg3, whose dialect is dual-mode --
-``create_engine`` uses it synchronously and ``create_async_engine`` uses its
-async path (which additionally requires the ``greenlet`` runtime). The async
-stack is what the ingest writer (app/ingest/persist.py) uses, to match the
-project's httpx.AsyncClient I/O pattern; the sync stack remains for Phase 2
-FastAPI request handlers.
+The ``postgresql+psycopg://`` URL drives psycopg3's async dialect. The async
+stack is shared by request handlers, ingestion, and embedding backfills.
 """
 
 import logging
 from collections.abc import AsyncIterator
 from functools import lru_cache
 
-from sqlalchemy import Engine, create_engine
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
 
@@ -32,44 +25,11 @@ logger = logging.getLogger(__name__)
 
 
 @lru_cache
-def get_engine() -> Engine:
-    """Create (once) and return the SQLAlchemy engine.
-
-    create_engine() itself does not open a connection; connections are
-    established lazily on first execute.
-    """
-    settings = get_settings()
-    logger.info("creating SQLAlchemy engine (lazy connect)")
-    return create_engine(settings.database_url, pool_pre_ping=True)
-
-
-@lru_cache
-def get_session_factory() -> sessionmaker[Session]:
-    """Return a cached sessionmaker bound to the lazy engine."""
-    return sessionmaker(bind=get_engine(), expire_on_commit=False)
-
-
-def get_session() -> Session:
-    """Create a new Session. Caller is responsible for closing it.
-
-    Intended for FastAPI dependencies in Phase 2, e.g.:
-
-        def db_session():
-            session = get_session()
-            try:
-                yield session
-            finally:
-                session.close()
-    """
-    return get_session_factory()()
-
-
-@lru_cache
 def get_async_engine() -> AsyncEngine:
     """Create (once) and return the async SQLAlchemy engine.
 
-    Uses the same ``postgresql+psycopg://`` URL as the sync engine -- psycopg3's
-    dialect selects its async path here. No connection is opened until first use.
+    The ``postgresql+psycopg://`` URL uses psycopg3's async dialect here. No
+    connection is opened until first use.
     Requires the ``greenlet`` runtime (declared in requirements.txt).
     """
     settings = get_settings()
@@ -104,9 +64,8 @@ async def get_db_session() -> AsyncIterator[AsyncSession]:
         @router.post("/search")
         async def search(session: AsyncSession = Depends(get_db_session)): ...
 
-    TODO(Phase 2): no explicit commit/rollback here -- harmless while every
-    consumer is read-only (/search), but a write endpoint reusing this
-    dependency needs an explicit transaction convention decided first.
+    API consumers are read-only. Write workflows open their own session and
+    explicit transaction boundaries instead of reusing this dependency.
     """
     async with get_async_session() as session:
         yield session

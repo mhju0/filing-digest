@@ -6,9 +6,8 @@ from cached :class:`~app.config.Settings` and closes the httpx client it owns wh
 the request ends. Callers depend on the :class:`app.llm.base.LLMClient` Protocol,
 not on the concrete provider.
 
-TODO(Phase 2): reuse a single ``httpx.AsyncClient`` across requests (via the app
-lifespan) instead of creating one per request -- a pooling/keep-alive
-optimization, deliberately out of scope here (request-scoped creation first).
+The client is request-scoped. A shared lifespan client would improve connection
+reuse, but the current ownership model is explicit and leak-free.
 """
 
 import logging
