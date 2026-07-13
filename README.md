@@ -116,11 +116,12 @@ API or health checks.
 | `EMBEDDING_OFFLINE_FIRST` | No | Prefer a cached model snapshot |
 | `EMBEDDING_WARMUP_ENABLED` | No | Load the model during API startup |
 
-The Compose backend is optional and isolated behind the `container` profile:
+The Compose backend is optional and isolated behind the `container` profile. It
+reads the same gitignored `backend/.env` as native uvicorn and persists the
+Hugging Face model cache in a named volume:
 
 ```bash
-# Export credentials in the shell (Compose does not read backend/.env).
-docker compose --profile container up backend
+docker compose --profile container up -d --build backend
 ```
 
 ### Ingest data

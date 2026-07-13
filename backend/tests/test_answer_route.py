@@ -13,6 +13,7 @@ import uuid
 from decimal import Decimal
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -23,6 +24,7 @@ from app.llm.base import LLMResult
 from app.llm.citation_guard import CitationError, CitationViolation
 from app.llm.deps import get_llm_client
 from app.llm.number_guard import NumberInNarrativeError
+from app.llm.solar import SolarApiError, SolarClientError
 from app.main import app
 
 _COMPANY_ID = uuid.UUID("33333333-3333-3333-3333-333333333333")
@@ -237,6 +239,48 @@ def test_answer_number_guard_blocked_returns_figures_only(api_client, monkeypatc
     monkeypatch.setattr(routes, "search_chunks", _one_chunk)
     monkeypatch.setattr(routes, "fetch_financials", _one_financial)
     monkeypatch.setattr(routes, "generate_narrative", _raise_number_guard)
+
+    resp = api_client.post(
+        "/answer",
+        json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["answer"] is None
+    assert body["narrative_status"] == "blocked"
+    assert body["citations"] == []
+    assert len(body["figures"]) == 1
+    assert body["figures"][0]["filing_id"] == str(_FILING_ID)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        SolarClientError("SOLAR_API_KEY is not configured"),
+        SolarApiError(429, "rate limited"),
+        httpx.ConnectError("network unavailable"),
+    ],
+    ids=["configuration", "api", "network"],
+)
+def test_answer_llm_service_failure_returns_figures_only(
+    api_client, monkeypatch, error
+):
+    """An unavailable narrative service must not discard authoritative figures."""
+    app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
+
+    async def _one_chunk(*args, **kwargs):
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew.", score=0.9)]
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    async def _raise_service_error(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
+    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+    monkeypatch.setattr(routes, "generate_narrative", _raise_service_error)
 
     resp = api_client.post(
         "/answer",

@@ -2,7 +2,7 @@
 #
 # 개발 정본: `docker compose up -d db` (DB만) + host uvicorn `--reload --port 8001`.
 #   backend 서비스는 profile "container"에 격리되어 bare `up`으로는 뜨지 않는다 (아래 backend.profiles 참고).
-#   컨테이너로 backend를 띄우려면 명시적으로: `docker compose --profile container up backend`
+#   컨테이너로 backend를 띄우려면 명시적으로: `docker compose --profile container up -d --build backend`
 # 포트: backend 8001(host, 컨테이너 사용 시), postgres 5433(host) -> 5432(내부)
 
 services:
@@ -33,31 +33,26 @@ services:
     # 개발 정본은 host uvicorn(:8001)이다. backend 컨테이너는 첫 실행에서 KURE 모델을
     # 다운로드할 수 있어 시작이 느리고, host uvicorn과 동시에 쓰면 포트 충돌이 난다.
     # profile "container"로 격리하여 bare `docker compose up`에서 자동 기동되지 않게 한다.
-    # 컨테이너 실행이 필요할 때만: `docker compose --profile container up backend`
+    # 컨테이너 실행이 필요할 때만: `docker compose --profile container up -d --build backend`
     profiles: ["container"]
     ports:
       - "8001:8000"
+    # Native uvicorn and the container share one local configuration source.
+    # The file is gitignored; a fresh checkout without it uses Settings defaults.
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       # db 서비스명을 호스트로 사용 (compose 내부 네트워크). 기본값 미변경 시:
       # postgresql+psycopg://filing_digest:filing_digest_dev@db:5432/filing_digest
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-filing_digest}:${POSTGRES_PASSWORD:-filing_digest_dev}@db:5432/${POSTGRES_DB:-filing_digest}
-      # 비밀값은 파일에 하드코딩하지 않는다. 호스트 환경변수에서 치환 주입 (미설정 시 빈 값).
-      DART_API_KEY: ${DART_API_KEY:-}
-      DART_BASE_URL: ${DART_BASE_URL:-https://opendart.fss.or.kr/api}
-      SOLAR_API_KEY: ${SOLAR_API_KEY:-}
-      SOLAR_BASE_URL: ${SOLAR_BASE_URL:-https://api.upstage.ai/v1}
-      SOLAR_MODEL: ${SOLAR_MODEL:-solar-pro3}
-      SEC_BASE_URL: ${SEC_BASE_URL:-https://data.sec.gov}
-      # SEC는 연락처가 포함된 User-Agent를 요구한다. 아래 기본값은 placeholder이며 실제 연락처로 덮어쓸 것.
-      SEC_USER_AGENT: ${SEC_USER_AGENT:-filing-digest/0.2.0 your-contact@example.com}
-      # 예약값(미소비): 실제 차원은 backend/db/init.sql의 vector(1024)이 단일 소스.
-      EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nlpai-lab/KURE-v1}
-      EMBEDDING_OFFLINE_FIRST: ${EMBEDDING_OFFLINE_FIRST:-true}
-      EMBEDDING_WARMUP_ENABLED: ${EMBEDDING_WARMUP_ENABLED:-true}
+    volumes:
+      # Persist the ~2.2 GB model snapshot across backend container recreation.
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
   pgdata:
+  hf_cache:

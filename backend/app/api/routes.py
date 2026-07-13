@@ -358,16 +358,14 @@ async def answer(
     (narrative_status=no_results) rather than prompting. Figures are still
     returned. Zero/weak results is a valid 200.
 
-    The number guard tripping (NumberInNarrativeError) is a graceful outcome, not
-    a bug: the figures track is always authoritative, so we suppress just the
-    prose (answer=None, narrative_status=blocked) and still return 200 with
-    figures. A CitationError where every violation is kind="empty" means the LLM
-    had nothing groundable to say (e.g. the corpus lacks the asked-for period) --
-    that is the same "nothing to cite" situation as the retrieval-threshold gate
-    above, so it also maps to narrative_status=no_results. A CitationError with
-    ANY "unknown" (fabricated) citation id is a real hallucination signal and is
-    re-raised as-is. NarrativeError and FigureError signal a broken contract, so
-    they are NOT caught here and propagate as 500.
+    The number guard tripping (NumberInNarrativeError) or the external narrative
+    service being unavailable is a graceful outcome: the figures track is still
+    authoritative, so we suppress just the prose (answer=None,
+    narrative_status=blocked) and return 200 with figures. A CitationError where
+    every violation is kind="empty" means the LLM had nothing groundable to say
+    (e.g. the corpus lacks the asked-for period), so it maps to
+    narrative_status=no_results. A CitationError with ANY "unknown" (fabricated)
+    citation id is a real hallucination signal and is re-raised as-is.
     """
     chunks = await search_chunks(
         session, query=request.query, company_id=request.company_id
@@ -394,6 +392,20 @@ async def answer(
         logger.warning(
             "number guard blocked narrative for company_id=%s; returning figures only",
             request.company_id,
+        )
+        return AnswerResponse(
+            answer=None,
+            figures=figures,
+            citations=[],
+            company_id=request.company_id,
+            narrative_status=NarrativeStatus.blocked,
+        )
+    except (SolarApiError, SolarClientError, httpx.HTTPError) as exc:
+        logger.warning(
+            "narrative service unavailable for company_id=%s (%s); "
+            "returning figures only",
+            request.company_id,
+            type(exc).__name__,
         )
         return AnswerResponse(
             answer=None,
