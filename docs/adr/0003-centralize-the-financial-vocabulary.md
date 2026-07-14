@@ -1,0 +1,3 @@
+# Centralize the Financial Vocabulary
+
+The backend financial vocabulary module owns canonical Reported Metrics, Reporting Period semantics, and compatible currency and scale rules; DART and SEC adapters translate external taxonomy into that vocabulary, while iOS owns presentation labels and is checked exhaustively against the transport vocabulary. Reported Metrics remain distinct from Derived Metrics, and original currencies are not converted implicitly. This was chosen over duplicated string tables because silent drift can otherwise change ingestion, calculations, digest eligibility, and display independently.

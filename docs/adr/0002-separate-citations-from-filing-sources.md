@@ -1,0 +1,3 @@
+# Separate Citations from Filing Sources
+
+The answer contract treats a Citation as claim-level evidence pointing to a Filing Chunk and a Filing Source as the deduplicated, openable Corporate Filing behind that evidence. The answer module resolves both identities, orders Filing Sources by first citation appearance, and treats missing or non-openable source metadata as an Evidence Integrity Failure that blocks narrative while preserving authoritative figures. This replaces the overloaded citation interface and client-side metadata heuristics because grounded claims must resolve deterministically across the transport seam.
