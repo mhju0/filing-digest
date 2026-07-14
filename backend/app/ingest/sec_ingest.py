@@ -1,16 +1,10 @@
-"""Persist ONE SEC 10-K filing into the 4 Postgres tables (SEC counterpart to
-:func:`app.ingest.persist.ingest_filing`).
+"""SEC adapter for the source-independent Normalized Filing seam.
 
-This mirrors ``ingest_filing`` exactly in shape -- fetch + parse everything first
-(network only; DB untouched), then a single ``session.begin()`` block upserts
-company -> filing -> financials and replaces the filing's chunks -- but keyed on
-SEC natural keys (``sec_cik`` / ``sec_accession_no``), with ``source='sec'`` and
-``currency='USD'``. The DART path in ``persist.py`` is deliberately untouched: the
-impure writers (:func:`~app.ingest.persist._upsert_company` /
-``_upsert_filing`` / ``_upsert_financials`` / ``_replace_chunks``) and
-:func:`~app.ingest.persist.chunk_rows` are reused as-is, so the natural-key
-``ValueError`` protection and the delete-then-insert chunk semantics are shared,
-not re-implemented.
+The SEC orchestration fetches and parses everything before building one complete
+:class:`app.filings.model.NormalizedFiling`. The shared persistence module then
+replaces its reported Financial Facts and Filing Chunks atomically by Filing
+Identity, keyed by ``sec_cik`` / ``sec_accession_no``. Embeddings are indexed only
+for that filing after the database snapshot commits.
 
 Design (mirrors persist.py; the differences are all SEC-specific):
 
@@ -18,10 +12,9 @@ Design (mirrors persist.py; the differences are all SEC-specific):
    source of figures (never the LLM/document); the facts are filtered to the
    chosen accession's *own-period* rows before they become ``financials`` rows.
 
-2. **USD units, not KRW.** ``persist.financial_rows`` bakes in KRW units via
-   ``unit_for`` and reads DART's ``FinancialItem.thstrm_amount``; a 10-K reports
-   USD and carries ``SecFinancialItem.value``, so :func:`sec_financial_rows` is a
-   separate builder (reusing it would mislabel USD figures as KRW).
+2. **USD units, not KRW.** SEC facts use their own unit vocabulary while the
+   adapter translates ``SecFinancialItem.value`` directly into canonical
+   :class:`~app.filings.model.FinancialFact` objects.
 
 3. **Chunks carry no rcept_no.** SEC filings have no DART receipt number, so
    ``chunk_document`` is called with ``rcept_no=None``; the citation anchor's
@@ -29,15 +22,14 @@ Design (mirrors persist.py; the differences are all SEC-specific):
    accession is never stuffed into the DART-specific ``meta.rcept_no`` field --
    see :mod:`app.ingest.chunking`).
 
-4. **Embeddings backfill is part of the orchestration.** After the write
-   transaction commits, :func:`~app.embeddings.backfill.backfill_embeddings` is
-   reused unchanged on a fresh session (it manages its own per-batch commits).
-   The orchestrator therefore takes a ``session_factory`` (not a live session),
-   since it opens two independent session scopes.
+4. **Filing-scoped indexing is part of the orchestration.** After persistence
+   commits, :func:`~app.embeddings.backfill.index_filing_embeddings` fills only
+   the target filing on a fresh session and publishes ``indexed_at`` only after
+   all of its chunks have vectors.
 
-The "cleaned object -> row dict" mapping is kept as *pure* functions (no network,
-no DB) so it is unit-tested offline; only :func:`ingest_sec_filing` touches the
-database (via the reused persist writers).
+The adapter exposes source vocabulary helpers plus
+:func:`build_sec_normalized_filing`; database row construction belongs solely
+to :mod:`app.filings.persistence`.
 """
 
 import datetime
@@ -56,17 +48,23 @@ from app.clients.sec import (
     format_cik,
 )
 from app.clients.sec_document import extract_10k_prose
-from app.embeddings.backfill import backfill_embeddings
-from app.ingest.chunking import chunk_document
+from app.embeddings.backfill import index_filing_embeddings
+from app.filings.model import (
+    CompanyIdentity,
+    FilingChunk,
+    FilingIdentity,
+    FinancialFact,
+    NormalizedFiling,
+    RegulatedCompany,
+    RegulatorySource,
+    ReportingPeriod,
+)
+from app.filings.persistence import persist_normalized_filing
+from app.financials.vocabulary import PeriodKind, ReportedMetric
+from app.ingest.chunking import Chunk, chunk_document
 from app.ingest.persist import (
     METRIC_EPS,
     METRIC_EPS_DILUTED,
-    SOURCE_SEC,
-    _replace_chunks,
-    _upsert_company,
-    _upsert_filing,
-    _upsert_financials,
-    chunk_rows,
 )
 
 logger = logging.getLogger(__name__)
@@ -132,109 +130,70 @@ def sec_unit_for(metric: str) -> str:
     return UNIT_USD_PER_SHARE if metric in _EPS_METRICS else UNIT_USD
 
 
-# -- pure row builders (cleaned object -> row dict) ---------------------------
-
-
-def sec_company_row(match: SecCompanyMatch | None, cik10: str) -> dict:
-    """Build the ``companies`` row for a SEC filer (``source='sec'``).
-
-    ``sec_cik`` is the idempotent conflict key (``dart_corp_code`` stays None).
-    ``name``/``ticker`` come from company_tickers when the CIK resolved; a filer
-    absent from that index falls back to a deterministic ``f"CIK {cik10}"`` name
-    (the CIK IS the identity -- never fabricated data) with a NULL ticker.
-    ``market`` is left None (company_tickers carries no exchange). ``name_en``
-    mirrors ``name`` -- SEC filer names are already English, so the primary name
-    doubles as the English name for bilingual search. Pure.
-    """
-    name = match.title if (match and match.title) else f"CIK {cik10}"
-    return {
-        "name": name,
-        "name_en": name,
-        "ticker": (match.ticker or None) if match else None,
-        "market": None,
-        "source": SOURCE_SEC,
-        "dart_corp_code": None,
-        "sec_cik": cik10,
-    }
-
-
-def sec_filing_row(
+def build_sec_normalized_filing(
+    *,
+    company_match: SecCompanyMatch | None,
+    cik10: str,
     filing: SecFilingItem,
-    company_id: uuid.UUID,
     fiscal_year: int,
-    url: str,
-) -> dict:
-    """Build the ``filings`` row for a 10-K (``source='sec'``).
-
-    ``sec_accession_no`` is the idempotent conflict key (``rcept_no`` stays None).
-    ``company_id`` is injected from the company upsert's RETURNING id.
-    ``filing_type`` is the literal SEC form ("10-K" -- SEC's own human-facing
-    designation, the honest analog of DART's semantic label), ``title`` a
-    synthesized human label, ``period`` the canonical annual string, ``filed_at``
-    <- filing_date, ``url`` <- the primary document's EDGAR archive URL (the
-    citation link). Pure.
-    """
-    form = filing.form or _FORM_10K
-    return {
-        "company_id": company_id,
-        "source": SOURCE_SEC,
-        "rcept_no": None,
-        "sec_accession_no": filing.accession_number,
-        "filing_type": form,
-        "title": f"Form {form} (FY{fiscal_year})",
-        "period": sec_period(fiscal_year),
-        "filed_at": filing.filing_date,
-        "url": url,
-    }
-
-
-def sec_financial_rows(
-    items: list[SecFinancialItem],
-    company_id: uuid.UUID,
-    filing_id: uuid.UUID,
-) -> list[dict]:
-    """Build the EAV ``financials`` rows from a 10-K's own-accession facts (source='sec').
-
-    Mirrors ``persist.financial_rows``' rules -- one row per metric, **dedup by
-    metric** (first wins, to avoid an in-batch ON CONFLICT clash), ``filing_id``
-    ALWAYS populated (citation rule) -- but reads :class:`SecFinancialItem`
-    (``.value`` / ``.metric`` / ``.fiscal_year``) and emits USD units + currency.
-    The None guards mirror the DART builder's NOT-NULL contract even though the
-    companyfacts parser already drops unmapped/empty facts (defensive, so a future
-    caller passing raw-ish items still cannot write a NULL metric/value).
-
-    ``items`` must already be filtered to ONE accession by the caller
-    (:func:`ingest_sec_filing`); each row's ``period`` is derived from that fact's
-    own ``fiscal_year`` (all own-accession annual facts share the filing's year).
-    ``company_id``/``filing_id`` are injected from the upserts' RETURNING ids.
-    Pure -> unit-tested.
-    """
-    rows: list[dict] = []
-    seen: set[str] = set()
-    for item in items:
-        metric = item.metric
-        if metric is None:
-            continue  # unmapped: financials.metric is NOT NULL
-        if item.value is None:
-            continue  # empty/unparseable: financials.value is NOT NULL, never fabricate
+    document_url: str,
+    financial_items: list[SecFinancialItem],
+    chunks: list[Chunk],
+) -> NormalizedFiling:
+    """Adapt one fetched SEC filing to the public Normalized Filing seam."""
+    facts: list[FinancialFact] = []
+    seen: set[ReportedMetric] = set()
+    for item in financial_items:
+        metric = ReportedMetric(item.metric)
         if metric in seen:
-            continue  # duplicate metric -> avoid in-batch ON CONFLICT clash
+            continue
         seen.add(metric)
-        rows.append(
-            {
-                "company_id": company_id,
-                "filing_id": filing_id,  # citation: always populated
-                "fiscal_year": item.fiscal_year,
-                "fiscal_quarter": None,  # 10-K is annual
-                "period": sec_period(item.fiscal_year),
-                "metric": metric,
-                "value": item.value,  # int (USD) | Decimal (EPS)
-                "unit": sec_unit_for(metric),
-                "currency": CURRENCY_USD,
-                "source": SOURCE_SEC,
-            }
+        has_complete_range = item.period_start is not None and item.period_end is not None
+        period = ReportingPeriod(
+            label=sec_period(item.fiscal_year),
+            kind=PeriodKind.duration,
+            start_date=item.period_start if has_complete_range else None,
+            end_date=item.period_end if has_complete_range else None,
         )
-    return rows
+        facts.append(
+            FinancialFact(
+                metric=metric,
+                period=period,
+                value=item.value,
+                unit=sec_unit_for(metric.value),
+                currency=CURRENCY_USD,
+            )
+        )
+
+    name = company_match.title if company_match and company_match.title else f"CIK {cik10}"
+    return NormalizedFiling(
+        company=RegulatedCompany(
+            identity=CompanyIdentity(RegulatorySource.sec, cik10),
+            name=name,
+            name_en=name,
+            ticker=(company_match.ticker or None) if company_match else None,
+        ),
+        identity=FilingIdentity(RegulatorySource.sec, filing.accession_number),
+        filing_type=filing.form or _FORM_10K,
+        title=f"Form {filing.form or _FORM_10K} (FY{fiscal_year})",
+        reporting_period=ReportingPeriod(sec_period(fiscal_year), PeriodKind.duration),
+        financial_facts=tuple(facts),
+        filing_chunks=tuple(
+            FilingChunk(
+                chunk_index=chunk.chunk_index,
+                content=chunk.content,
+                metadata={
+                    "rcept_no": chunk.rcept_no,
+                    "section_title": chunk.section_title,
+                    "section_order": chunk.section_order,
+                    "part_index": chunk.part_index,
+                },
+            )
+            for chunk in chunks
+        ),
+        filed_at=filing.filing_date,
+        url=document_url,
+    )
 
 
 # -- pure selection helpers ---------------------------------------------------
@@ -267,9 +226,7 @@ def select_target_filing(
     )
 
 
-def _filing_fiscal_year(
-    filing: SecFilingItem, own_facts: list[SecFinancialItem]
-) -> int:
+def _filing_fiscal_year(filing: SecFilingItem, own_facts: list[SecFinancialItem]) -> int:
     """Derive the filing's fiscal year: the facts' own period, else report_date.year.
 
     Prefer the ``fiscal_year`` already derived from companyfacts' own-period
@@ -289,7 +246,7 @@ def _filing_fiscal_year(
     )
 
 
-# -- impure: fetch + the atomic write + backfill ------------------------------
+# -- impure: fetch + atomic snapshot replacement + scoped indexing -----------
 
 
 async def ingest_sec_filing(
@@ -307,12 +264,13 @@ async def ingest_sec_filing(
     accession's own-period figures. ALL network I/O + parsing happens *before* the
     transaction opens, so a fetch/parse failure (e.g. ``SecDocumentParseError``)
     raises before any write -- nothing is persisted. Then one ``session.begin()``
-    block upserts company -> filing -> financials and replaces the filing's
-    chunks. Finally, embeddings are backfilled on a fresh session.
+    snapshot is adapted and atomically persisted through the shared Normalized
+    Filing seam. Finally, only that filing's embeddings are indexed on a fresh
+    session; it becomes searchable after all target chunks are ready.
 
     ``session_factory`` is a zero-arg callable returning an ``AsyncSession`` usable
     as an async context manager (e.g. ``get_async_session``); two scopes are
-    opened -- one for the atomic write, one for the (self-committing) backfill.
+    opened -- one for the atomic write, one for self-committing scoped indexing.
 
     Returns a :class:`SecIngestResult` (ids + written counts). Re-running with the
     same arguments is idempotent: the company/filing ids and row counts are
@@ -336,23 +294,26 @@ async def ingest_sec_filing(
     own_facts = [f for f in facts if f.accession_number == target.accession_number]
     fiscal_year = _filing_fiscal_year(target, own_facts)
 
-    # -- 2. one atomic transaction (all-or-nothing for this filing) ----------
+    # -- 2. one atomic authoritative snapshot replacement -------------------
+    normalized = build_sec_normalized_filing(
+        company_match=company_match,
+        cik10=cik10,
+        filing=target,
+        fiscal_year=fiscal_year,
+        document_url=document.url,
+        financial_items=own_facts,
+        chunks=chunks,
+    )
     async with session_factory() as session:
-        async with session.begin():
-            company_id = await _upsert_company(
-                session, sec_company_row(company_match, cik10)
-            )
-            filing_id = await _upsert_filing(
-                session, sec_filing_row(target, company_id, fiscal_year, document.url)
-            )
-            fin_rows = sec_financial_rows(own_facts, company_id, filing_id)
-            await _upsert_financials(session, fin_rows)
-            c_rows = chunk_rows(chunks, filing_id)
-            await _replace_chunks(session, filing_id, c_rows)
+        persisted = await persist_normalized_filing(session, normalized)
+    company_id = persisted.company_id
+    filing_id = persisted.filing_id
+    fin_rows = normalized.financial_facts
+    c_rows = normalized.filing_chunks
 
-    # -- 3. backfill embeddings on a fresh session (self-committing per batch)-
+    # -- 3. index this filing on a fresh session (self-committing per batch) --
     async with session_factory() as session:
-        embeddings_backfilled = await backfill_embeddings(session)
+        embeddings_backfilled = await index_filing_embeddings(session, filing_id)
 
     logger.info(
         "ingest_sec_filing: cik=%s accession=%s -> company=%s filing=%s "

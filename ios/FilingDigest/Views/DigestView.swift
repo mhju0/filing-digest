@@ -6,7 +6,7 @@
 //  header, filing-context line, 2-column hairline metric cards with
 //  abbreviated values, summary and sources under small-caps section rules.
 //  Metric values are structured-API numbers only; every card links to a
-//  citation via citationId. value == nil renders as a dash.
+//  openable Filing Source via filingSourceId. value == nil renders as a dash.
 //
 //  The digest payload always contains both label_ko/label_en, so metric labels
 //  switch locally without refetching. summary_ko/summary_en may be nil (no
@@ -19,35 +19,42 @@ struct DigestView: View {
     let client: APIClient
     let company: Company
 
-    @State private var digest: CompanyDigest?
+    @StateObject private var state: DigestState
     @State private var language: Language = .ko
-    @State private var isLoading = false
-    @State private var errorMessage: String?
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
         GridItem(.flexible(), spacing: 12),
     ]
 
+    init(client: APIClient, company: Company) {
+        self.client = client
+        self.company = company
+        _state = StateObject(wrappedValue: DigestState(fetchDigest: {
+            try await client.fetchDigest(companyID: $0)
+        }))
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 companyHeader
 
-                if let digest {
+                if let digest = state.digest {
+                    requestStatus
                     digestContent(digest)
-                } else if isLoading {
+                } else if state.isLoading {
                     ProgressView("불러오는 중…")
                         .frame(maxWidth: .infinity)
                         .padding(.top, 40)
-                } else if let errorMessage {
+                } else if let blockingError = state.blockingError {
                     ContentUnavailableView {
                         Label("오류", systemImage: "exclamationmark.triangle")
                     } description: {
-                        Text(errorMessage)
+                        Text(blockingError)
                     } actions: {
                         Button("다시 시도") {
-                            Task { await load() }
+                            Task { await state.retry() }
                         }
                         .buttonStyle(.bordered)
                     }
@@ -74,9 +81,9 @@ struct DigestView: View {
                 }
             }
         }
-        .task {
-            await load()
-        }
+        .task(id: company.id) { await state.load(companyID: company.id) }
+        .refreshable { await state.refresh() }
+        .onDisappear { state.cancel() }
     }
 
     // MARK: Header
@@ -108,6 +115,21 @@ struct DigestView: View {
     // MARK: Digest content
 
     @ViewBuilder
+    private var requestStatus: some View {
+        if state.isRefreshing {
+            ProgressView("새로 고치는 중…")
+                .font(.caption)
+                .foregroundStyle(Theme.inkMuted)
+        }
+        if let refreshError = state.refreshError {
+            Label(refreshError, systemImage: "exclamationmark.circle")
+                .font(.caption)
+                .foregroundStyle(Theme.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
     private func digestContent(_ digest: CompanyDigest) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(filingContext(digest))
@@ -123,7 +145,7 @@ struct DigestView: View {
         }
 
         if digest.metrics.isEmpty && digest.summary(for: language) == nil
-            && digest.citations.isEmpty {
+            && digest.filingSources.isEmpty {
             ContentUnavailableView(
                 "아직 요약할 공시가 없습니다",
                 systemImage: "doc.text",
@@ -148,11 +170,11 @@ struct DigestView: View {
                 .lineSpacing(6)
         }
 
-        if !digest.citations.isEmpty {
+        if !digest.filingSources.isEmpty {
             SectionHeader(title: language == .ko ? "출처" : "SOURCES")
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(digest.citations) { citation in
-                    CitationRow(citation: citation)
+                ForEach(digest.filingSources) { filingSource in
+                    FilingSourceRow(filingSource: filingSource)
                     Rectangle()
                         .fill(Theme.hairline)
                         .frame(height: 1)
@@ -162,25 +184,12 @@ struct DigestView: View {
     }
 
     /// "사업보고서 2023 · 공시 2024-03-12" — humanized period plus the filing
-    /// date of the first citation (all metrics of a v0.2 digest come from a
+    /// date of the first Filing Source (all metrics of a v0.3 digest come from a
     /// single filing).
     private func filingContext(_ digest: CompanyDigest) -> String {
         let title = FigureDisplay.periodTitle(digest.period, language: language)
-        guard let filedAt = digest.citations.first?.filedAt else { return title }
+        guard let filedAt = digest.filingSources.first?.filedAt else { return title }
         return language == .ko ? "\(title) · 공시 \(filedAt)" : "\(title) · filed \(filedAt)"
-    }
-
-    private func load() async {
-        guard digest == nil, !isLoading else { return }
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-
-        do {
-            digest = try await client.fetchDigest(companyID: company.id, language: language)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
     }
 }
 
@@ -226,38 +235,32 @@ private struct MetricCardView: View {
     }
 }
 
-// MARK: - Citation row
+// MARK: - Filing Source row
 
 /// Source row shared by DigestView and AnswerView: hairline-separated,
 /// title links to the original filing, mono metadata line.
-struct CitationRow: View {
-    let citation: Citation
+struct FilingSourceRow: View {
+    let filingSource: FilingSource
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                if let url = URL(string: citation.url), !citation.url.isEmpty {
-                    Link(citation.title, destination: url)
+                if let url = filingSource.openableURL {
+                    Link(filingSource.title, destination: url)
                         .font(.subheadline.weight(.semibold))
                 } else {
-                    Text(citation.title)
+                    Text(filingSource.title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.ink)
                 }
-                if let filedAt = citation.filedAt {
+                if let filedAt = filingSource.filedAt {
                     Text(filedAt)
                         .font(.caption.monospaced())
                         .foregroundStyle(Theme.inkMuted)
                 }
-                if let excerpt = citation.excerpt {
-                    Text(excerpt)
-                        .font(.caption)
-                        .foregroundStyle(Theme.inkMuted)
-                        .lineLimit(2)
-                }
             }
             Spacer()
-            SourceBadge(source: citation.source)
+            SourceBadge(source: filingSource.source)
         }
         .padding(.vertical, 12)
     }

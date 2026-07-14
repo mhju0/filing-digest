@@ -2,7 +2,7 @@
 //  APIModels.swift
 //  FilingDigest
 //
-//  Codable mirror of API CONTRACT v0.2.
+//  Codable mirror of API CONTRACT v0.3.
 //  JSON on the wire is snake_case; Swift properties are camelCase and rely on
 //  JSONDecoder.keyDecodingStrategy = .convertFromSnakeCase /
 //  JSONEncoder.keyEncodingStrategy = .convertToSnakeCase (see APIClient).
@@ -23,8 +23,11 @@ enum Language: String, Codable, CaseIterable, Hashable, Sendable {
     case en
 }
 
-/// Origin of a filing-derived datum ("dart" | "sec").
-enum FilingSource: String, Codable, Hashable, Sendable {
+/// Regulatory system that published a filing ("dart" | "sec").
+///
+/// This is deliberately distinct from ``FilingSource``, the openable filing
+/// record presented to a person verifying evidence.
+enum RegulatorySource: String, Codable, Hashable, Sendable {
     case dart
     case sec
 }
@@ -38,14 +41,69 @@ enum Market: String, Codable, Hashable, Sendable {
     case nasdaq = "NASDAQ"
 }
 
-/// MetricCard.key values. Explicit raw values because value strings stay
-/// snake_case regardless of the key-conversion strategy.
-enum MetricKey: String, Codable, Hashable, Sendable {
+/// Canonical measures reported directly by a Corporate Filing.
+enum ReportedMetric: String, Codable, CaseIterable, Hashable, Sendable {
     case revenue
     case operatingIncome = "operating_income"
     case netIncome = "net_income"
+    case netIncomeAttributable = "net_income_attributable"
     case eps
+    case epsDiluted = "eps_diluted"
+}
+
+/// Measures calculated from Reported Metrics rather than disclosed directly.
+enum DerivedMetric: String, Codable, CaseIterable, Hashable, Sendable {
     case operatingMargin = "operating_margin"
+}
+
+/// Temporal shape of a Financial Fact.
+enum PeriodKind: String, Codable, CaseIterable, Hashable, Sendable {
+    case instant
+    case duration
+}
+
+/// Digest cards can present either a Reported Metric or a Derived Metric while
+/// preserving the existing single-string wire representation.
+enum FinancialMetric: Hashable, Sendable {
+    case reported(ReportedMetric)
+    case derived(DerivedMetric)
+
+    var rawValue: String {
+        switch self {
+        case .reported(let metric): metric.rawValue
+        case .derived(let metric): metric.rawValue
+        }
+    }
+
+    static let revenue = Self.reported(ReportedMetric.revenue)
+    static let operatingIncome = Self.reported(ReportedMetric.operatingIncome)
+    static let netIncome = Self.reported(ReportedMetric.netIncome)
+    static let netIncomeAttributable = Self.reported(ReportedMetric.netIncomeAttributable)
+    static let eps = Self.reported(ReportedMetric.eps)
+    static let epsDiluted = Self.reported(ReportedMetric.epsDiluted)
+    static let operatingMargin = Self.derived(DerivedMetric.operatingMargin)
+}
+
+extension FinancialMetric: Codable {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        if let reported = ReportedMetric(rawValue: rawValue) {
+            self = .reported(reported)
+        } else if let derived = DerivedMetric(rawValue: rawValue) {
+            self = .derived(derived)
+        } else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unknown financial metric: \(rawValue)"
+            )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 // MARK: - Companies
@@ -57,7 +115,7 @@ struct Company: Codable, Identifiable, Hashable, Sendable {
     let nameEn: String?
     let ticker: String?
     let market: Market?
-    let source: FilingSource
+    let source: RegulatorySource
 }
 
 /// GET /companies?q= response envelope.
@@ -68,28 +126,52 @@ struct CompanySearchResponse: Codable, Sendable {
 
 // MARK: - Digest
 
-/// A single citation. Every numeric claim in a digest links back to one of
-/// these via MetricCard.citationId.
+/// Location of a Filing Chunk within its Corporate Filing.
+struct CitationAnchor: Codable, Hashable, Sendable {
+    let sectionTitle: String?
+    let sectionOrder: Int?
+    let partIndex: Int?
+    let chunkIndex: Int
+}
+
+/// Claim-level evidence pointing to one bounded Filing Chunk.
 struct Citation: Codable, Identifiable, Hashable, Sendable {
     let id: String
-    let source: FilingSource
+    let filingSourceId: String
+    let excerpt: String
+    let anchor: CitationAnchor
+}
+
+/// Deduplicated, openable representation of one Corporate Filing.
+struct FilingSource: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let source: RegulatorySource
+    let sourceFilingId: String
     let title: String
     let url: String
-    let excerpt: String?
     /// ISO date string ("YYYY-MM-DD") or nil; displayed verbatim.
     let filedAt: String?
+
+    /// Only absolute HTTP(S) links are openable evidence sources.
+    var openableURL: URL? {
+        guard let candidate = URL(string: url),
+              ["http", "https"].contains(candidate.scheme?.lowercased() ?? ""),
+              candidate.host != nil
+        else { return nil }
+        return candidate
+    }
 }
 
 /// One metric tile in the digest grid. `value == nil` renders as a dash.
 struct MetricCard: Codable, Hashable, Identifiable, Sendable {
-    let key: MetricKey
+    let key: FinancialMetric
     let labelKo: String
     let labelEn: String
     let value: Double?
     let unit: String
     let yoyDeltaPct: Double?
-    let source: FilingSource
-    let citationId: String?
+    let source: RegulatorySource
+    let filingSourceId: String
 
     /// Stable identity for SwiftUI lists; the contract guarantees at most one
     /// card per metric key in a digest.
@@ -111,7 +193,7 @@ struct CompanyDigest: Codable, Hashable, Sendable {
     /// nil when no narrative has been generated for this digest yet.
     let summaryKo: String?
     let summaryEn: String?
-    let citations: [Citation]
+    let filingSources: [FilingSource]
     /// ISO8601 string; displayed verbatim.
     let generatedAt: String
 

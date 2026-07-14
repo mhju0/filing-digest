@@ -1,4 +1,4 @@
--- DB SCHEMA v0.1 for filing-digest backend.
+-- DB SCHEMA v0.3 for filing-digest backend.
 -- Intended for docker-entrypoint-initdb.d (Postgres 16 + pgvector image).
 -- Must stay in exact sync with backend/app/db/models.py.
 -- Note: pg16 has gen_random_uuid() built in; only the vector extension is needed.
@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS filings (
     period text,
     filed_at date,
     url text,
+    -- NULL while a Normalized Filing is pending/retrying indexing. Search joins
+    -- through filings and exposes chunks only after the whole filing is ready.
+    indexed_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -66,15 +69,23 @@ CREATE INDEX IF NOT EXISTS idx_filing_chunks_embedding
 CREATE TABLE IF NOT EXISTS financials (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    filing_id uuid REFERENCES filings(id) ON DELETE SET NULL,
+    filing_id uuid NOT NULL REFERENCES filings(id) ON DELETE CASCADE,
     fiscal_year int NOT NULL,
     fiscal_quarter int,
     period text NOT NULL,
+    period_kind text NOT NULL DEFAULT 'duration'
+        CHECK (period_kind IN ('instant', 'duration')),
+    -- Exact dates remain NULL when the regulatory source does not provide them.
+    period_start date,
+    period_end date,
     metric text NOT NULL,
     value numeric(24, 4) NOT NULL,
     unit text NOT NULL,
     currency text,
+    scale bigint NOT NULL DEFAULT 1 CHECK (scale > 0),
     source text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (company_id, period, metric, source)
+    CONSTRAINT financials_period_range_check
+        CHECK (period_start IS NULL OR period_end IS NULL OR period_start <= period_end),
+    UNIQUE (filing_id, period, metric)
 );

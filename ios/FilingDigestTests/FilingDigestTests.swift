@@ -11,7 +11,7 @@ import Foundation
 import Testing
 @testable import FilingDigest
 
-// MARK: - Sample payloads (snake_case, mirroring API CONTRACT v0.2)
+// MARK: - Sample payloads (snake_case, mirroring API CONTRACT v0.3)
 
 private let companyDigestJSON = """
 {
@@ -27,7 +27,7 @@ private let companyDigestJSON = """
       "unit": "조원",
       "yoy_delta_pct": 11.2,
       "source": "dart",
-      "citation_id": "cit-1"
+      "filing_source_id": "dart:2026-report"
     },
     {
       "key": "operating_margin",
@@ -37,18 +37,18 @@ private let companyDigestJSON = """
       "unit": "%",
       "yoy_delta_pct": null,
       "source": "dart",
-      "citation_id": null
+      "filing_source_id": "dart:2026-report"
     }
   ],
   "summary_ko": "분기 요약입니다.",
   "summary_en": "Quarterly summary.",
-  "citations": [
+  "filing_sources": [
     {
-      "id": "cit-1",
+      "id": "dart:2026-report",
       "source": "dart",
+      "source_filing_id": "2026-report",
       "title": "분기보고서 (2026.03)",
       "url": "https://dart.fss.or.kr/report/stub-1",
-      "excerpt": "매출액은 ...",
       "filed_at": "2026-05-15"
     }
   ],
@@ -68,7 +68,7 @@ private let answerOKJSON = """
       },
       {
         "text": "환율 영향은 제한적이었습니다.",
-        "citations": []
+        "citations": ["chunk-bbbb"]
       }
     ]
   },
@@ -79,6 +79,7 @@ private let answerOKJSON = """
       "unit": "KRW",
       "currency": "KRW",
       "period": "2025Q4",
+      "period_kind": "duration",
       "fiscal_year": 2025,
       "fiscal_quarter": 4,
       "filing_id": "33333333-3333-3333-3333-333333333333"
@@ -89,6 +90,7 @@ private let answerOKJSON = """
       "unit": "KRW",
       "currency": null,
       "period": "FY2025",
+      "period_kind": "duration",
       "fiscal_year": 2025,
       "fiscal_quarter": null,
       "filing_id": "33333333-3333-3333-3333-333333333333"
@@ -97,15 +99,40 @@ private let answerOKJSON = """
   "citations": [
     {
       "id": "chunk-aaaa",
+      "filing_source_id": "dart:stub-2",
+      "excerpt": "매출은 전년 동기 대비 증가했습니다.",
+      "anchor": {
+        "section_title": "사업의 내용",
+        "section_order": 2,
+        "part_index": 0,
+        "chunk_index": 4
+      }
+    },
+    {
+      "id": "chunk-bbbb",
+      "filing_source_id": "dart:stub-2",
+      "excerpt": "환율 영향은 제한적이었습니다.",
+      "anchor": {
+        "section_title": "사업의 내용",
+        "section_order": 2,
+        "part_index": 0,
+        "chunk_index": 5
+      }
+    }
+  ],
+  "filing_sources": [
+    {
+      "id": "dart:stub-2",
       "source": "dart",
+      "source_filing_id": "stub-2",
       "title": "분기보고서 (2025.12)",
       "url": "https://dart.fss.or.kr/report/stub-2",
-      "excerpt": "매출은 ...",
       "filed_at": "2026-02-15"
     }
   ],
   "company_id": "11111111-1111-1111-1111-111111111111",
-  "narrative_status": "ok"
+  "narrative_status": "ok",
+  "blocked_reason": null
 }
 """
 
@@ -119,14 +146,17 @@ private let answerBlockedJSON = """
       "unit": "KRW",
       "currency": "KRW",
       "period": "2025Q4",
+      "period_kind": "duration",
       "fiscal_year": 2025,
       "fiscal_quarter": 4,
       "filing_id": "33333333-3333-3333-3333-333333333333"
     }
   ],
   "citations": [],
+  "filing_sources": [],
   "company_id": "11111111-1111-1111-1111-111111111111",
-  "narrative_status": "blocked"
+  "narrative_status": "blocked",
+  "blocked_reason": "evidence_integrity"
 }
 """
 
@@ -135,8 +165,10 @@ private let answerNoResultsJSON = """
   "answer": null,
   "figures": [],
   "citations": [],
+  "filing_sources": [],
   "company_id": "11111111-1111-1111-1111-111111111111",
-  "narrative_status": "no_results"
+  "narrative_status": "no_results",
+  "blocked_reason": null
 }
 """
 
@@ -165,18 +197,19 @@ struct APIModelDecodingTests {
         #expect(revenue.value == 79.1)
         #expect(revenue.yoyDeltaPct == 11.2)
         #expect(revenue.source == .dart)
-        #expect(revenue.citationId == "cit-1")
+        #expect(revenue.filingSourceId == "dart:2026-report")
 
         let margin = try #require(digest.metrics.last)
         #expect(margin.key == .operatingMargin)
         #expect(margin.value == nil)
         #expect(margin.yoyDeltaPct == nil)
-        #expect(margin.citationId == nil)
+        #expect(margin.filingSourceId == "dart:2026-report")
 
-        let citation = try #require(digest.citations.first)
-        #expect(citation.id == "cit-1")
-        #expect(citation.source == .dart)
-        #expect(citation.filedAt == "2026-05-15")
+        let filingSource = try #require(digest.filingSources.first)
+        #expect(filingSource.id == "dart:2026-report")
+        #expect(filingSource.source == .dart)
+        #expect(filingSource.sourceFilingId == "2026-report")
+        #expect(filingSource.filedAt == "2026-05-15")
     }
 }
 
@@ -200,22 +233,23 @@ struct AnswerResponseDecodingTests {
         #expect(first.text == "매출은 전년 동기 대비 증가했습니다.")
         #expect(first.citations == ["chunk-aaaa", "chunk-bbbb"])
         let second = try #require(answer.answerSegments.last)
-        #expect(second.citations.isEmpty)
+        #expect(second.citations == ["chunk-bbbb"])
 
         #expect(response.figures.count == 2)
         let revenue = try #require(response.figures.first)
-        #expect(revenue.metric == "revenue")
+        #expect(revenue.metric == .revenue)
         let expectedRevenue = try #require(Decimal(string: "258935494000000.0000"))
         #expect(revenue.value == expectedRevenue)
         #expect(revenue.unit == "KRW")
         #expect(revenue.currency == "KRW")
         #expect(revenue.period == "2025Q4")
+        #expect(revenue.periodKind == .duration)
         #expect(revenue.fiscalYear == 2025)
         #expect(revenue.fiscalQuarter == 4)
         #expect(revenue.filingId == UUID(uuidString: "33333333-3333-3333-3333-333333333333"))
 
         let eps = try #require(response.figures.last)
-        #expect(eps.metric == "eps")
+        #expect(eps.metric == .eps)
         let expectedEPS = try #require(Decimal(string: "2131.0000"))
         #expect(eps.value == expectedEPS)
         #expect(eps.currency == nil)
@@ -223,8 +257,13 @@ struct AnswerResponseDecodingTests {
 
         let citation = try #require(response.citations.first)
         #expect(citation.id == "chunk-aaaa")
-        #expect(citation.source == .dart)
-        #expect(citation.filedAt == "2026-02-15")
+        #expect(citation.filingSourceId == "dart:stub-2")
+        #expect(citation.anchor.sectionTitle == "사업의 내용")
+        #expect(citation.anchor.chunkIndex == 4)
+        let filingSource = try #require(response.filingSources.first)
+        #expect(filingSource.source == .dart)
+        #expect(filingSource.filedAt == "2026-02-15")
+        #expect(try response.makeEvidenceIndex()?.groups.count == 1)
     }
 
     @Test("blocked: answer withheld, figures track survives")
@@ -235,6 +274,8 @@ struct AnswerResponseDecodingTests {
         #expect(response.answer == nil)
         #expect(response.figures.count == 1)
         #expect(response.citations.isEmpty)
+        #expect(response.filingSources.isEmpty)
+        #expect(response.blockedReason == .evidenceIntegrity)
 
         // 19 significant digits: a Double round trip would corrupt this value,
         // so equality here proves the string -> Decimal path is lossless.
@@ -260,16 +301,16 @@ struct FigureDisplayTests {
 
     // (a) every known metric key -> KO and EN display name.
     @Test("known metric keys map to KO and EN names", arguments: [
-        ("revenue", "매출액", "Revenue"),
-        ("operating_income", "영업이익", "Operating Income"),
-        ("net_income", "당기순이익", "Net Income"),
-        ("net_income_attributable", "지배기업 소유주지분 순이익", "Net Income (Attributable)"),
-        ("eps", "주당순이익(EPS)", "EPS"),
-        ("eps_diluted", "희석주당순이익", "Diluted EPS"),
+        (ReportedMetric.revenue, "매출액", "Revenue"),
+        (ReportedMetric.operatingIncome, "영업이익", "Operating Income"),
+        (ReportedMetric.netIncome, "당기순이익", "Net Income"),
+        (ReportedMetric.netIncomeAttributable, "지배기업 소유주지분 순이익", "Net Income (Attributable)"),
+        (ReportedMetric.eps, "주당순이익(EPS)", "EPS"),
+        (ReportedMetric.epsDiluted, "희석주당순이익", "Diluted EPS"),
     ])
-    func mapsKnownMetrics(key: String, ko: String, en: String) {
-        #expect(FigureDisplay.metricName(key, language: .ko) == ko)
-        #expect(FigureDisplay.metricName(key, language: .en) == en)
+    func mapsKnownMetrics(metric: ReportedMetric, ko: String, en: String) {
+        #expect(FigureDisplay.metricName(metric, language: .ko) == ko)
+        #expect(FigureDisplay.metricName(metric, language: .en) == en)
     }
 
     // (b) every known unit key -> KO and EN display.
@@ -284,14 +325,7 @@ struct FigureDisplayTests {
         #expect(FigureDisplay.unitName(key, language: .en) == en)
     }
 
-    // (c) unknown metric key -> raw fallback, identical in both languages.
-    @Test("unknown metric key falls back to the raw key")
-    func unknownMetricFallsBack() {
-        #expect(FigureDisplay.metricName("free_cash_flow", language: .ko) == "free_cash_flow")
-        #expect(FigureDisplay.metricName("free_cash_flow", language: .en) == "free_cash_flow")
-    }
-
-    // (d) unknown unit key -> raw fallback, identical in both languages.
+    // (c) unknown unit key -> raw fallback, identical in both languages.
     @Test("unknown unit key falls back to the raw key")
     func unknownUnitFallsBack() {
         #expect(FigureDisplay.unitName("EUR", language: .ko) == "EUR")
@@ -430,7 +464,7 @@ struct FigureDisplayFormattingTests {
 struct SearchFilterTests {
     private static func company(
         _ name: String, nameEn: String? = nil, ticker: String? = nil,
-        source: FilingSource = .dart
+        source: RegulatorySource = .dart
     ) -> Company {
         Company(id: UUID().uuidString, name: name, nameEn: nameEn, ticker: ticker,
                 market: nil, source: source)

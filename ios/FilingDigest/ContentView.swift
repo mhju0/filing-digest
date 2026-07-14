@@ -3,8 +3,8 @@
 //  FilingDigest
 //
 //  Root view: company search (-> digest).
-//  State management is intentionally simple: one shared APIClient value is
-//  passed down, SearchView owns its @State and calls async functions directly.
+//  One shared APIClient value is passed down; each screen owns a dedicated
+//  asynchronous state module with an endpoint-operation testing seam.
 //
 
 import SwiftUI

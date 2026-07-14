@@ -20,6 +20,7 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from app.figures.service import FigureError, build_figures, fetch_financials
+from app.financials import PeriodKind, ReportedMetric
 from app.schemas import Figure
 
 _FILING_ID = uuid.UUID("33333333-3333-3333-3333-333333333333")
@@ -32,6 +33,7 @@ def _revenue_row(**over) -> SimpleNamespace:
         unit="KRW",
         currency="KRW",
         period="2023",
+        period_kind="duration",
         fiscal_year=2023,
         fiscal_quarter=None,  # annual
         filing_id=_FILING_ID,
@@ -47,6 +49,7 @@ def _eps_row(**over) -> SimpleNamespace:
         unit="KRW_PER_SHARE",
         currency="KRW",
         period="2023",
+        period_kind="duration",
         fiscal_year=2023,
         fiscal_quarter=None,
         filing_id=_FILING_ID,
@@ -63,6 +66,8 @@ def test_build_figures_shapes_one_figure_per_row() -> None:
     assert len(figures) == 2
     assert all(isinstance(f, Figure) for f in figures)
     assert [f.metric for f in figures] == ["revenue", "eps"]
+    assert figures[0].metric is ReportedMetric.revenue
+    assert figures[0].period_kind is PeriodKind.duration
 
 
 def test_build_figures_preserves_eps_decimal_precision() -> None:
@@ -114,12 +119,15 @@ def test_build_figures_empty_rows_yields_empty_list() -> None:
 class _CapturingSession:
     """Fake AsyncSession that records the statement instead of executing it."""
 
-    def __init__(self) -> None:
+    def __init__(self, rows: list[Any] | None = None) -> None:
         self.captured_stmt: Any = None
+        self.rows = rows or []
 
     async def execute(self, stmt: Any) -> Any:
         self.captured_stmt = stmt
-        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
+        return SimpleNamespace(
+            scalars=lambda: SimpleNamespace(all=lambda: self.rows)
+        )
 
 
 def test_fetch_financials_orders_by_period_desc_metric_asc() -> None:
@@ -132,3 +140,35 @@ def test_fetch_financials_orders_by_period_desc_metric_asc() -> None:
     asyncio.run(fetch_financials(session, company_id=uuid.uuid4()))
     compiled = str(session.captured_stmt.compile(dialect=postgresql.dialect()))
     assert "ORDER BY financials.period DESC, financials.metric ASC" in compiled
+
+
+def test_fetch_financials_selects_latest_filing_per_period_metric() -> None:
+    session = _CapturingSession()
+
+    asyncio.run(fetch_financials(session, company_id=uuid.uuid4()))
+
+    compiled = str(session.captured_stmt.compile(dialect=postgresql.dialect()))
+    assert "DISTINCT ON (financials.period, financials.metric)" in compiled
+    assert "JOIN filings ON filings.id = financials.filing_id" in compiled
+    assert (
+        "ORDER BY financials.period DESC, financials.metric ASC, "
+        "filings.filed_at DESC NULLS LAST, filings.created_at DESC, "
+        "filings.id DESC" in compiled
+    )
+
+
+def test_fetch_financials_preserves_period_filter_and_scalar_rows() -> None:
+    row = _revenue_row()
+    session = _CapturingSession([row])
+
+    result = asyncio.run(
+        fetch_financials(
+            session,
+            company_id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+            period="2025-annual",
+        )
+    )
+
+    compiled = str(session.captured_stmt.compile(dialect=postgresql.dialect()))
+    assert "financials.period = %(period_1)s" in compiled
+    assert result == [row]

@@ -26,7 +26,7 @@ from app.clients.dart import DartClient, FilingItem
 from app.clients.sec import SecClient, SecCompanyMatch
 from app.config import get_settings
 from app.db.session import get_async_engine, get_async_session
-from app.embeddings.backfill import backfill_embeddings
+from app.embeddings.backfill import index_filing_embeddings
 from app.ingest.persist import ingest_filing
 from app.ingest.sec_ingest import ingest_sec_filing
 from app.logging_config import configure_logging
@@ -103,7 +103,7 @@ async def _run_dart(ticker: str) -> None:
                 session, client, corp_code, item.rcept_no, bsns_year, _ANNUAL_REPRT_CODE
             )
         async with get_async_session() as session:
-            embedded = await backfill_embeddings(session)
+            embedded = await index_filing_embeddings(session, result.filing_id)
         logger.info(
             "done: company=%s filing=%s financials=%d chunks=%d embeddings=%d",
             result.company_id,

@@ -1,6 +1,6 @@
 """SQLAlchemy 2.0 ORM models (Mapped[] style).
 
-Must stay in exact sync with backend/db/init.sql (DB SCHEMA v0.1).
+Must stay in exact sync with backend/db/init.sql (DB SCHEMA v0.3).
 Schema is applied via init.sql (docker-entrypoint-initdb.d) -- no Alembic.
 
 Notes:
@@ -19,6 +19,7 @@ import uuid
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Date,
     DateTime,
@@ -94,6 +95,7 @@ class Filing(Base):
     period: Mapped[str | None] = mapped_column(Text)
     filed_at: Mapped[datetime.date | None] = mapped_column(Date)
     url: Mapped[str | None] = mapped_column(Text)
+    indexed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
@@ -141,11 +143,19 @@ class Financial(Base):
     __tablename__ = "financials"
     __table_args__ = (
         UniqueConstraint(
-            "company_id",
+            "filing_id",
             "period",
             "metric",
-            "source",
-            name="financials_company_id_period_metric_source_key",
+            name="financials_filing_id_period_metric_key",
+        ),
+        CheckConstraint(
+            "period_kind IN ('instant', 'duration')",
+            name="financials_period_kind_check",
+        ),
+        CheckConstraint("scale > 0", name="financials_scale_positive_check"),
+        CheckConstraint(
+            "period_start IS NULL OR period_end IS NULL OR period_start <= period_end",
+            name="financials_period_range_check",
         ),
     )
 
@@ -159,17 +169,26 @@ class Financial(Base):
         ForeignKey("companies.id", ondelete="CASCADE"),
         nullable=False,
     )
-    filing_id: Mapped[uuid.UUID | None] = mapped_column(
+    filing_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("filings.id", ondelete="SET NULL"),
+        ForeignKey("filings.id", ondelete="CASCADE"),
+        nullable=False,
     )
     fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False)
     fiscal_quarter: Mapped[int | None] = mapped_column(Integer)
     period: Mapped[str] = mapped_column(Text, nullable=False)
+    period_kind: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'duration'")
+    )
+    period_start: Mapped[datetime.date | None] = mapped_column(Date)
+    period_end: Mapped[datetime.date | None] = mapped_column(Date)
     metric: Mapped[str] = mapped_column(Text, nullable=False)
     value: Mapped[decimal.Decimal] = mapped_column(Numeric(24, 4), nullable=False)
     unit: Mapped[str] = mapped_column(Text, nullable=False)
     currency: Mapped[str | None] = mapped_column(Text)
+    scale: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default=text("1")
+    )
     source: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")

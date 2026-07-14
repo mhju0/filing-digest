@@ -1,4 +1,4 @@
-"""Smoke tests for DB-backed endpoints (API CONTRACT v0.2).
+"""Smoke tests for DB-backed endpoints (API CONTRACT v0.3).
 
 Requires the local PostgreSQL database. The tests assert response shape rather
 than specific rows/counts because those depend on live DB content. DB-backed
@@ -52,7 +52,7 @@ UNKNOWN_ID = "99999999-9999-4999-8999-999999999999"
 def test_health() -> None:
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "version": "0.2.0"}
+    assert resp.json() == {"status": "ok", "version": "0.3.0"}
 
 
 def test_companies_search_all() -> None:
@@ -111,7 +111,7 @@ def test_digest_ok(monkeypatch) -> None:
         "metrics",
         "summary_ko",
         "summary_en",
-        "citations",
+        "filing_sources",
         "generated_at",
     }
     assert body["company_id"] == company_id
@@ -128,7 +128,7 @@ def test_digest_ok(monkeypatch) -> None:
             "unit",
             "yoy_delta_pct",
             "source",
-            "citation_id",
+            "filing_source_id",
         }
 
 

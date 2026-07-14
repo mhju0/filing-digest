@@ -1,23 +1,18 @@
-"""Offline tests for app.ingest.sec_ingest (SEC 10-K -> 4 tables + backfill).
+"""Offline tests for the SEC adapter and ingestion orchestration.
 
 Two layers, no network / no DB / no model load:
 
-- **Pure builders/selectors** (``sec_company_row`` / ``sec_filing_row`` /
-  ``sec_financial_rows`` / ``sec_period`` / ``sec_unit_for`` /
-  ``select_target_filing`` / ``_filing_fiscal_year``) are driven with fixture
-  objects only -- mirrors test_persist.py's pure-mapping style.
+- **Normalized adapter and selectors** (``build_sec_normalized_filing`` /
+  ``sec_period`` / ``sec_unit_for`` / ``select_target_filing`` /
+  ``_filing_fiscal_year``) are driven with fixture objects only.
 - **``ingest_sec_filing`` orchestration** is exercised with a mocked ``SecClient``
-  and a fake ``AsyncSession`` factory (extending test_persist.py's
-  ``_FakeUpsertSession`` idea: the natural-key ON CONFLICT column is read off the
-  compiled statement so re-runs return stable ids). ``extract_10k_prose`` and
-  ``backfill_embeddings`` are monkeypatched so the real HTML parser / KURE model
-  stay out of these offline tests (they are covered by test_sec_document.py and
-  the live end-to-end gate respectively).
+  and fakes at its two public side-effect seams: atomic Normalized Filing
+  persistence and filing-scoped indexing. The real HTML parser, database, and
+  KURE model stay out of these offline tests.
 """
 
 import asyncio
 import datetime
-import re
 import uuid
 from decimal import Decimal
 
@@ -33,15 +28,14 @@ from app.clients.sec import (
     format_cik,
 )
 from app.clients.sec_document import SecDocumentParseError
+from app.filings.persistence import PersistedFiling
+from app.financials.vocabulary import PeriodKind, ReportedMetric
 from app.ingest import sec_ingest
 from app.ingest.chunking import chunk_document
-from app.ingest.persist import chunk_rows
 from app.ingest.sec_ingest import (
     SecIngestError,
     _filing_fiscal_year,
-    sec_company_row,
-    sec_filing_row,
-    sec_financial_rows,
+    build_sec_normalized_filing,
     sec_period,
     sec_unit_for,
     select_target_filing,
@@ -70,11 +64,17 @@ _FILING_2022 = SecFilingItem(
 
 _MATCH = SecCompanyMatch(cik=_CIK, ticker="AAPL", title="Apple Inc.")
 
-_COMPANY_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")
-_FILING_ID = uuid.UUID("22222222-2222-2222-2222-222222222222")
-
-
-def _fact(metric, value, *, accn, fiscal_year, unit="USD", tag="X") -> SecFinancialItem:
+def _fact(
+    metric,
+    value,
+    *,
+    accn,
+    fiscal_year,
+    unit="USD",
+    tag="X",
+    period_start=None,
+    period_end=None,
+) -> SecFinancialItem:
     return SecFinancialItem(
         tag=tag,
         metric=metric,
@@ -82,8 +82,8 @@ def _fact(metric, value, *, accn, fiscal_year, unit="USD", tag="X") -> SecFinanc
         fiscal_year=fiscal_year,
         filed_fiscal_year=fiscal_year,
         fiscal_period="FY",
-        period_start=None,
-        period_end=datetime.date(fiscal_year, 9, 30),
+        period_start=period_start,
+        period_end=period_end or datetime.date(fiscal_year, 9, 30),
         value=value,
         unit=unit,
         form="10-K",
@@ -115,8 +115,7 @@ _SECTIONS = [
     ProseSection(
         section_title="Item 7. Management's Discussion and Analysis",
         content="\n".join(
-            f"MD&A paragraph {i} discussing results of operations and liquidity."
-            for i in range(20)
+            f"MD&A paragraph {i} discussing results of operations and liquidity." for i in range(20)
         ),
         order=1,
     ),
@@ -137,81 +136,96 @@ def test_sec_unit_for_splits_eps_from_amounts() -> None:
     assert sec_unit_for("eps_diluted") == "USD_PER_SHARE"
 
 
-# -- sec_company_row ----------------------------------------------------------
+# -- public normalized adapter ------------------------------------------------
 
 
-def test_sec_company_row_fills_sec_cik_and_source() -> None:
-    row = sec_company_row(_MATCH, _CIK)
-    assert row["source"] == "sec"  # satisfies companies_source_check
-    assert row["sec_cik"] == _CIK  # idempotent conflict key
-    assert row["dart_corp_code"] is None
-    assert row["name"] == "Apple Inc."
-    assert row["ticker"] == "AAPL"
-    assert row["market"] is None
-    # SEC filer names are already English -> name_en mirrors name for bilingual search.
-    assert row["name_en"] == "Apple Inc."
+def test_sec_adapter_maps_company_filing_and_chunk_metadata() -> None:
+    filing = build_sec_normalized_filing(
+        company_match=_MATCH,
+        cik10=_CIK,
+        filing=_FILING_2023,
+        fiscal_year=2023,
+        document_url="https://www.sec.gov/Archives/aapl-20230930.htm",
+        financial_items=[_FACTS[0]],
+        chunks=chunk_document(_SECTIONS, rcept_no=None),
+    )
+
+    assert filing.identity.stable_id == f"sec:{_ACCN_2023}"
+    assert filing.company.identity.source_company_id == _CIK
+    assert filing.company.name == "Apple Inc."
+    assert filing.company.name_en == "Apple Inc."
+    assert filing.company.ticker == "AAPL"
+    assert filing.company.market is None
+    assert filing.filing_type == "10-K"
+    assert filing.title == "Form 10-K (FY2023)"
+    assert filing.reporting_period.label == "2023-annual"
+    assert filing.reporting_period.kind is PeriodKind.duration
+    assert filing.filed_at == datetime.date(2023, 11, 3)
+    assert filing.url == "https://www.sec.gov/Archives/aapl-20230930.htm"
+    assert [fact.metric.value for fact in filing.financial_facts] == ["revenue"]
+    assert filing.filing_chunks[0].metadata["rcept_no"] is None
+    assert filing.filing_chunks[0].metadata["section_title"] == "Item 1. Business"
+    assert filing.filing_chunks[0].metadata["section_order"] == 0
 
 
-def test_sec_company_row_falls_back_to_cik_name_when_unresolved() -> None:
-    # A filer absent from company_tickers.json: deterministic CIK-derived name,
-    # never fabricated, ticker NULL -- identity is still the sec_cik natural key.
-    row = sec_company_row(None, _CIK)
-    assert row["name"] == f"CIK {_CIK}"
-    assert row["ticker"] is None
-    assert row["name_en"] == f"CIK {_CIK}"  # mirrors the fallback name
-    assert row["sec_cik"] == _CIK
-    assert row["source"] == "sec"
+def test_sec_adapter_uses_deterministic_company_fallback() -> None:
+    filing = build_sec_normalized_filing(
+        company_match=None,
+        cik10=_CIK,
+        filing=_FILING_2023,
+        fiscal_year=2023,
+        document_url="https://www.sec.gov/Archives/aapl-20230930.htm",
+        financial_items=[],
+        chunks=[],
+    )
+
+    assert filing.company.name == f"CIK {_CIK}"
+    assert filing.company.name_en == f"CIK {_CIK}"
+    assert filing.company.ticker is None
 
 
-# -- sec_filing_row -----------------------------------------------------------
+def test_sec_adapter_maps_usd_facts_and_deduplicates_by_metric() -> None:
+    filing = build_sec_normalized_filing(
+        company_match=_MATCH,
+        cik10=_CIK,
+        filing=_FILING_2023,
+        fiscal_year=2023,
+        document_url="https://www.sec.gov/Archives/aapl-20230930.htm",
+        financial_items=[
+            _fact(
+                "revenue",
+                383_285_000_000,
+                accn=_ACCN_2023,
+                fiscal_year=2023,
+                period_start=datetime.date(2022, 9, 25),
+                period_end=datetime.date(2023, 9, 30),
+            ),
+            _fact("revenue", 999, accn=_ACCN_2023, fiscal_year=2023),
+            _fact(
+                "eps",
+                Decimal("6.16"),
+                accn=_ACCN_2023,
+                fiscal_year=2023,
+                unit="USD/shares",
+            ),
+        ],
+        chunks=[],
+    )
 
-
-def test_sec_filing_row_fills_accession_and_nulls_rcept_no() -> None:
-    row = sec_filing_row(_FILING_2023, _COMPANY_ID, fiscal_year=2023, url="https://sec.gov/x.htm")
-    assert row["company_id"] == _COMPANY_ID
-    assert row["source"] == "sec"
-    assert row["sec_accession_no"] == _ACCN_2023  # idempotent conflict key
-    assert row["rcept_no"] is None  # SEC has no DART receipt number
-    assert row["filing_type"] == "10-K"
-    assert row["title"] == "Form 10-K (FY2023)"
-    assert row["period"] == "2023-annual"
-    assert row["filed_at"] == datetime.date(2023, 11, 3)
-    assert row["url"] == "https://sec.gov/x.htm"
-
-
-# -- sec_financial_rows -------------------------------------------------------
-
-
-def test_sec_financial_rows_source_currency_unit_and_filing_id() -> None:
-    items = [
-        _fact("revenue", 383_285_000_000, accn=_ACCN_2023, fiscal_year=2023),
-        _fact("eps", Decimal("6.16"), accn=_ACCN_2023, fiscal_year=2023, unit="USD/shares"),
+    assert [
+        (fact.metric, fact.value, fact.unit, fact.currency)
+        for fact in filing.financial_facts
+    ] == [
+        (ReportedMetric.revenue, Decimal(383_285_000_000), "USD", "USD"),
+        (ReportedMetric.eps, Decimal("6.16"), "USD_PER_SHARE", "USD"),
     ]
-    rows = sec_financial_rows(items, _COMPANY_ID, _FILING_ID)
-    assert len(rows) == 2
-    for r in rows:
-        assert r["company_id"] == _COMPANY_ID
-        assert r["filing_id"] == _FILING_ID  # citation: always populated
-        assert r["source"] == "sec"
-        assert r["currency"] == "USD"
-        assert r["period"] == "2023-annual"
-        assert r["fiscal_year"] == 2023
-        assert r["fiscal_quarter"] is None  # 10-K is annual
-    by_metric = {r["metric"]: r for r in rows}
-    assert by_metric["revenue"]["unit"] == "USD"
-    assert by_metric["revenue"]["value"] == 383_285_000_000
-    assert by_metric["eps"]["unit"] == "USD_PER_SHARE"
-    assert isinstance(by_metric["eps"]["value"], Decimal)  # never float
-
-
-def test_sec_financial_rows_dedups_by_metric_first_wins() -> None:
-    items = [
-        _fact("revenue", 100, accn=_ACCN_2023, fiscal_year=2023),
-        _fact("revenue", 999, accn=_ACCN_2023, fiscal_year=2023),
-    ]
-    rows = sec_financial_rows(items, _COMPANY_ID, _FILING_ID)
-    assert len(rows) == 1
-    assert rows[0]["value"] == 100  # first occurrence wins
+    revenue_period = filing.financial_facts[0].period
+    assert revenue_period.kind is PeriodKind.duration
+    assert revenue_period.start_date == datetime.date(2022, 9, 25)
+    assert revenue_period.end_date == datetime.date(2023, 9, 30)
+    # A half-known range is not represented as if it were complete.
+    assert filing.financial_facts[1].period.start_date is None
+    assert filing.financial_facts[1].period.end_date is None
 
 
 # -- select_target_filing / _filing_fiscal_year -------------------------------
@@ -248,7 +262,10 @@ def test_filing_fiscal_year_falls_back_to_report_date() -> None:
 
 def test_filing_fiscal_year_raises_when_undeterminable() -> None:
     filing = SecFilingItem(
-        accession_number="x", form="10-K", filing_date=None, report_date=None,
+        accession_number="x",
+        form="10-K",
+        filing_date=None,
+        report_date=None,
         primary_document="p.htm",
     )
     with pytest.raises(SecIngestError):
@@ -268,84 +285,27 @@ def test_find_company_by_cik_matches_normalized_cik() -> None:
     assert find_company_by_cik(records, 1) is None  # absent -> None, not a raise
 
 
-# -- meta/rcept_no decision: SEC chunks leave meta.rcept_no None ---------------
-
-
-def test_sec_chunks_carry_null_rcept_no_in_meta() -> None:
-    # The decision under test: the accession is NOT stuffed into the DART-specific
-    # meta.rcept_no field; it stays None while section anchors survive. Provenance
-    # rides on filing_id -> filings.sec_accession_no downstream.
-    chunks = chunk_document(_SECTIONS, rcept_no=None)
-    assert chunks  # non-empty
-    rows = chunk_rows(chunks, _FILING_ID)
-    assert all(r["meta"]["rcept_no"] is None for r in rows)
-    assert all(r["filing_id"] == _FILING_ID for r in rows)
-    assert rows[0]["meta"]["section_title"] == "Item 1. Business"
-    assert rows[0]["meta"]["section_order"] == 0
-
-
 # -- ingest_sec_filing orchestration (mocked client + fake session) -----------
 
 
-class _FakeResult:
-    def __init__(self, value=None) -> None:
-        self._value = value
-
-    def scalar_one(self):
-        return self._value
-
-
-class _FakeTxn:
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *exc):
-        return False
-
-
 class _FakeSession:
-    """Records upsert natural keys; returns stable ids keyed on ON CONFLICT column.
-
-    Only statements carrying a RETURNING clause (the company/filing upserts) need
-    an id, so only those are compiled and keyed -- the financials upsert and the
-    chunk delete/insert (which carry JSONB and need no id) are just recorded.
-    """
-
-    def __init__(self, store: dict) -> None:
-        self._store = store
-        self.upserts: list[tuple[str, dict]] = []  # (conflict_column, params)
-        self.other: list = []  # non-returning statements
-
-    def begin(self) -> _FakeTxn:
-        return _FakeTxn()
+    """Async context-manager token passed through to the public side effects."""
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, *exc):
         return False
-
-    async def execute(self, stmt):
-        if getattr(stmt, "_returning", ()):  # company/filing upsert
-            compiled = stmt.compile()
-            col = re.search(r"ON CONFLICT \(([^)]+)\)", compiled.string).group(1)
-            params = dict(compiled.params)
-            self.upserts.append((col, params))
-            key = (col, params[col])
-            return _FakeResult(self._store.setdefault(key, uuid.uuid4()))
-        self.other.append(stmt)
-        return _FakeResult(None)
 
 
 class _FakeSessionFactory:
     def __init__(self) -> None:
-        self.store: dict = {}  # shared across sessions -> idempotent re-run
         self.sessions: list[_FakeSession] = []
         self.call_count = 0
 
     def __call__(self) -> _FakeSession:
         self.call_count += 1
-        session = _FakeSession(self.store)
+        session = _FakeSession()
         self.sessions.append(session)
         return session
 
@@ -397,19 +357,45 @@ def _patch_parse(monkeypatch, *, sections=_SECTIONS, raiser=None) -> dict:
 
 
 def _patch_backfill(monkeypatch, *, count=4) -> list:
-    """Stub backfill_embeddings (keep KURE out); record the session it got."""
+    """Stub filing-scoped indexing (keep KURE out); record its public inputs."""
     calls: list = []
 
-    async def fake_backfill(session, **kwargs):
-        calls.append(session)
+    async def fake_backfill(session, filing_id, **kwargs):
+        calls.append((session, filing_id))
         return count
 
-    monkeypatch.setattr(sec_ingest, "backfill_embeddings", fake_backfill)
+    monkeypatch.setattr(sec_ingest, "index_filing_embeddings", fake_backfill)
     return calls
+
+
+def _patch_persistence(monkeypatch) -> tuple[list, dict]:
+    """Stub the public atomic persistence seam with stable identity-keyed ids."""
+    calls: list = []
+    identities: dict[tuple[str, str], uuid.UUID] = {}
+
+    async def fake_persist(session, filing):
+        company_key = (
+            filing.company.identity.source.value,
+            filing.company.identity.source_company_id,
+        )
+        filing_key = (filing.identity.source.value, filing.identity.source_filing_id)
+        company_id = identities.setdefault(company_key, uuid.uuid4())
+        filing_id = identities.setdefault(filing_key, uuid.uuid4())
+        calls.append((session, filing))
+        return PersistedFiling(
+            company_id=company_id,
+            filing_id=filing_id,
+            financial_facts_written=len(filing.financial_facts),
+            filing_chunks_written=len(filing.filing_chunks),
+        )
+
+    monkeypatch.setattr(sec_ingest, "persist_normalized_filing", fake_persist)
+    return calls, identities
 
 
 def test_ingest_sec_filing_happy_path_wires_all_stages(monkeypatch) -> None:
     received = _patch_parse(monkeypatch)
+    persistence_calls, _ = _patch_persistence(monkeypatch)
     backfill_calls = _patch_backfill(monkeypatch, count=4)
     client = _FakeSecClient(filings=[_FILING_2022, _FILING_2023], facts=_FACTS, match=_MATCH)
     factory = _FakeSessionFactory()
@@ -424,23 +410,21 @@ def test_ingest_sec_filing_happy_path_wires_all_stages(monkeypatch) -> None:
     assert result.financials_written == 5
     assert result.chunks_written >= 2
     assert result.accession_number == _ACCN_2023
-    # backfill reused, on a second (fresh) session scope
+    # Scoped indexing uses a second, fresh session after atomic persistence.
+    assert len(persistence_calls) == 1
+    persisted = persistence_calls[0][1]
+    assert persisted.company.identity.source.value == "sec"
+    assert persisted.company.identity.source_company_id == _CIK
+    assert persisted.identity.source_filing_id == _ACCN_2023
     assert len(backfill_calls) == 1
+    assert backfill_calls[0][1] == result.filing_id
     assert result.embeddings_backfilled == 4
     assert factory.call_count == 2
-    # natural keys + source flowed into the upserts (session[0] = ingest txn)
-    company = next(p for c, p in factory.sessions[0].upserts if c == "sec_cik")
-    assert company["source"] == "sec"
-    assert company["sec_cik"] == _CIK
-    assert company.get("dart_corp_code") is None
-    filing = next(p for c, p in factory.sessions[0].upserts if c == "sec_accession_no")
-    assert filing["source"] == "sec"
-    assert filing["sec_accession_no"] == _ACCN_2023
-    assert filing.get("rcept_no") is None
 
 
 def test_ingest_sec_filing_filters_facts_to_chosen_accession(monkeypatch) -> None:
     _patch_parse(monkeypatch)
+    _patch_persistence(monkeypatch)
     _patch_backfill(monkeypatch)
     # Explicit accession = the OLDER filing; only its single own-period fact writes.
     client = _FakeSecClient(filings=[_FILING_2022, _FILING_2023], facts=_FACTS, match=_MATCH)
@@ -457,17 +441,20 @@ def test_ingest_sec_filing_filters_facts_to_chosen_accession(monkeypatch) -> Non
 
 def test_ingest_sec_filing_idempotent_rerun(monkeypatch) -> None:
     _patch_parse(monkeypatch)
+    persistence_calls, identities = _patch_persistence(monkeypatch)
     _patch_backfill(monkeypatch)
     client = _FakeSecClient(filings=[_FILING_2023], facts=_FACTS, match=_MATCH)
-    factory = _FakeSessionFactory()  # shared store across both runs
+    factory = _FakeSessionFactory()
 
     first = asyncio.run(sec_ingest.ingest_sec_filing(client, factory, _CIK))
     second = asyncio.run(sec_ingest.ingest_sec_filing(client, factory, _CIK))
 
     assert first.company_id == second.company_id  # upsert returns the same id
     assert first.filing_id == second.filing_id
-    # exactly one company + one filing natural key in the store (no duplicates)
-    assert len(factory.store) == 2
+    # Both snapshots carried the same regulator identities through the public seam.
+    assert len(persistence_calls) == 2
+    assert persistence_calls[0][1].identity == persistence_calls[1][1].identity
+    assert len(identities) == 2  # one company identity and one filing identity
     assert first.financials_written == second.financials_written == 5
 
 
@@ -476,6 +463,7 @@ def test_ingest_sec_filing_parse_failure_propagates_and_persists_nothing(monkeyp
         monkeypatch,
         raiser=SecDocumentParseError("Item 1 (Business): could not locate a heading"),
     )
+    persistence_calls, _ = _patch_persistence(monkeypatch)
     backfill_calls = _patch_backfill(monkeypatch)
     client = _FakeSecClient(filings=[_FILING_2023], facts=_FACTS, match=_MATCH)
     factory = _FakeSessionFactory()
@@ -485,5 +473,6 @@ def test_ingest_sec_filing_parse_failure_propagates_and_persists_nothing(monkeyp
 
     # Fail-loud BEFORE any DB scope opens: no session, no backfill, no facts fetch.
     assert factory.call_count == 0
+    assert persistence_calls == []
     assert backfill_calls == []
     assert client.facts_calls == 0

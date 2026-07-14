@@ -18,12 +18,16 @@ struct AnswerView: View {
     let client: APIClient
     let company: Company
 
+    @StateObject private var state: AnswerState
     @State private var query = ""
-    /// The question the current `response` answers — shown as the pull-quote.
-    @State private var askedQuery = ""
-    @State private var response: AnswerResponse?
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+
+    init(client: APIClient, company: Company) {
+        self.client = client
+        self.company = company
+        _state = StateObject(wrappedValue: AnswerState(sendAnswer: {
+            try await client.sendAnswer(query: $0, companyId: $1, period: $2)
+        }))
+    }
 
     var body: some View {
         content
@@ -37,6 +41,7 @@ struct AnswerView: View {
                         .foregroundStyle(Theme.ink)
                 }
             }
+            .onDisappear { state.cancel() }
     }
 
     // MARK: Input bar (bottom)
@@ -44,7 +49,7 @@ struct AnswerView: View {
     private var inputBar: some View {
         HStack(spacing: 10) {
             TextField(
-                response == nil ? "이 회사에 대해 질문하세요" : "이어서 질문하기",
+                state.response == nil ? "이 회사에 대해 질문하세요" : "이어서 질문하기",
                 text: $query,
                 axis: .vertical
             )
@@ -79,36 +84,38 @@ struct AnswerView: View {
     }
 
     private var canAsk: Bool {
-        !isLoading && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        UUID(uuidString: company.id) != nil
+            && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // MARK: Content (loading / error / empty / result)
 
     @ViewBuilder
     private var content: some View {
-        if isLoading {
-            ProgressView("답변 생성 중…")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if let errorMessage {
-            ContentUnavailableView {
-                Label("오류", systemImage: "exclamationmark.triangle")
-            } description: {
-                Text(errorMessage)
-            } actions: {
-                Button("다시 시도") {
-                    Task { await ask() }
-                }
-                .buttonStyle(.bordered)
-            }
-        } else if let response {
+        if let response = state.response {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     questionQuote
+                    requestStatus
                     resultContent(response)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
+            }
+        } else if state.isLoading {
+            ProgressView("답변 생성 중…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let blockingError = state.blockingError {
+            ContentUnavailableView {
+                Label("오류", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(blockingError)
+            } actions: {
+                Button("다시 시도") {
+                    Task { await state.retry() }
+                }
+                .buttonStyle(.bordered)
             }
         } else {
             ContentUnavailableView(
@@ -119,19 +126,34 @@ struct AnswerView: View {
         }
     }
 
+    @ViewBuilder
+    private var requestStatus: some View {
+        if state.isRefreshing {
+            ProgressView("답변을 새로 생성하는 중…")
+                .font(.caption)
+                .foregroundStyle(Theme.inkMuted)
+        }
+        if let refreshError = state.refreshError {
+            Label(refreshError, systemImage: "exclamationmark.circle")
+                .font(.caption)
+                .foregroundStyle(Theme.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     /// The asked question as an editorial pull-quote: 2px ink rule + serif.
     private var questionQuote: some View {
         HStack(alignment: .top, spacing: 12) {
             Rectangle()
                 .fill(Theme.ink)
                 .frame(width: 2)
-            Text(askedQuery)
+            Text(state.askedQuery)
                 .font(.system(.title3, design: .serif))
                 .italic()
                 .foregroundStyle(Theme.ink)
         }
         .fixedSize(horizontal: false, vertical: true)
-        .accessibilityLabel("질문: \(askedQuery)")
+        .accessibilityLabel("질문: \(state.askedQuery)")
     }
 
     // MARK: 3-state result
@@ -140,11 +162,11 @@ struct AnswerView: View {
     private func resultContent(_ response: AnswerResponse) -> some View {
         switch response.narrativeStatus {
         case .ok:
-            if let answer = response.answer {
-                narrativeSection(answer, citations: response.citations)
+            if let answer = response.answer, let evidenceIndex = state.evidenceIndex {
+                narrativeSection(answer, evidenceIndex: evidenceIndex)
             }
         case .blocked:
-            blockedNotice
+            blockedNotice(reason: response.blockedReason)
         case .noResults:
             noResultsNotice
         }
@@ -152,27 +174,32 @@ struct AnswerView: View {
     }
 
     @ViewBuilder
-    private func narrativeSection(_ answer: Answer, citations: [Citation]) -> some View {
-        let filingIndex = Self.buildFilingIndex(citations: citations)
+    private func narrativeSection(_ answer: Answer, evidenceIndex: AnswerEvidenceIndex) -> some View {
         SectionHeader(title: "답변")
         ForEach(Array(answer.answerSegments.enumerated()), id: \.offset) { _, segment in
-            SegmentView(segment: segment, citationIndex: filingIndex.chunkToIndex)
+            SegmentView(segment: segment, evidenceIndex: evidenceIndex)
         }
-        if !filingIndex.ordered.isEmpty {
-            sourcesSection(filingIndex.ordered)
+        if !evidenceIndex.groups.isEmpty {
+            sourcesSection(evidenceIndex.groups)
         }
     }
 
-    /// Sources section: one `CitationRow` per unique filing, numbered to match
+    /// Sources section: one group per Filing Source, numbered to match
     /// the square markers rendered inline in `SegmentView`.
-    private func sourcesSection(_ filings: [Citation]) -> some View {
+    private func sourcesSection(_ groups: [AnswerEvidenceIndex.Group]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: "출처")
-            ForEach(Array(filings.enumerated()), id: \.offset) { index, citation in
-                HStack(alignment: .top, spacing: 10) {
-                    CitationMarker(index: index + 1)
-                        .padding(.top, 14)
-                    CitationRow(citation: citation)
+            ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 10) {
+                        CitationMarker(index: index + 1)
+                            .padding(.top, 14)
+                        FilingSourceRow(filingSource: group.filingSource)
+                    }
+                    ForEach(group.citations) { citation in
+                        CitationEvidenceRow(citation: citation)
+                            .padding(.leading, 34)
+                    }
                 }
                 Rectangle()
                     .fill(Theme.hairline)
@@ -181,35 +208,9 @@ struct AnswerView: View {
         }
     }
 
-    /// Dedupes `citations` down to unique source filings, in first-seen
-    /// order, and maps every chunk_id to its filing's 1-based index. Filing
-    /// identity is `url` when non-empty (filing.url is shared verbatim by
-    /// every chunk of the same filing — backend/app/api/routes.py:301-311),
-    /// falling back to `title|filedAt` for the rare empty-url case.
-    private static func buildFilingIndex(
-        citations: [Citation]
-    ) -> (ordered: [Citation], chunkToIndex: [String: Int]) {
-        var indexByKey: [String: Int] = [:]
-        var ordered: [Citation] = []
-        var chunkToIndex: [String: Int] = [:]
-        for citation in citations {
-            let key = citation.url.isEmpty ? "\(citation.title)|\(citation.filedAt ?? "")" : citation.url
-            let index: Int
-            if let existing = indexByKey[key] {
-                index = existing
-            } else {
-                index = ordered.count + 1
-                indexByKey[key] = index
-                ordered.append(citation)
-            }
-            chunkToIndex[citation.id] = index
-        }
-        return (ordered, chunkToIndex)
-    }
-
     /// Not an error: the number guard suppressed the prose while the figures
     /// track survived, so this points the user at the table below.
-    private var blockedNotice: some View {
+    private func blockedNotice(reason: NarrativeBlockedReason?) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "shield.lefthalf.filled")
                 .foregroundStyle(Color.accentColor)
@@ -217,7 +218,7 @@ struct AnswerView: View {
                 Text("정확한 수치는 아래 표에서 확인하세요")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.ink)
-                Text("수치 정확성을 위해 AI 서술에는 숫자를 표시하지 않습니다. 아래 확정 수치는 공시 원문에서 직접 가져온 값입니다.")
+                Text(reason?.userMessage ?? "AI 서술을 표시할 수 없어 아래 확정 수치만 제공합니다.")
                     .font(.caption)
                     .foregroundStyle(Theme.inkMuted)
             }
@@ -266,56 +267,63 @@ struct AnswerView: View {
 
     private func ask() async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !isLoading else { return }
-        guard let companyId = UUID(uuidString: company.id) else {
-            errorMessage = "회사 ID 형식이 올바르지 않습니다."
-            return
-        }
+        guard !trimmed.isEmpty, let companyId = UUID(uuidString: company.id) else { return }
+        await state.submit(query: trimmed, companyID: companyId)
+    }
+}
 
-        isLoading = true
-        errorMessage = nil
-        askedQuery = trimmed
-        defer { isLoading = false }
+// MARK: - Evidence preview
 
-        do {
-            response = try await client.sendAnswer(query: trimmed, companyId: companyId)
-        } catch {
-            response = nil
-            errorMessage = error.localizedDescription
+private struct CitationEvidenceRow: View {
+    let citation: Citation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(citation.excerpt)
+                .font(.caption)
+                .foregroundStyle(Theme.ink)
+                .lineLimit(4)
+            Text(anchorText)
+                .font(.caption2.monospaced())
+                .foregroundStyle(Theme.inkMuted)
         }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var anchorText: String {
+        var parts: [String] = []
+        if let sectionTitle = citation.anchor.sectionTitle, !sectionTitle.isEmpty {
+            parts.append(sectionTitle)
+        }
+        if let sectionOrder = citation.anchor.sectionOrder {
+            parts.append("section \(sectionOrder)")
+        }
+        if let partIndex = citation.anchor.partIndex {
+            parts.append("part \(partIndex)")
+        }
+        parts.append("chunk \(citation.anchor.chunkIndex)")
+        return parts.joined(separator: " · ")
     }
 }
 
 // MARK: - Segment
 
 /// One narrated paragraph plus square citation markers in a wrapping row.
-/// Each chunk id in `segment.citations` is resolved against `citationIndex`
-/// (chunk_id -> the unique filing's 1-based position, built by
-/// `AnswerView.buildFilingIndex`) into a `CitationMarker`; an unmatched id
-/// falls back to the raw chunk_id, which surfaces a citation-contract
-/// violation instead of hiding it. The full per-filing detail lives once in
-/// the "출처" section below.
+/// Each Citation id resolves through the validated evidence index to the
+/// backend-ordered Filing Source marker. Invalid evidence never reaches this
+/// view because AnswerState fails closed.
 private struct SegmentView: View {
     let segment: AnswerSegment
-    let citationIndex: [String: Int]
+    let evidenceIndex: AnswerEvidenceIndex
 
-    private enum Chip: Hashable, Identifiable {
-        case filing(Int)
-        case raw(String)
-        var id: Self { self }
-    }
-
-    private var chips: [Chip] {
+    private var sourceIndices: [Int] {
         var seenIndices = Set<Int>()
-        var seenRaw = Set<String>()
-        var result: [Chip] = []
+        var result: [Int] = []
         for chunkID in segment.citations {
-            if let index = citationIndex[chunkID] {
-                if seenIndices.insert(index).inserted {
-                    result.append(.filing(index))
-                }
-            } else if seenRaw.insert(chunkID).inserted {
-                result.append(.raw(chunkID))
+            if let index = evidenceIndex.sourceIndex(forCitationID: chunkID),
+               seenIndices.insert(index).inserted {
+                result.append(index)
             }
         }
         return result
@@ -327,21 +335,10 @@ private struct SegmentView: View {
                 .font(.body)
                 .foregroundStyle(Theme.ink)
                 .lineSpacing(6)
-            if !chips.isEmpty {
+            if !sourceIndices.isEmpty {
                 FlowLayout(spacing: 6) {
-                    ForEach(chips) { chip in
-                        switch chip {
-                        case .filing(let index):
-                            CitationMarker(index: index)
-                        case .raw(let chunkID):
-                            Text(chunkID)
-                                .font(.caption2.monospaced())
-                                .lineLimit(1)
-                                .foregroundStyle(Theme.inkMuted)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .overlay(Rectangle().strokeBorder(Theme.hairline, lineWidth: 1))
-                        }
+                    ForEach(sourceIndices, id: \.self) { index in
+                        CitationMarker(index: index)
                     }
                 }
             }
@@ -388,10 +385,11 @@ private struct FigureRow: View {
 
     private var periodText: String {
         let title = FigureDisplay.periodTitle(figure.period, language: .ko)
+        let kind = figure.periodKind == .instant ? "기준일" : "기간"
         if let quarter = figure.fiscalQuarter {
-            return "\(title) · FY\(figure.fiscalYear) Q\(quarter)"
+            return "\(title) · \(kind) · FY\(figure.fiscalYear) Q\(quarter)"
         }
-        return "\(title) · FY\(figure.fiscalYear)"
+        return "\(title) · \(kind) · FY\(figure.fiscalYear)"
     }
 
     /// Abbreviated display value (조/억) — readable at a glance.

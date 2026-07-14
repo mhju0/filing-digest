@@ -2,7 +2,7 @@
 //  APIClient.swift
 //  FilingDigest
 //
-//  Minimal URLSession-based client for API CONTRACT v0.2.
+//  Minimal URLSession-based client for API CONTRACT v0.3.
 //  - async/await only, no third-party dependencies.
 //  - snake_case JSON handled via key coding strategies, so the Codable models
 //    stay camelCase without hand-written CodingKeys.
@@ -147,7 +147,15 @@ struct APIClient {
 
     /// POST /answer — citation-bearing narrative plus authoritative figures.
     func sendAnswer(query: String, companyId: UUID, period: String? = nil) async throws -> AnswerResponse {
-        try await send(makeAnswerRequest(AnswerRequest(query: query, companyId: companyId, period: period)))
+        let response: AnswerResponse = try await send(
+            makeAnswerRequest(AnswerRequest(query: query, companyId: companyId, period: period))
+        )
+        do {
+            _ = try response.makeEvidenceIndex()
+        } catch {
+            throw APIError.decoding(error)
+        }
+        return response
     }
 
     // MARK: Transport

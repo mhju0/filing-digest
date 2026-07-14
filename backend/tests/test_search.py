@@ -147,3 +147,14 @@ def test_search_chunks_without_filing_id_preserves_prior_behavior(monkeypatch) -
 
     compiled = session.stmt.compile()
     assert "filing_chunks.filing_id = " not in compiled.string
+
+
+def test_search_only_reads_fully_indexed_filings(monkeypatch) -> None:
+    monkeypatch.setattr(search_service, "embed_texts", lambda texts: [[0.1, 0.2]])
+    session = _FakeSearchSession()
+
+    asyncio.run(search_chunks(session, query="q"))
+
+    sql = session.stmt.compile().string
+    assert "JOIN filings ON filings.id = filing_chunks.filing_id" in sql
+    assert "filings.indexed_at IS NOT NULL" in sql

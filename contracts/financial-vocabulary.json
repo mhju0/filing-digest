@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "reported_metrics": [
+    "revenue",
+    "operating_income",
+    "net_income",
+    "net_income_attributable",
+    "eps",
+    "eps_diluted"
+  ],
+  "derived_metrics": [
+    "operating_margin"
+  ],
+  "period_kinds": [
+    "instant",
+    "duration"
+  ]
+}

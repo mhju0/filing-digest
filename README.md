@@ -19,7 +19,7 @@ citation-grounded FastAPI retrieval pipeline.
 
 </div>
 
-> **Status:** v0.2.0, feature-complete portfolio project in maintenance mode.
+> **Status:** v0.3.0, feature-complete portfolio project in maintenance mode.
 > There is no hosted public demo; run it locally with your own DART and Upstage
 > credentials. No production data or API keys are included.
 
@@ -32,7 +32,8 @@ uncited claims or financial numbers in generated text.
 
 - Browse and filter Korean and US public companies.
 - Read bilingual company digests with filing-linked metric cards and YoY changes.
-- Ask cross-lingual questions and inspect citations to the original filing.
+- Ask cross-lingual questions and inspect claim-level excerpts plus the original
+  filing source.
 - Preserve exact financial values on the authoritative figures track even when
   the narrative is blocked or no relevant passage is found.
 - Ingest the latest DART annual report or SEC 10-K from one CLI command.
@@ -63,11 +64,14 @@ pgvector corpus. DART and SEC structured facts are stored separately in
 
 The answer path has two independent tracks:
 
-1. `financials` rows become exact, citation-bearing figures without passing
-   through an LLM.
+1. Filing-scoped Financial Facts become exact, source-bearing figures without
+   passing through an LLM.
 2. Retrieved filing chunks are sent to Solar under positional labels. The
    response is schema-validated, labels are mapped back to real chunk IDs, and
-   citation and number guards run before any prose reaches the client.
+   citation, evidence-integrity, and number guards run before any prose reaches
+   the client.
+3. Citations resolve to bounded Filing Chunk excerpts; deduplicated Filing
+   Sources provide stable, openable regulator documents.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for component boundaries,
 schema decisions, and the API contract. The implemented visual system is in
@@ -124,6 +128,27 @@ Hugging Face model cache in a named volume:
 docker compose --profile container up -d --build backend
 ```
 
+### Upgrade an existing local database
+
+Fresh databases receive the v0.3 schema from `backend/db/init.sql`. Before
+running v0.3 code against an older persistent volume, back it up and apply the
+versioned migration from the repository root:
+
+```bash
+docker compose exec -T db sh -c \
+  'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > filing-digest-pre-v0.3.sql
+docker compose exec -T db sh -c \
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+  < backend/db/migrations/0001_normalized_filing_snapshots.sql
+cd backend
+../.venv/bin/python -m app.embeddings.backfill
+```
+
+The migration never invents historical Reporting Period dates. Re-ingest a
+filing to enrich exact dates when its regulator provides them. The final
+backfill command publishes `indexed_at` only after every chunk in each filing is
+ready, so partially indexed filings stay out of search.
+
 ### Ingest data
 
 From `backend/` with the database running:
@@ -163,9 +188,9 @@ The app targets `http://127.0.0.1:8001` for simulator development.
 |---|---|---|
 | `GET` | `/health` | Process liveness and version |
 | `GET` | `/companies?q=` | Company browse/filter data |
-| `GET` | `/companies/{company_id}/digest?lang=ko\|en` | Metrics, summaries, and filing citations |
+| `GET` | `/companies/{company_id}/digest?lang=ko\|en` | Metrics, summaries, and Filing Sources |
 | `POST` | `/search` | Bounded semantic search over filing chunks |
-| `POST` | `/answer` | Guarded narrative plus authoritative figures |
+| `POST` | `/answer` | Guarded narrative, figures, Citations, and Filing Sources |
 
 Ingestion is intentionally CLI-only. The application does not expose a remote
 write endpoint.
@@ -181,8 +206,9 @@ write endpoint.
 - This is a local, single-user demonstration service. It has no authentication,
   authorization, rate limiting, or multi-tenant isolation and should not be
   exposed directly to the public internet.
-- `backend/db/init.sql` initializes an empty database; there is no migration
-  history because the archived project does not manage a production database.
+- `backend/db/init.sql` initializes an empty database. Versioned SQL migrations
+  under `backend/db/migrations/` upgrade existing local volumes; back up the
+  database before applying them.
 
 ## License
 

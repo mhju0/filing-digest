@@ -1,10 +1,11 @@
-"""API CONTRACT v0.2 endpoints, backed by the real database.
+"""API CONTRACT v0.3 endpoints, backed by the real database.
 
 Principle: numbers come only from structured APIs (DART/SEC structured data);
 the LLM narrates only; every claim carries a citation.
 """
 
 import logging
+import re
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
@@ -17,26 +18,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import __version__
 from app.db.models import Company as CompanyModel
 from app.db.models import Filing as FilingModel
-from app.db.models import Financial
 from app.db.session import get_db_session
 from app.digest_narrative import DigestNarrativeError, build_company_summary
+from app.evidence import (
+    EvidenceIntegrityError,
+    filing_source_from_filing,
+    resolve_evidence,
+)
 from app.figures.service import build_figures, fetch_financials
+from app.financials.calculations import compute_yoy_deltas
+from app.financials.presentation import DIGEST_METRICS
 from app.llm.base import LLMClient
 from app.llm.citation_guard import CitationError
 from app.llm.deps import get_llm_client
-from app.llm.narrative import generate_narrative
+from app.llm.narrative import NarrativeError, generate_narrative
 from app.llm.number_guard import NumberInNarrativeError
 from app.llm.solar import SolarApiError, SolarClientError
 from app.schemas import (
     AnswerRequest,
     AnswerResponse,
-    Citation,
     Company,
     CompanyDigest,
     CompanySearchResponse,
+    FilingSource,
     HealthResponse,
     Language,
     MetricCard,
+    NarrativeBlockedReason,
     NarrativeStatus,
     SearchHit,
     SearchRequest,
@@ -92,20 +100,6 @@ async def search_companies(
     return CompanySearchResponse(items=items, total=len(items))
 
 
-# Static KO/EN labels for the four contract MetricKey rows a digest surfaces.
-# DB financials also carry eps_diluted / net_income_attributable, which are NOT
-# MetricKey values (schemas.py) -- they are intentionally omitted here, not
-# mapped. Iteration order fixes the card order (revenue -> operating_income ->
-# net_income -> eps). operating_margin is a MetricKey but is not stored, so it
-# simply never appears.
-_DIGEST_METRIC_LABELS: dict[str, dict[str, str]] = {
-    "revenue": {"ko": "매출액", "en": "Revenue"},
-    "operating_income": {"ko": "영업이익", "en": "Operating Income"},
-    "net_income": {"ko": "당기순이익", "en": "Net Income"},
-    "eps": {"ko": "주당순이익", "en": "EPS"},
-}
-
-
 def select_target_period(periods: Iterable[str]) -> str:
     """Deterministic "latest" period pick from a company's financials rows.
 
@@ -120,50 +114,23 @@ def select_target_period(periods: Iterable[str]) -> str:
 
 
 def select_previous_period(periods: Iterable[str], target_period: str) -> str | None:
-    """Deterministic "previous year" period pick for YoY comparison.
+    """Pick the same reporting scope from exactly one fiscal year earlier.
 
-    Same lexicographic-max logic as :func:`select_target_period`, applied to
-    every period except ``target_period`` itself. ``None`` when no other
-    period exists (e.g. Samsung's single ingested fiscal year) -- callers
-    treat that as "nothing to compare against" rather than raising. Pure --
-    unit-tested offline.
+    A two-year change is not YoY, and an annual fact is not the prior period for
+    a quarterly fact. Canonical labels use ``YYYY-scope`` (with the legacy
+    ``YYYYQn`` shape also accepted); unknown shapes fail closed to ``None``.
     """
-    others = [p for p in periods if p != target_period]
-    return max(others, default=None)
-
-
-def compute_yoy_deltas(
-    rows: Sequence[Financial], target_period: str, previous_period: str | None
-) -> dict[str, float | None]:
-    """YoY %% change per metric, ``target_period`` vs ``previous_period``.
-
-    One entry per metric present in ``target_period``. A metric is ``None``
-    rather than raising when: there is no ``previous_period``, the previous
-    period has no row for that metric, or the previous value is ``<= 0``
-    (division-by-zero / sign-flip guard -- a negative-to-positive swing has no
-    meaningful percentage). Pure given already-fetched ORM rows -- unit-tested
-    offline.
-    """
-    target_metrics = {row.metric for row in rows if row.period == target_period}
-    if previous_period is None:
-        return dict.fromkeys(target_metrics)
-
-    current_by_metric = {
-        row.metric: row.value for row in rows if row.period == target_period
-    }
-    previous_by_metric = {
-        row.metric: row.value for row in rows if row.period == previous_period
-    }
-
-    deltas: dict[str, float | None] = {}
-    for metric in target_metrics:
-        previous_value = previous_by_metric.get(metric)
-        if previous_value is None or previous_value <= 0:
-            deltas[metric] = None
-            continue
-        current_value = current_by_metric[metric]
-        deltas[metric] = float((current_value - previous_value) / previous_value * 100)
-    return deltas
+    match = re.fullmatch(
+        r"(?P<year>\d{4})(?P<separator>-?)(?P<scope>annual|Q[1-4]|H1)",
+        target_period,
+    )
+    if match is None:
+        return None
+    previous_label = (
+        f"{int(match.group('year')) - 1}"
+        f"{match.group('separator')}{match.group('scope')}"
+    )
+    return previous_label if previous_label in set(periods) else None
 
 
 def select_latest_filing_id(
@@ -194,8 +161,8 @@ async def get_company_digest(
     """Real DB-backed digest for one company; 404 for unknown/malformed ids.
 
     Numbers come only from the structured ``financials`` table, never the LLM:
-    each stored row whose metric is a contract ``MetricKey`` becomes
-    one MetricCard, linked to its filing's Citation. summary_ko/summary_en are a
+    each stored row selected by the digest presentation definitions becomes
+    one MetricCard, linked to its Filing Source. summary_ko/summary_en are a
     prose-only, number-free business overview generated by
     :func:`app.digest_narrative.build_company_summary` (guarded on BOTH
     languages); both are returned regardless of ``lang`` (a display hint only),
@@ -204,16 +171,19 @@ async def get_company_digest(
     network error degrades to null summaries rather than breaking the response
     (the figures track is always authoritative -- mirrors /answer's graceful
     ``blocked`` path); a retrieval/embedding failure still propagates, same as
-    /search and /answer. ``yoy_delta_pct`` is computed against the
-    lexicographically next-highest period (see :func:`select_previous_period`
-    / :func:`compute_yoy_deltas`) and is None when no other period is stored
-    (single-filing companies) or the prior value is missing/``<= 0``.
+    /search and /answer. ``yoy_delta_pct`` is computed only against the same
+    reporting scope exactly one fiscal year earlier (see
+    :func:`select_previous_period` / :func:`compute_yoy_deltas`) and is None when
+    that period is absent, the prior value is missing/``<= 0``, or the two
+    Financial Facts differ in reporting kind, duration, fiscal quarter,
+    currency, unit, or scale.
 
     Multi-filing companies (e.g. 3 ingested fiscal years) can have several
     ``period`` values in ``financials``; the digest deterministically picks the
     lexicographically MAX period (``"YYYY-annual"`` / ``"YYYY-Q1"`` etc. sort
     correctly by year prefix) as "latest" and scopes metrics/period
-    label/citations/narrative to that period only -- never an unordered DB scan.
+    label/Filing Sources/narrative to that period only -- never an unordered DB
+    scan.
     """
     try:
         company_uuid = uuid.UUID(company_id)
@@ -239,24 +209,12 @@ async def get_company_digest(
     period_rows = [row for row in rows if row.period == target_period]
     by_metric = {row.metric: row for row in period_rows}
 
-    metrics = [
-        MetricCard(
-            key=key,
-            label_ko=labels["ko"],
-            label_en=labels["en"],
-            value=float(row.value),
-            unit=row.unit,
-            yoy_delta_pct=yoy_deltas.get(key),
-            source=row.source,
-            citation_id=str(row.filing_id) if row.filing_id else None,
-        )
-        for key, labels in _DIGEST_METRIC_LABELS.items()
-        if (row := by_metric.get(key)) is not None
-    ]
-
-    # One Citation per filing referenced by the target period's financials.
+    # Resolve every filing referenced by this period to its canonical, openable
+    # Filing Source. Invalid metadata and its metric are omitted together: a
+    # metric card without an openable source would violate the digest contract.
     filing_ids = {row.filing_id for row in period_rows if row.filing_id is not None}
-    citations: list[Citation] = []
+    filings: Sequence[FilingModel] = []
+    filing_sources_by_filing_id: dict[uuid.UUID, FilingSource] = {}
     latest_filing_id: uuid.UUID | None = None
     if filing_ids:
         filings = (
@@ -264,18 +222,16 @@ async def get_company_digest(
                 select(FilingModel).where(FilingModel.id.in_(filing_ids))
             )
         ).scalars().all()
-        citations = [
-            Citation(
-                id=str(f.id),
-                source=f.source,
-                title=f.title,
-                url=f.url or "",
-                excerpt=None,
-                filed_at=f.filed_at.isoformat() if f.filed_at else None,
-            )
-            for f in filings
-        ]
-        latest_filing_id = select_latest_filing_id(filing_ids, filings)
+        for filing in filings:
+            try:
+                filing_sources_by_filing_id[filing.id] = filing_source_from_filing(
+                    filing
+                )
+            except EvidenceIntegrityError as exc:
+                logger.warning("digest omitted invalid Filing Source: %s", exc)
+        resolved_filing_ids = {filing.id for filing in filings}
+        if resolved_filing_ids:
+            latest_filing_id = select_latest_filing_id(resolved_filing_ids, filings)
         if len(filing_ids) > 1:
             logger.warning(
                 "digest: target_period=%s for company_id=%s spans multiple "
@@ -286,26 +242,59 @@ async def get_company_digest(
                 latest_filing_id,
             )
 
+    metrics: list[MetricCard] = []
+    filing_sources: list[FilingSource] = []
+    seen_source_ids: set[str] = set()
+    for presentation in DIGEST_METRICS:
+        key = presentation.metric
+        row = by_metric.get(key.value)
+        if row is None:
+            continue
+        filing_source = filing_sources_by_filing_id.get(row.filing_id)
+        if filing_source is None:
+            logger.warning(
+                "digest omitted metric=%s period=%s without an openable Filing Source",
+                row.metric,
+                row.period,
+            )
+            continue
+        metrics.append(
+            MetricCard(
+                key=key,
+                label_ko=presentation.label_ko,
+                label_en=presentation.label_en,
+                value=float(row.value),
+                unit=row.unit,
+                yoy_delta_pct=yoy_deltas.get(key.value),
+                source=row.source,
+                filing_source_id=filing_source.id,
+            )
+        )
+        if filing_source.id not in seen_source_ids:
+            seen_source_ids.add(filing_source.id)
+            filing_sources.append(filing_source)
+
     # Prose-only KO/EN business overview (numbers forbidden + guarded). Any
     # summary-side failure (guard block, unparseable body, Solar/network error)
     # degrades to null summaries so the figures response always survives.
     summary_ko: str | None = None
     summary_en: str | None = None
-    try:
-        summary_ko, summary_en = await build_company_summary(
-            session, client, company_uuid, latest_filing_id
-        )
-    except (
-        DigestNarrativeError,
-        SolarApiError,
-        SolarClientError,
-        httpx.HTTPError,
-    ) as exc:
-        logger.warning(
-            "digest summary generation failed for company_id=%s: %s",
-            company_id,
-            type(exc).__name__,
-        )
+    if latest_filing_id in filing_sources_by_filing_id:
+        try:
+            summary_ko, summary_en = await build_company_summary(
+                session, client, company_uuid, latest_filing_id
+            )
+        except (
+            DigestNarrativeError,
+            SolarApiError,
+            SolarClientError,
+            httpx.HTTPError,
+        ) as exc:
+            logger.warning(
+                "digest summary generation failed for company_id=%s: %s",
+                company_id,
+                type(exc).__name__,
+            )
 
     return CompanyDigest(
         company_id=str(company.id),
@@ -314,7 +303,7 @@ async def get_company_digest(
         metrics=metrics,
         summary_ko=summary_ko,
         summary_en=summary_en,
-        citations=citations,
+        filing_sources=filing_sources,
         generated_at=datetime.now(UTC).isoformat(),
     )
 
@@ -361,11 +350,11 @@ async def answer(
     The number guard tripping (NumberInNarrativeError) or the external narrative
     service being unavailable is a graceful outcome: the figures track is still
     authoritative, so we suppress just the prose (answer=None,
-    narrative_status=blocked) and return 200 with figures. A CitationError where
-    every violation is kind="empty" means the LLM had nothing groundable to say
-    (e.g. the corpus lacks the asked-for period), so it maps to
-    narrative_status=no_results. A CitationError with ANY "unknown" (fabricated)
-    citation id is a real hallucination signal and is re-raised as-is.
+    narrative_status=blocked) and return 200 with figures. Any CitationError is
+    an Evidence Integrity Failure: fabricated or omitted evidence must never
+    become a server error or reach the client as narrative, so it maps to
+    ``blocked`` with figures preserved. Malformed narrative JSON and fabricated
+    positional labels are handled the same way.
     """
     chunks = await search_chunks(
         session, query=request.query, company_id=request.company_id
@@ -380,6 +369,7 @@ async def answer(
             answer=None,
             figures=figures,
             citations=[],
+            filing_sources=[],
             company_id=request.company_id,
             narrative_status=NarrativeStatus.no_results,
         )
@@ -397,8 +387,10 @@ async def answer(
             answer=None,
             figures=figures,
             citations=[],
+            filing_sources=[],
             company_id=request.company_id,
             narrative_status=NarrativeStatus.blocked,
+            blocked_reason=NarrativeBlockedReason.number_guard,
         )
     except (SolarApiError, SolarClientError, httpx.HTTPError) as exc:
         logger.warning(
@@ -411,23 +403,27 @@ async def answer(
             answer=None,
             figures=figures,
             citations=[],
+            filing_sources=[],
             company_id=request.company_id,
             narrative_status=NarrativeStatus.blocked,
+            blocked_reason=NarrativeBlockedReason.narrative_unavailable,
         )
-    except CitationError as exc:
-        if any(v.kind != "empty" for v in exc.violations):
-            raise
+    except (CitationError, NarrativeError) as exc:
         logger.warning(
-            "citation guard found no groundable segments for company_id=%s; "
-            "returning no_results",
+            "citation guard rejected narrative for company_id=%s; "
+            "returning evidence-integrity block (%s: %s)",
             request.company_id,
+            type(exc).__name__,
+            exc,
         )
         return AnswerResponse(
             answer=None,
             figures=figures,
             citations=[],
+            filing_sources=[],
             company_id=request.company_id,
-            narrative_status=NarrativeStatus.no_results,
+            narrative_status=NarrativeStatus.blocked,
+            blocked_reason=NarrativeBlockedReason.evidence_integrity,
         )
 
     if not answer.answer_segments:
@@ -440,41 +436,45 @@ async def answer(
             answer=None,
             figures=figures,
             citations=[],
+            filing_sources=[],
             company_id=request.company_id,
             narrative_status=NarrativeStatus.no_results,
         )
 
-    # Resolve each cited chunk id (segment anchor, kept as-is) to its source
-    # filing's metadata, batched (filing_id IN (...)) same as /digest above.
-    cited_chunk_ids = {
-        chunk_id for segment in answer.answer_segments for chunk_id in segment.citations
-    }
-    chunks_by_id = {str(chunk.chunk_id): chunk for chunk in chunks}
-    filing_ids = {chunks_by_id[cid].filing_id for cid in cited_chunk_ids}
-    citations: list[Citation] = []
-    if filing_ids:
-        filings = (
+    filing_ids = {chunk.filing_id for chunk in chunks}
+    filings = (
+        (
             await session.execute(
                 select(FilingModel).where(FilingModel.id.in_(filing_ids))
             )
-        ).scalars().all()
-        filings_by_id = {f.id: f for f in filings}
-        citations = [
-            Citation(
-                id=cid,
-                source=(filing := filings_by_id[chunks_by_id[cid].filing_id]).source,
-                title=filing.title,
-                url=filing.url or "",
-                excerpt=None,
-                filed_at=filing.filed_at.isoformat() if filing.filed_at else None,
-            )
-            for cid in cited_chunk_ids
-        ]
+        )
+        .scalars()
+        .all()
+    )
+    try:
+        evidence = resolve_evidence(answer, chunks, filings)
+    except EvidenceIntegrityError as exc:
+        logger.warning(
+            "evidence integrity failure for company_id=%s: %s; "
+            "returning figures only",
+            request.company_id,
+            exc,
+        )
+        return AnswerResponse(
+            answer=None,
+            figures=figures,
+            citations=[],
+            filing_sources=[],
+            company_id=request.company_id,
+            narrative_status=NarrativeStatus.blocked,
+            blocked_reason=NarrativeBlockedReason.evidence_integrity,
+        )
 
     return AnswerResponse(
         answer=answer,
         figures=figures,
-        citations=citations,
+        citations=evidence.citations,
+        filing_sources=evidence.filing_sources,
         company_id=request.company_id,
         narrative_status=NarrativeStatus.ok,
     )

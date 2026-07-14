@@ -68,6 +68,7 @@ def _financial_row(**over) -> SimpleNamespace:
         unit="KRW",
         currency="KRW",
         period="2026Q1",
+        period_kind="duration",
         fiscal_year=2026,
         fiscal_quarter=1,
         filing_id=_FILING_ID,
@@ -80,6 +81,8 @@ def _filing_row(**over) -> SimpleNamespace:
     base = dict(
         id=_FILING_ID,
         source="dart",
+        rcept_no="20260215000001",
+        sec_accession_no=None,
         title="2026 Q1 Business Report",
         url="https://dart.example/1",
         filed_at=None,
@@ -140,8 +143,11 @@ def test_answer_empty_chunks_skips_llm_and_still_returns_figures(api_client, mon
     assert body["narrative_status"] == "no_results"
     assert body["company_id"] == str(_COMPANY_ID)
     assert body["citations"] == []
+    assert body["filing_sources"] == []
+    assert body["blocked_reason"] is None
     assert len(body["figures"]) == 1
     assert body["figures"][0]["metric"] == "revenue"
+    assert body["figures"][0]["period_kind"] == "duration"
     assert body["figures"][0]["filing_id"] == str(_FILING_ID)
 
 
@@ -191,7 +197,14 @@ def test_answer_with_chunks_narrates_and_serializes(api_client, monkeypatch):
     async def _one_chunk(*args, **kwargs):
         return [
             SimpleNamespace(
-                chunk_id=_CHUNK_ID, filing_id=_FILING_ID, text="Revenue grew on demand.", score=0.9
+                chunk_id=_CHUNK_ID,
+                filing_id=_FILING_ID,
+                text="Revenue grew on demand.",
+                score=0.9,
+                section_title="Business overview",
+                section_order=2,
+                part_index=1,
+                chunk_index=9,
             )
         ]
 
@@ -215,11 +228,71 @@ def test_answer_with_chunks_narrates_and_serializes(api_client, monkeypatch):
     # Positional label [1] was remapped to the real chunk id string.
     assert segs[0]["citations"] == [str(_CHUNK_ID)]
     assert len(body["figures"]) == 1
-    # citations[] resolves the cited chunk id (anchor) to its source filing.
+    # Citations remain chunk-level evidence; Filing Sources carry filing metadata.
     assert len(body["citations"]) == 1
     assert body["citations"][0]["id"] == str(_CHUNK_ID)
-    assert body["citations"][0]["title"] == "2026 Q1 Business Report"
-    assert body["citations"][0]["source"] == "dart"
+    assert body["citations"][0]["filing_source_id"] == "dart:20260215000001"
+    assert body["citations"][0]["excerpt"] == "Revenue grew on demand."
+    assert body["citations"][0]["anchor"] == {
+        "section_title": "Business overview",
+        "section_order": 2,
+        "part_index": 1,
+        "chunk_index": 9,
+    }
+    assert body["filing_sources"] == [
+        {
+            "id": "dart:20260215000001",
+            "source": "dart",
+            "source_filing_id": "20260215000001",
+            "title": "2026 Q1 Business Report",
+            "url": "https://dart.example/1",
+            "filed_at": None,
+        }
+    ]
+    assert body["blocked_reason"] is None
+
+
+def test_answer_unopenable_filing_source_blocks_narrative(api_client, monkeypatch):
+    app.dependency_overrides[get_llm_client] = lambda: _StubClient(
+        '{"answer_segments": [{"text": "Revenue rose.", "citations": ["[1]"]}]}'
+    )
+    app.dependency_overrides[get_db_session] = lambda: _FakeFilingSession(
+        [_filing_row(url=None)]
+    )
+
+    async def _one_chunk(*args, **kwargs):
+        return [
+            SimpleNamespace(
+                chunk_id=_CHUNK_ID,
+                filing_id=_FILING_ID,
+                text="Revenue grew on demand.",
+                score=0.9,
+                section_title="Business overview",
+                section_order=2,
+                part_index=1,
+                chunk_index=9,
+            )
+        ]
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
+    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+
+    resp = api_client.post(
+        "/answer",
+        json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["answer"] is None
+    assert body["narrative_status"] == "blocked"
+    assert body["blocked_reason"] == "evidence_integrity"
+    assert body["citations"] == []
+    assert body["filing_sources"] == []
+    assert len(body["figures"]) == 1
 
 
 def test_answer_number_guard_blocked_returns_figures_only(api_client, monkeypatch):
@@ -249,7 +322,9 @@ def test_answer_number_guard_blocked_returns_figures_only(api_client, monkeypatc
     body = resp.json()
     assert body["answer"] is None
     assert body["narrative_status"] == "blocked"
+    assert body["blocked_reason"] == "number_guard"
     assert body["citations"] == []
+    assert body["filing_sources"] == []
     assert len(body["figures"]) == 1
     assert body["figures"][0]["filing_id"] == str(_FILING_ID)
 
@@ -291,17 +366,17 @@ def test_answer_llm_service_failure_returns_figures_only(
     body = resp.json()
     assert body["answer"] is None
     assert body["narrative_status"] == "blocked"
+    assert body["blocked_reason"] == "narrative_unavailable"
     assert body["citations"] == []
+    assert body["filing_sources"] == []
     assert len(body["figures"]) == 1
     assert body["figures"][0]["filing_id"] == str(_FILING_ID)
 
 
-def test_answer_citation_error_hallucinated_id_propagates_as_500(api_client, monkeypatch):
-    # A CitationError containing an "unknown" (fabricated/hallucinated) citation
-    # id is a real hallucination signal, not a graceful case -- the endpoint must
-    # NOT catch it, so it propagates as a 500 (TestClient re-raises server
-    # exceptions by default). This locks in that the no_results mapping for
-    # all-empty violations does NOT broaden into swallowing hallucinations too.
+def test_answer_fabricated_citation_blocks_narrative_and_preserves_figures(
+    api_client, monkeypatch
+):
+    # A fabricated chunk id is an Evidence Integrity Failure, not an HTTP 500.
     app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
 
     async def _one_chunk(*args, **kwargs):
@@ -317,16 +392,52 @@ def test_answer_citation_error_hallucinated_id_propagates_as_500(api_client, mon
     monkeypatch.setattr(routes, "fetch_financials", _one_financial)
     monkeypatch.setattr(routes, "generate_narrative", _raise_citation_error)
 
-    with pytest.raises(CitationError):
-        api_client.post(
-            "/answer",
-            json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
-        )
+    resp = api_client.post(
+        "/answer",
+        json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["answer"] is None
+    assert body["narrative_status"] == "blocked"
+    assert body["blocked_reason"] == "evidence_integrity"
+    assert body["citations"] == []
+    assert body["filing_sources"] == []
+    assert len(body["figures"]) == 1
 
 
-def test_answer_citation_error_mixed_violations_propagates_as_500(api_client, monkeypatch):
-    # Even one "unknown" violation alongside "empty" ones must still propagate --
-    # the mapping to no_results only applies when EVERY violation is "empty".
+def test_answer_fabricated_positional_label_blocks_narrative(api_client, monkeypatch):
+    """The real narrative remapper must fail closed on an out-of-range label."""
+    app.dependency_overrides[get_llm_client] = lambda: _StubClient(
+        '{"answer_segments":[{"text":"Unsupported claim","citations":["[2]"]}]}'
+    )
+
+    async def _one_chunk(*args, **kwargs):
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew on demand.", score=0.9)]
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
+    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+
+    resp = api_client.post(
+        "/answer",
+        json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["answer"] is None
+    assert body["narrative_status"] == "blocked"
+    assert body["blocked_reason"] == "evidence_integrity"
+    assert body["citations"] == []
+    assert body["filing_sources"] == []
+    assert len(body["figures"]) == 1
+
+
+def test_answer_mixed_citation_violations_block_narrative(api_client, monkeypatch):
     app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
 
     async def _one_chunk(*args, **kwargs):
@@ -347,11 +458,16 @@ def test_answer_citation_error_mixed_violations_propagates_as_500(api_client, mo
     monkeypatch.setattr(routes, "fetch_financials", _one_financial)
     monkeypatch.setattr(routes, "generate_narrative", _raise_citation_error)
 
-    with pytest.raises(CitationError):
-        api_client.post(
-            "/answer",
-            json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
-        )
+    resp = api_client.post(
+        "/answer",
+        json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["narrative_status"] == "blocked"
+    assert body["blocked_reason"] == "evidence_integrity"
+    assert len(body["figures"]) == 1
 
 
 def test_answer_empty_segments_returns_no_results(api_client, monkeypatch):
@@ -388,10 +504,7 @@ def test_answer_empty_segments_returns_no_results(api_client, monkeypatch):
     assert body["figures"][0]["filing_id"] == str(_FILING_ID)
 
 
-def test_answer_citation_error_all_empty_returns_no_results(api_client, monkeypatch):
-    # When the LLM's answer cites nothing at all (every segment has an "empty"
-    # violation), there is no grounded basis -- map to the same no_results state
-    # the retrieval-threshold gate uses, as a 200, not a 500.
+def test_answer_claim_without_citation_is_evidence_integrity_block(api_client, monkeypatch):
     app.dependency_overrides[get_llm_client] = lambda: _StubClient("{}")
 
     async def _one_chunk(*args, **kwargs):
@@ -415,6 +528,8 @@ def test_answer_citation_error_all_empty_returns_no_results(api_client, monkeypa
     assert resp.status_code == 200
     body = resp.json()
     assert body["answer"] is None
-    assert body["narrative_status"] == "no_results"
+    assert body["narrative_status"] == "blocked"
+    assert body["blocked_reason"] == "evidence_integrity"
     assert body["citations"] == []
+    assert body["filing_sources"] == []
     assert len(body["figures"]) == 1

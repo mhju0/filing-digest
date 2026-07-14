@@ -1,13 +1,14 @@
-"""Backfill KURE-v1 vectors into ``filing_chunks`` rows where embedding IS NULL.
+"""Index KURE-v1 vectors and publish filing-level search readiness.
 
 The step after ingest (app/ingest/persist.py) writes chunks with
 ``embedding = NULL``; this module fills those vectors. It is a batch job, not a
 request path -- run it once by hand (``python -m app.embeddings.backfill``) or
-call :func:`backfill_embeddings` from another async context.
+call :func:`backfill_embeddings` from another async context. Ingest callers use
+:func:`index_filing_embeddings` so one filing is completed independently.
 
 Design:
 
-1. **Only ``embedding IS NULL`` rows are selected**, so the job is idempotent:
+1. **Only ``embedding IS NULL`` rows are selected**, so indexing is idempotent:
    a chunk already embedded is never recomputed, and a re-run picks up exactly
    the rows a prior run left unfilled.
 
@@ -15,7 +16,11 @@ Design:
    batch already written; the next run continues from the remaining NULL rows.
    This composes with (1): interrupt + re-run is safe and does no double work.
 
-3. **Positional id<->vector alignment is guarded.** ``embed_texts`` returns
+3. **Readiness is atomic from search's perspective.** Persistence resets the
+   target filing's ``indexed_at``. Scoped indexing sets it only after that filing
+   has at least one chunk and every chunk has a vector; search requires it.
+
+4. **Positional id<->vector alignment is guarded.** ``embed_texts`` returns
    vectors in input order; :func:`align_ids_with_vectors` refuses to zip when the
    counts differ, so a wrong vector can never be written onto a chunk. The
    alignment is a pure function, unit-tested without the model or DB.
@@ -29,13 +34,14 @@ cast is needed on this typed-column path.
 import argparse
 import asyncio
 import logging
+import uuid
 from collections.abc import Sequence
 from typing import TypeVar
 
-from sqlalchemy import select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import FilingChunk
+from app.db.models import Filing, FilingChunk
 from app.db.session import get_async_engine, get_async_session
 from app.embeddings.kure import embed_texts
 
@@ -54,9 +60,7 @@ def _batched(items: Sequence[_T], size: int) -> list[Sequence[_T]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
-def align_ids_with_vectors(
-    ids: Sequence[_T], vectors: Sequence[_V]
-) -> list[tuple[_T, _V]]:
+def align_ids_with_vectors(ids: Sequence[_T], vectors: Sequence[_V]) -> list[tuple[_T, _V]]:
     """Zip chunk ids with their vectors 1:1, guarding alignment (pure).
 
     ``embed_texts`` returns vectors positionally, so ``ids[i]`` owns
@@ -65,53 +69,141 @@ def align_ids_with_vectors(
     shorter sequence. Separated out and unit-tested without the model or DB.
     """
     if len(ids) != len(vectors):
-        raise ValueError(
-            f"id/vector count mismatch: {len(ids)} ids vs {len(vectors)} vectors"
-        )
+        raise ValueError(f"id/vector count mismatch: {len(ids)} ids vs {len(vectors)} vectors")
     return list(zip(ids, vectors, strict=True))
+
+
+def _pending_filing_ids_statement():
+    """Select filings that are unpublished or contain a pending chunk vector."""
+    return (
+        select(Filing.id)
+        .join(FilingChunk, FilingChunk.filing_id == Filing.id)
+        .where(
+            or_(
+                Filing.indexed_at.is_(None),
+                FilingChunk.embedding.is_(None),
+            )
+        )
+        .distinct()
+        .order_by(Filing.id)
+    )
+
+
+def _lock_filing_for_publication_statement(filing_id: uuid.UUID):
+    """Lock one filing so re-ingestion cannot race readiness publication."""
+    return select(Filing.id).where(Filing.id == filing_id).with_for_update()
 
 
 async def backfill_embeddings(
     session: AsyncSession, batch_size: int = DEFAULT_BATCH_SIZE, limit: int | None = None
 ) -> int:
-    """Fill ``filing_chunks.embedding`` for every NULL-embedding chunk.
+    """Resume every filing whose search index is not yet published.
 
-    Selects ``(id, content)`` for chunks with ``embedding IS NULL`` (ordered by
-    id for a stable, reproducible pass), embeds them in batches of ``batch_size``,
-    and UPDATEs each chunk with its vector. Commits after every batch. Returns the
-    number of chunks embedded (0 if none were pending). ``limit`` caps how many
-    NULL chunks are processed (useful for a smoke run); ``None`` = all.
+    Enumerates unpublished filings plus any filing containing a NULL vector in
+    stable id order, so a stale readiness marker is self-healing. Delegates to
+    the scoped indexer and returns the number of chunks embedded. ``limit`` is a
+    global cap across filings (useful for a smoke run); ``None`` means all
+    pending chunks.
     """
+    filing_ids = (
+        (
+            await session.execute(_pending_filing_ids_statement())
+        )
+        .scalars()
+        .all()
+    )
+    filled = 0
+    for filing_id in filing_ids:
+        remaining = None if limit is None else max(limit - filled, 0)
+        if remaining == 0:
+            break
+        filled += await index_filing_embeddings(
+            session,
+            filing_id,
+            batch_size=batch_size,
+            limit=remaining,
+        )
+    if filled == 0:
+        logger.info("backfill: no pending Filing Chunks; nothing to do")
+    return filled
+
+
+async def index_filing_embeddings(
+    session: AsyncSession,
+    filing_id: uuid.UUID,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    limit: int | None = None,
+) -> int:
+    """Index one filing and publish readiness only after every chunk is embedded.
+
+    Readiness is cleared and committed before any batch starts. Successful
+    batches then commit independently, so a retry resumes at the remaining NULL
+    vectors while search hides the whole filing. ``filings.indexed_at`` is
+    republished only when the target filing has at least one chunk and no pending
+    chunks.
+    """
+    await session.execute(
+        update(Filing).where(Filing.id == filing_id).values(indexed_at=None)
+    )
+    await session.commit()
+
     stmt = (
         select(FilingChunk.id, FilingChunk.content)
-        .where(FilingChunk.embedding.is_(None))
+        .where(
+            FilingChunk.filing_id == filing_id,
+            FilingChunk.embedding.is_(None),
+        )
         .order_by(FilingChunk.id)
     )
     if limit is not None:
         stmt = stmt.limit(limit)
-
     rows = (await session.execute(stmt)).all()
-    total = len(rows)
-    if total == 0:
-        logger.info("backfill: no chunks with embedding IS NULL; nothing to do")
-        return 0
-
-    logger.info("backfill: %d chunk(s) to embed (batch_size=%d)", total, batch_size)
     filled = 0
-    for batch in _batched(rows, batch_size):
-        ids = [row.id for row in batch]
-        texts = [row.content for row in batch]
-        vectors = embed_texts(texts)
-        for chunk_id, vector in align_ids_with_vectors(ids, vectors):
-            await session.execute(
-                update(FilingChunk)
-                .where(FilingChunk.id == chunk_id)
-                .values(embedding=vector)
-            )
-        await session.commit()  # per-batch: a later failure preserves this batch
-        filled += len(batch)
-        logger.info("backfill: %d/%d chunk(s) embedded", filled, total)
+    try:
+        for batch in _batched(rows, batch_size):
+            ids = [row.id for row in batch]
+            vectors = embed_texts([row.content for row in batch])
+            for chunk_id, vector in align_ids_with_vectors(ids, vectors):
+                await session.execute(
+                    update(FilingChunk).where(FilingChunk.id == chunk_id).values(embedding=vector)
+                )
+            await session.commit()
+            filled += len(batch)
 
+        # Serialize the final counts/publication with the Filing upsert used by
+        # re-ingestion. If replacement wins the lock first, these counts see its
+        # new NULL vectors; if indexing wins first, replacement subsequently
+        # resets indexed_at to NULL before swapping the snapshot.
+        await session.execute(_lock_filing_for_publication_statement(filing_id))
+        total_chunks = (
+            await session.execute(
+                select(func.count(FilingChunk.id)).where(FilingChunk.filing_id == filing_id)
+            )
+        ).scalar_one()
+        pending_chunks = (
+            await session.execute(
+                select(func.count(FilingChunk.id)).where(
+                    FilingChunk.filing_id == filing_id,
+                    FilingChunk.embedding.is_(None),
+                )
+            )
+        ).scalar_one()
+        if total_chunks > 0 and pending_chunks == 0:
+            await session.execute(
+                update(Filing).where(Filing.id == filing_id).values(indexed_at=func.now())
+            )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+
+    logger.info(
+        "indexed filing=%s: embedded=%d total=%d pending=%d",
+        filing_id,
+        filled,
+        total_chunks,
+        pending_chunks,
+    )
     return filled
 
 
@@ -143,9 +235,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     asyncio.run(_run(args.batch_size, args.limit))
 
 

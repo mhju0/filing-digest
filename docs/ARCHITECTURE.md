@@ -1,7 +1,7 @@
 # Filing Digest Architecture
 
-This document describes the final v0.2.0 portfolio architecture and API
-contract v0.2.
+This document describes the v0.3.0 portfolio architecture and API contract
+v0.3.
 
 ## System overview
 
@@ -33,21 +33,26 @@ under the `container` profile; native uvicorn is the normal development path.
 ### Ingestion
 
 1. `python -m app.ingest` resolves a ticker through DART or SEC.
-2. The source client fetches an annual filing and structured financial facts.
+2. The DART or SEC adapter fetches an annual filing and maps it into one
+   source-independent `NormalizedFiling` snapshot.
 3. DART DSD or SEC HTML parsing removes tables before prose extraction.
-4. Prose is chunked with source metadata and stored in `filing_chunks`.
-5. KURE-v1 creates normalized 1024-dimensional vectors.
-6. Structured facts are stored separately in `financials` as
-   `numeric(24,4)` values linked to their filing.
+4. One persistence module atomically replaces the filing's Financial Facts and
+   Filing Chunks. A failed write leaves the previous complete snapshot intact.
+5. KURE-v1 indexes the committed Filing Chunks in a separate, retryable step.
+6. A filing becomes searchable only after every chunk in that snapshot is
+   indexed; partially indexed snapshots remain hidden from retrieval.
 
-DART receipt numbers and SEC accession numbers are natural keys for idempotent
-filing upserts. Re-ingestion replaces a filing's chunks inside one transaction.
+DART receipt numbers and SEC accession numbers, paired with their regulatory
+source, are Filing Identities for idempotent replacement. Structured values are
+stored as exact `numeric(24,4)` Financial Facts and never pass through generated
+prose.
 
 ### Search and answers
 
 `POST /search` embeds a bounded query with the same model and retrieves at most
 50 HNSW-ranked chunks by cosine distance. Optional company scoping joins through
-`filings`.
+`filings`, and retrieval excludes filings whose current snapshot is not fully
+indexed.
 
 `POST /answer` keeps generated prose and financial values on separate tracks:
 
@@ -55,27 +60,35 @@ filing upserts. Re-ingestion replaces a filing's chunks inside one transaction.
   or calculates them.
 - Retrieved chunks are labelled positionally before being sent to Solar. The
   response must match a JSON schema. Labels are then mapped back to real chunk
-  UUIDs.
-- The citation guard rejects missing or fabricated citation IDs. The number
-  guard rejects currency, percentage, and multiplier tokens in prose.
+  identities.
+- A Citation identifies one supporting Filing Chunk and carries a bounded
+  excerpt plus its location anchor. Filing Sources are separate, deduplicated,
+  openable Corporate Filings ordered by first appearance in the answer.
+- The evidence module blocks a narrative if any Citation cannot resolve to an
+  openable Filing Source. The number guard rejects currency, percentage, and
+  multiplier tokens in prose.
 
-The response state is `ok`, `blocked`, or `no_results`. Figures can still be
-returned when the narrative is withheld.
+The response state is `ok`, `blocked`, or `no_results`, with a block reason when
+applicable. Figures can still be returned when the narrative is withheld.
 
-## Component boundaries
+## Module seams
 
 | Area | Primary modules |
 |---|---|
-| API and contracts | `backend/app/api/routes.py`, `backend/app/schemas.py` |
+| HTTP transport and contracts | `backend/app/api/routes.py`, `backend/app/schemas.py` |
+| Filing domain and persistence | `backend/app/filings/`, `backend/app/ingest/` |
+| Financial vocabulary | `backend/app/financials/`, `contracts/financial-vocabulary.json` |
+| Evidence resolution | `backend/app/evidence/` |
 | DART integration | `backend/app/clients/dart.py`, `backend/app/ingest/persist.py` |
 | SEC integration | `backend/app/clients/sec.py`, `sec_document.py`, `sec_ingest.py` |
-| Retrieval | `backend/app/embeddings/`, `backend/app/search/` |
+| Indexing and retrieval | `backend/app/embeddings/`, `backend/app/search/` |
 | Narrative guards | `backend/app/llm/`, `backend/app/digest_narrative.py` |
 | Database | `backend/db/init.sql`, `backend/app/db/models.py` |
 | iOS transport/models | `ios/FilingDigest/Networking/`, `ios/FilingDigest/Models/` |
+| iOS screen state | `ios/FilingDigest/State/` |
 | iOS presentation | `ios/FilingDigest/Views/`, `ios/FilingDigest/Theme.swift` |
 
-## API contract v0.2
+## API contract v0.3
 
 All JSON fields are snake_case.
 
@@ -83,9 +96,9 @@ All JSON fields are snake_case.
 |---|---|---|
 | `GET` | `/health` | Liveness and application version |
 | `GET` | `/companies?q=` | Matching companies; empty query returns the corpus |
-| `GET` | `/companies/{id}/digest?lang=ko\|en` | Metrics, bilingual summaries, citations |
+| `GET` | `/companies/{id}/digest?lang=ko\|en` | Metrics, bilingual summaries, Filing Sources |
 | `POST` | `/search` | Up to 50 citation-bearing search hits |
-| `POST` | `/answer` | Guarded narrative, structured figures, citations |
+| `POST` | `/answer` | Guarded narrative, structured figures, Citations, and Filing Sources |
 
 Request limits protect model and embedding work: company query 100 characters,
 search query 500 characters, answer query 1,000 characters, and period 32
@@ -100,19 +113,21 @@ Ingestion is CLI-only. There is no remote write endpoint.
 
 - `companies`: source identity and optional DART/SEC natural keys.
 - `filings`: company-owned filing metadata; DART receipt and SEC accession
-  numbers are unique.
+  numbers are unique, and indexing readiness belongs to the current snapshot.
 - `filing_chunks`: filing-owned prose, citation metadata, optional
   `vector(1024)`, unique `(filing_id, chunk_index)`, HNSW cosine index.
-- `financials`: company/filing-owned exact values, unique
-  `(company_id, period, metric, source)`.
+- `financials`: filing-owned exact values, unique by Filing Identity, reporting
+  period, and Reported Metric. Period kind, available source dates, currency,
+  unit, and scale remain explicit.
 
-Foreign keys cascade company deletion to filings and chunks. Financial rows use
-`ON DELETE SET NULL` for their filing reference; application shaping fails loud
-if a figure lacks that citation anchor.
+Foreign keys cascade filing deletion to its Financial Facts and Filing Chunks.
+Every Financial Fact has a non-null filing reference.
 
-The archived project intentionally uses a reproducible initialization script
-instead of migration history. A future production deployment with persistent
-data would need a migration strategy before changing this schema.
+`backend/db/init.sql` remains the empty-database source of truth. Versioned SQL
+migrations under `backend/db/migrations/` upgrade existing local volumes before
+new application code runs. Because previous rows discarded some exact source
+period dates, migrations never invent them; re-ingestion enriches those fields
+when the regulator provides honest dates.
 
 ## Key decisions
 
@@ -120,6 +135,14 @@ data would need a migration strategy before changing this schema.
   and English; vectors are normalized and queried with cosine distance.
 - **Structured-number boundary:** exact values never pass through generated
   prose. This is enforced in code, not only in prompts.
+- **Authoritative snapshots:** a Normalized Filing replaces its facts and chunks
+  atomically; indexing is derived, filing-scoped, and retryable.
+- **Explicit evidence identity:** Citations identify Filing Chunks while Filing
+  Sources identify openable Corporate Filings. Client metadata heuristics are
+  not part of the evidence chain.
+- **Canonical financial vocabulary:** the backend owns Reported Metrics,
+  Derived Metrics, and Reporting Period kinds; a checked manifest prevents iOS
+  vocabulary drift.
 - **Table removal:** filing tables are excluded before embedding to avoid
   presenting prose retrieval as an authoritative numeric source.
 - **Async I/O:** external clients and SQLAlchemy request/ingest paths use async

@@ -7,12 +7,22 @@ that must hold regardless of the model: the 1024-dim guard
 alignment (:func:`~app.embeddings.backfill.align_ids_with_vectors`), both pure.
 """
 
+import asyncio
+import uuid
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from app.db.models import EMBEDDING_DIM
-from app.embeddings.backfill import _batched, align_ids_with_vectors
+from app.embeddings.backfill import (
+    _batched,
+    _lock_filing_for_publication_statement,
+    _pending_filing_ids_statement,
+    align_ids_with_vectors,
+    index_filing_embeddings,
+)
 from app.embeddings.kure import (
     _finalize_vectors,
     _hf_cache_root,
@@ -84,6 +94,58 @@ def test_batched_empty() -> None:
 def test_batched_rejects_nonpositive_size() -> None:
     with pytest.raises(ValueError):
         _batched([1, 2], 0)
+
+
+# -- filing-level readiness publication --------------------------------------
+
+
+def test_pending_filing_query_recovers_stale_readiness() -> None:
+    sql = str(
+        _pending_filing_ids_statement().compile(
+            dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+        )
+    )
+
+    assert "filings.indexed_at IS NULL OR filing_chunks.embedding IS NULL" in sql
+
+
+def test_readiness_publication_locks_the_filing_row() -> None:
+    sql = str(
+        _lock_filing_for_publication_statement(uuid.uuid4()).compile(
+            dialect=postgresql.dialect()
+        )
+    )
+
+    assert "FOR UPDATE" in sql
+
+
+def test_scoped_indexing_unpublishes_before_reading_pending_chunks() -> None:
+    class _Rows:
+        def all(self):
+            return []
+
+    class _Scalar:
+        def __init__(self, value: int):
+            self.value = value
+
+        def scalar_one(self):
+            return self.value
+
+    async def run() -> None:
+        session = AsyncMock()
+        session.execute.side_effect = [
+            object(),
+            _Rows(),
+            object(),
+            _Scalar(1),
+            _Scalar(1),
+        ]
+
+        assert await index_filing_embeddings(session, uuid.uuid4()) == 0
+        call_names = [call[0] for call in session.mock_calls]
+        assert call_names[:3] == ["execute", "commit", "execute"]
+
+    asyncio.run(run())
 
 
 # -- _hf_cache_root: HF Hub cache root resolution (env var precedence) -------

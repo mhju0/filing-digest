@@ -18,7 +18,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Financial
+from app.db.models import Filing, Financial
 from app.schemas import Figure
 
 logger = logging.getLogger(__name__)
@@ -40,20 +40,32 @@ async def fetch_financials(
     given, further filters; ``None`` returns the whole company scope. An unknown
     id or empty scope yields ``[]`` rather than raising.
 
-    Rows are ordered ``period`` DESC, ``metric`` ASC so callers (notably
-    ``/answer``, which passes rows straight through to :func:`build_figures`
-    with no reordering of its own) get a deterministic figure list instead of
-    whatever order the DB happens to return.
+    At most one row is returned for each ``(period, metric)``. When repeated
+    Corporate Filings report that pair, the latest ``Filing.filed_at`` wins;
+    filing creation time and id provide stable tie-breakers. Rows remain ordered
+    ``period`` DESC, ``metric`` ASC so callers (notably ``/answer``, which passes
+    rows straight through to :func:`build_figures` with no reordering of its
+    own) get a deterministic figure list.
 
     Returns ORM entities via ``.scalars()`` -- NOT ``Row`` objects and NOT
     converted to any DTO here -- so the ``value`` ``Decimal`` reaches
     :func:`build_figures` with ``numeric(24,4)`` precision intact (never cast to
     ``float``).
     """
-    stmt = select(Financial).where(Financial.company_id == company_id)
+    stmt = (
+        select(Financial)
+        .join(Filing, Filing.id == Financial.filing_id)
+        .where(Financial.company_id == company_id)
+    )
     if period is not None:
         stmt = stmt.where(Financial.period == period)
-    stmt = stmt.order_by(Financial.period.desc(), Financial.metric.asc())
+    stmt = stmt.distinct(Financial.period, Financial.metric).order_by(
+        Financial.period.desc(),
+        Financial.metric.asc(),
+        Filing.filed_at.desc().nullslast(),
+        Filing.created_at.desc(),
+        Filing.id.desc(),
+    )
 
     rows = (await session.execute(stmt)).scalars().all()
     logger.info(
@@ -84,9 +96,10 @@ def build_figures(rows: Iterable[Any]) -> list[Figure]:
     ``Decimal`` it already is -- never cast to ``float`` -- so ``numeric(24,4)``
     precision (e.g. EPS ``2131.0000``) survives intact.
 
-    ``metric`` is passed through raw (snake_case, no display-label mapping).
-    Raises :class:`FigureError` if any row's ``filing_id`` is ``None`` (fail loud;
-    no un-anchored numbers). An empty ``rows`` yields ``[]``.
+    ``metric`` and ``period_kind`` are validated against the canonical financial
+    vocabulary while their wire spellings remain snake_case. Raises
+    :class:`FigureError` if any row's ``filing_id`` is ``None`` (fail loud; no
+    un-anchored numbers). An empty ``rows`` yields ``[]``.
     """
     figures: list[Figure] = []
     for row in rows:
@@ -102,6 +115,7 @@ def build_figures(rows: Iterable[Any]) -> list[Figure]:
                 unit=row.unit,
                 currency=row.currency,
                 period=row.period,
+                period_kind=row.period_kind,
                 fiscal_year=row.fiscal_year,
                 fiscal_quarter=row.fiscal_quarter,
                 filing_id=row.filing_id,

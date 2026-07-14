@@ -13,11 +13,16 @@ import SwiftUI
 struct SearchView: View {
     let client: APIClient
 
-    @State private var companies: [Company] = []
+    @StateObject private var state: SearchState
     @State private var query = ""
-    @State private var isLoading = false
-    @State private var errorMessage: String?
     @FocusState private var searchFocused: Bool
+
+    init(client: APIClient) {
+        self.client = client
+        _state = StateObject(wrappedValue: SearchState(loadCompanies: {
+            try await client.searchCompanies(query: "")
+        }))
+    }
 
     var body: some View {
         NavigationStack {
@@ -25,6 +30,7 @@ struct SearchView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     header
                     searchField
+                    requestStatus
                     content
                 }
                 .padding(.horizontal, 20)
@@ -43,9 +49,9 @@ struct SearchView: View {
             .navigationDestination(for: Company.self) { company in
                 DigestView(client: client, company: company)
             }
-            .task {
-                await load()
-            }
+            .task { await state.loadIfNeeded() }
+            .refreshable { await state.refresh() }
+            .onDisappear { state.cancel() }
         }
         .tint(Color.accentColor)
     }
@@ -105,36 +111,53 @@ struct SearchView: View {
     // MARK: Content states
 
     @ViewBuilder
+    private var requestStatus: some View {
+        if state.isRefreshing {
+            ProgressView("새로 고치는 중…")
+                .font(.caption)
+                .foregroundStyle(Theme.inkMuted)
+        }
+        if let refreshError = state.refreshError {
+            Label(refreshError, systemImage: "exclamationmark.circle")
+                .font(.caption)
+                .foregroundStyle(Theme.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
     private var content: some View {
-        if isLoading {
+        if state.hasLoaded {
+            if state.companies.isEmpty {
+                ContentUnavailableView(
+                    "아직 수집된 회사가 없습니다",
+                    systemImage: "building.2",
+                    description: Text("백엔드에서 공시를 수집하면 여기에 표시됩니다.")
+                )
+                .padding(.top, 20)
+            } else {
+                let visible = Self.filter(state.companies, query: query)
+                if visible.isEmpty {
+                    ContentUnavailableView.search(text: query)
+                        .padding(.top, 20)
+                } else {
+                    companyList(visible)
+                }
+            }
+        } else if state.isLoading {
             ProgressView("불러오는 중…")
                 .frame(maxWidth: .infinity)
                 .padding(.top, 60)
-        } else if let errorMessage {
+        } else if let blockingError = state.blockingError {
             ContentUnavailableView {
                 Label("오류", systemImage: "exclamationmark.triangle")
             } description: {
-                Text(errorMessage)
+                Text(blockingError)
             } actions: {
                 Button("다시 시도") {
-                    Task { await load() }
+                    Task { await state.retry() }
                 }
                 .buttonStyle(.bordered)
-            }
-        } else if companies.isEmpty {
-            ContentUnavailableView(
-                "아직 수집된 회사가 없습니다",
-                systemImage: "building.2",
-                description: Text("백엔드에서 공시를 수집하면 여기에 표시됩니다.")
-            )
-            .padding(.top, 20)
-        } else {
-            let visible = Self.filter(companies, query: query)
-            if visible.isEmpty {
-                ContentUnavailableView.search(text: query)
-                    .padding(.top, 20)
-            } else {
-                companyList(visible)
             }
         }
     }
@@ -175,27 +198,13 @@ struct SearchView: View {
     }
 
     /// Stable DART-then-SEC grouping, preserving server order within a group.
-    static func grouped(_ companies: [Company]) -> [(source: FilingSource, companies: [Company])] {
-        [FilingSource.dart, .sec].compactMap { source in
+    static func grouped(_ companies: [Company]) -> [(source: RegulatorySource, companies: [Company])] {
+        [RegulatorySource.dart, .sec].compactMap { source in
             let members = companies.filter { $0.source == source }
             return members.isEmpty ? nil : (source, members)
         }
     }
 
-    private func load() async {
-        guard companies.isEmpty, !isLoading else { return }
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-
-        do {
-            // Empty query -> the full corpus (backend treats "" as match-all).
-            let response = try await client.searchCompanies(query: "")
-            companies = response.items
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
 }
 
 // MARK: - Row
@@ -241,7 +250,7 @@ private struct CompanyRow: View {
 /// Small square "DART"/"SEC" tag reused across screens: 1px border, no fill.
 /// DART carries the accent; SEC stays ink — one accent color does real work.
 struct SourceBadge: View {
-    let source: FilingSource
+    let source: RegulatorySource
 
     var body: some View {
         Text(source.rawValue.uppercased())

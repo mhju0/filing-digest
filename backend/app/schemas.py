@@ -1,4 +1,4 @@
-"""Pydantic v2 models for API CONTRACT v0.2.
+"""Pydantic v2 models for API CONTRACT v0.3.
 
 All JSON fields are snake_case. Principle: numbers come only from structured
 APIs (DART/SEC structured data); the LLM narrates only; every claim carries a
@@ -14,6 +14,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app import __version__
+from app.financials import DerivedMetric, PeriodKind, ReportedMetric
 from app.llm.answer import Answer
 from app.search.constants import DEFAULT_TOP_K, MAX_TOP_K
 
@@ -22,13 +23,8 @@ logger = logging.getLogger(__name__)
 Source = Literal["dart", "sec"]
 Market = Literal["KOSPI", "KOSDAQ", "NYSE", "NASDAQ"]
 Language = Literal["ko", "en"]
-MetricKey = Literal[
-    "revenue",
-    "operating_income",
-    "net_income",
-    "eps",
-    "operating_margin",
-]
+MetricKey = ReportedMetric | DerivedMetric
+MAX_CITATION_EXCERPT_CHARS = 1_200
 
 
 class HealthResponse(BaseModel):
@@ -54,12 +50,32 @@ class CompanySearchResponse(BaseModel):
     total: int
 
 
+class CitationAnchor(BaseModel):
+    """Location of one Filing Chunk within its Corporate Filing."""
+
+    section_title: str | None = None
+    section_order: int | None = Field(default=None, ge=0)
+    part_index: int | None = Field(default=None, ge=0)
+    chunk_index: int = Field(ge=0)
+
+
 class Citation(BaseModel):
-    id: str
+    """Claim-level evidence pointing to one exact Filing Chunk."""
+
+    id: str = Field(min_length=1)
+    filing_source_id: str = Field(min_length=1)
+    excerpt: str = Field(min_length=1, max_length=MAX_CITATION_EXCERPT_CHARS)
+    anchor: CitationAnchor
+
+
+class FilingSource(BaseModel):
+    """Deduplicated, openable representation of one Corporate Filing."""
+
+    id: str = Field(min_length=1)
     source: Source
-    title: str
-    url: str
-    excerpt: str | None = None
+    source_filing_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    url: str = Field(min_length=1)
     filed_at: str | None = None  # ISO date, e.g. "2026-04-30"
 
 
@@ -71,7 +87,7 @@ class MetricCard(BaseModel):
     unit: str
     yoy_delta_pct: float | None = None
     source: Source
-    citation_id: str | None = None
+    filing_source_id: str = Field(min_length=1)
 
 
 class CompanyDigest(BaseModel):
@@ -87,7 +103,7 @@ class CompanyDigest(BaseModel):
     # still return its authoritative figures without prose.
     summary_ko: str | None = None
     summary_en: str | None = None
-    citations: list[Citation]
+    filing_sources: list[FilingSource]
     generated_at: str  # ISO 8601
 
 
@@ -141,11 +157,12 @@ class Figure(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    metric: str
+    metric: ReportedMetric
     value: Decimal
     unit: str
     currency: str | None = None
     period: str
+    period_kind: PeriodKind
     fiscal_year: int
     fiscal_quarter: int | None = None
     filing_id: uuid.UUID
@@ -169,13 +186,21 @@ class NarrativeStatus(StrEnum):
     ``figures`` is always authoritative and always returned; only the prose
     narrative can be withheld. ``ok`` -- narrative generated. ``no_results`` --
     empty retrieval, nothing to cite over, so no narrative was attempted.
-    ``blocked`` -- the number guard tripped on the generated prose, so the
-    narrative is suppressed while figures survive (graceful, not a 500).
+    ``blocked`` -- a guard, evidence-integrity check, or narrative dependency
+    withheld the prose, while figures survive (graceful, not a 500).
     """
 
     ok = "ok"
     blocked = "blocked"
     no_results = "no_results"
+
+
+class NarrativeBlockedReason(StrEnum):
+    """Why an otherwise useful answer narrative was withheld."""
+
+    number_guard = "number_guard"
+    narrative_unavailable = "narrative_unavailable"
+    evidence_integrity = "evidence_integrity"
 
 
 class AnswerResponse(BaseModel):
@@ -189,14 +214,16 @@ class AnswerResponse(BaseModel):
     ``answer`` is nullable: when ``narrative_status`` is ``no_results`` or
     ``blocked`` there is no prose to return, but ``figures`` still is.
 
-    ``citations`` resolves every chunk id cited across ``answer.answer_segments``
-    to human-readable source metadata (mirrors ``CompanyDigest.citations``);
-    ``answer.answer_segments[*].citations`` (chunk id strings) remain the anchor
-    and are unchanged.
+    ``citations`` resolves every cited chunk id to a bounded evidence excerpt
+    and location anchor. ``filing_sources`` separately exposes each canonical,
+    openable Corporate Filing in first-citation order. Segment citation ids stay
+    chunk-level and unchanged.
     """
 
     answer: Answer | None
     figures: list[Figure]
     citations: list[Citation]
+    filing_sources: list[FilingSource]
     company_id: uuid.UUID
     narrative_status: NarrativeStatus
+    blocked_reason: NarrativeBlockedReason | None = None

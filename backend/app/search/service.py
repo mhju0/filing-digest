@@ -12,8 +12,9 @@ Design:
   similarity. :func:`_distance_to_similarity` converts explicitly so callers
   never have to remember which one a raw DB number is; :class:`SearchResult`
   docs the converted field.
-- **``embedding IS NULL`` chunks are excluded** at the SQL level (``WHERE``),
-  not filtered in Python -- a NULL can't be ordered by distance anyway.
+- **Only published indexes are visible.** SQL requires a non-NULL chunk vector
+  and the owning filing's non-NULL ``indexed_at``. A partially indexed filing is
+  therefore hidden as one unit rather than leaking whichever chunks ran first.
 - **``top_k`` is capped** at :data:`MAX_TOP_K` so a caller can't force an
   unbounded table scan/sort.
 - **``company_id`` scoping joins through ``filings``** (chunks have no
@@ -90,9 +91,9 @@ def _row_to_result(row: Any) -> SearchResult:
     """Assemble one DB row (chunk columns + ``meta`` + raw distance) into a
     :class:`SearchResult` (pure).
 
-    ``row.meta`` is the ``filing_chunks.meta`` JSONB written by
-    ``app.ingest.persist.chunk_rows``: ``{rcept_no, section_title,
-    section_order, part_index}``. Missing keys degrade to ``None`` rather than
+    ``row.meta`` is the ``filing_chunks.meta`` JSONB written from a normalized
+    Filing Chunk: ``{rcept_no, section_title, section_order, part_index}``.
+    Missing keys degrade to ``None`` rather than
     raising, since ``meta`` is caller-controlled JSON, not a schema-enforced
     column.
     """
@@ -122,8 +123,8 @@ async def search_chunks(
     ``query`` is embedded via :func:`app.embeddings.kure.embed_texts` -- the
     same model/normalization used to build the stored vectors, so the search is
     a plain cosine nearest-neighbor lookup (``<=>``, ascending distance).
-    Chunks with ``embedding IS NULL`` are excluded. ``top_k`` is clamped via
-    :func:`clamp_top_k`.
+    Chunks with ``embedding IS NULL`` and filings whose index is not yet
+    published are excluded. ``top_k`` is clamped via :func:`clamp_top_k`.
 
     ``company_id``, if given, scopes results to that company's filings (a join
     through ``filings``); a company with no chunks (or an unknown id) yields
@@ -150,14 +151,16 @@ async def search_chunks(
             FilingChunk.meta,
             distance.label("distance"),
         )
-        .where(FilingChunk.embedding.is_not(None))
+        .join(Filing, Filing.id == FilingChunk.filing_id)
+        .where(
+            FilingChunk.embedding.is_not(None),
+            Filing.indexed_at.is_not(None),
+        )
         .order_by(distance)
         .limit(k)
     )
     if company_id is not None:
-        stmt = stmt.join(Filing, Filing.id == FilingChunk.filing_id).where(
-            Filing.company_id == company_id
-        )
+        stmt = stmt.where(Filing.company_id == company_id)
     if filing_id is not None:
         stmt = stmt.where(FilingChunk.filing_id == filing_id)
 
