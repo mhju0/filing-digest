@@ -92,7 +92,7 @@ struct DigestView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 Text(company.name)
-                    .font(Theme.display(30))
+                    .font(Theme.display(.title))
                     .foregroundStyle(Theme.ink)
                 Spacer()
                 SourceBadge(source: company.source)
@@ -215,7 +215,7 @@ private struct MetricCardView: View {
                 Text(deltaText(delta))
                     .font(.caption.weight(.semibold))
                     .monospacedDigit()
-                    .foregroundStyle(delta >= 0 ? Color.accentColor : Color(red: 0.72, green: 0.2, blue: 0.15))
+                    .foregroundStyle(delta >= 0 ? Color.accentColor : Theme.negative)
             }
         }
         .ledgerCard()

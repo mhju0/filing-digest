@@ -17,14 +17,27 @@ enum Theme {
     static let paper = Color("Paper")
     static let ink = Color("Ink")
     static let inkMuted = Color("InkMuted")
-    /// Hairline rule/border color — ink at low opacity so it adapts per mode.
+    /// Decorative rule between rows and under section labels. Ink at low
+    /// opacity so it adapts per mode. WCAG 1.4.11 does not apply — these
+    /// separate content, they never identify a control.
     static let hairline = ink.opacity(0.25)
+    /// Boundary of an interactive component (text field, tappable card,
+    /// outlined button/badge). Held at >= 3:1 against Paper in both modes,
+    /// because in the Ledger system the border IS the affordance.
+    static let border = Color("Border")
+    /// Downward change on a figure. Sign is always in the text too — color
+    /// never carries the meaning alone.
+    static let negative = Color("Negative")
 
     // MARK: Type
 
     /// Serif display for company names and key titles (New York).
-    static func display(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .system(size: size, weight: weight, design: .serif)
+    ///
+    /// Bound to a text style rather than a fixed point size: a fixed `size:`
+    /// ignores Dynamic Type entirely, which inverted the hierarchy at
+    /// accessibility sizes (the subheadline grew past the headline).
+    static func display(_ style: Font.TextStyle, weight: Font.Weight = .semibold) -> Font {
+        .system(style, design: .serif, weight: weight)
     }
 
     /// Letter-spaced small-caps style is approximated with an uppercased
@@ -117,7 +130,7 @@ struct FlowLayout: Layout {
 extension View {
     /// Ledger card: hairline border on paper, near-square corners.
     /// Replaces the gray-fill rounded card.
-    func ledgerCard(padding: CGFloat = 12, borderColor: Color = Theme.hairline) -> some View {
+    func ledgerCard(padding: CGFloat = 12, borderColor: Color = Theme.border) -> some View {
         self
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)

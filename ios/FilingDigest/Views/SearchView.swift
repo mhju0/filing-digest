@@ -61,7 +61,7 @@ struct SearchView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("공시를 읽다")
-                .font(Theme.display(34))
+                .font(Theme.display(.largeTitle))
                 .foregroundStyle(Theme.ink)
             HStack(spacing: 10) {
                 Rectangle()
@@ -95,15 +95,20 @@ struct SearchView: View {
                     Image(systemName: "xmark")
                         .font(.caption)
                         .foregroundStyle(Theme.inkMuted)
+                        // 44pt hit area; the glyph itself stays small.
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel("필터 지우기")
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.leading, 14)
+        .padding(.trailing, query.isEmpty ? 14 : 0)
+        .padding(.vertical, query.isEmpty ? 12 : 4)
+        .frame(minHeight: 52)
         .overlay(
             RoundedRectangle(cornerRadius: 2)
-                .strokeBorder(searchFocused ? Theme.ink : Theme.hairline, lineWidth: 1)
+                .strokeBorder(searchFocused ? Theme.ink : Theme.border, lineWidth: 1)
         )
         .accessibilityElement(children: .contain)
     }
@@ -262,7 +267,7 @@ struct SourceBadge: View {
             .overlay(
                 Rectangle()
                     .strokeBorder(
-                        source == .dart ? Color.accentColor : Theme.hairline,
+                        source == .dart ? Color.accentColor : Theme.border,
                         lineWidth: 1
                     )
             )

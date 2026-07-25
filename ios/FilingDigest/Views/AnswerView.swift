@@ -37,7 +37,7 @@ struct AnswerView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text(company.name)
-                        .font(Theme.display(17))
+                        .font(Theme.display(.headline))
                         .foregroundStyle(Theme.ink)
                 }
             }
@@ -60,7 +60,7 @@ struct AnswerView: View {
             .padding(.vertical, 10)
             .overlay(
                 RoundedRectangle(cornerRadius: 2)
-                    .strokeBorder(Theme.hairline, lineWidth: 1)
+                    .strokeBorder(Theme.border, lineWidth: 1)
             )
             .onSubmit {
                 Task { await ask() }
@@ -72,7 +72,7 @@ struct AnswerView: View {
                 Image(systemName: "arrow.up")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(Theme.paper)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .background(Rectangle().fill(canAsk ? Theme.ink : Theme.inkMuted))
             }
             .disabled(!canAsk)
@@ -223,7 +223,7 @@ struct AnswerView: View {
                     .foregroundStyle(Theme.inkMuted)
             }
         }
-        .ledgerCard(borderColor: Color.accentColor.opacity(0.5))
+        .ledgerCard(borderColor: Color.accentColor)
         .accessibilityElement(children: .combine)
     }
 
@@ -258,7 +258,7 @@ struct AnswerView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(
                 RoundedRectangle(cornerRadius: 2)
-                    .strokeBorder(Color.accentColor.opacity(0.6), lineWidth: 1)
+                    .strokeBorder(Color.accentColor, lineWidth: 1)
             )
         }
     }
