@@ -49,15 +49,16 @@ struct DigestView: View {
                         .padding(.top, 40)
                 } else if let blockingError = state.blockingError {
                     ContentUnavailableView {
-                        Label("오류", systemImage: "exclamationmark.triangle")
+                        Label("요약을 불러오지 못했습니다", systemImage: "exclamationmark.triangle")
                     } description: {
                         Text(blockingError)
                     } actions: {
                         Button("다시 시도") {
                             Task { await state.retry() }
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.ledger)
                     }
+                    .frame(maxWidth: .infinity, minHeight: 380)
                 }
             }
             .padding(.horizontal, 20)

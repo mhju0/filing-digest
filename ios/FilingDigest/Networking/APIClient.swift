@@ -31,18 +31,21 @@ enum APIError: Error, LocalizedError {
     /// URLSession-level failure (connection refused, timeout, ...).
     case transport(Error)
 
+    /// Written for the person holding the phone, not the person reading the
+    /// stack trace: what happened first, and only then a hint they can act on.
+    /// No host, port, or status jargon leads a sentence.
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "요청 URL을 만들 수 없습니다."
+            return "요청 주소를 만들지 못했습니다."
         case .invalidResponse:
-            return "서버 응답 형식이 올바르지 않습니다."
+            return "서버가 보낸 응답을 이해하지 못했습니다."
         case .httpStatus(let code):
-            return "서버 오류가 발생했습니다. (HTTP \(code))"
+            return "서버가 요청을 처리하지 못했습니다. (\(code))"
         case .decoding:
-            return "서버 응답을 해석할 수 없습니다."
+            return "서버 응답 형식이 앱과 맞지 않습니다."
         case .transport:
-            return "서버에 연결할 수 없습니다. 백엔드(127.0.0.1:8001)가 실행 중인지 확인하세요."
+            return "서버에 연결하지 못했습니다. Filing Digest는 로컬 서버에서 공시를 읽어옵니다."
         }
     }
 }

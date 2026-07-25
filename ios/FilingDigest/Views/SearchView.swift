@@ -28,10 +28,17 @@ struct SearchView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    header
-                    searchField
-                    requestStatus
-                    content
+                    // A blocking failure means there is nothing to browse or
+                    // filter, so the browse chrome would only be furniture
+                    // around a dead end. Give the whole screen to the recovery.
+                    if let blockingError = state.blockingError, !state.hasLoaded {
+                        connectionFailure(blockingError)
+                    } else {
+                        header
+                        searchField
+                        requestStatus
+                        content
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
@@ -130,21 +137,35 @@ struct SearchView: View {
         }
     }
 
+    /// Full-screen recovery for "the corpus never arrived".
+    private func connectionFailure(_ message: String) -> some View {
+        ContentUnavailableView {
+            Label("공시를 불러오지 못했습니다", systemImage: "network.slash")
+        } description: {
+            Text(message)
+        } actions: {
+            Button("다시 시도") {
+                Task { await state.retry() }
+            }
+            .buttonStyle(.ledger)
+        }
+        .frame(maxWidth: .infinity, minHeight: 460)
+    }
+
     @ViewBuilder
     private var content: some View {
         if state.hasLoaded {
             if state.companies.isEmpty {
                 ContentUnavailableView(
-                    "아직 수집된 회사가 없습니다",
+                    "아직 수집된 공시가 없습니다",
                     systemImage: "building.2",
-                    description: Text("백엔드에서 공시를 수집하면 여기에 표시됩니다.")
+                    description: Text("공시를 수집하면 회사 목록이 여기에 표시됩니다.")
                 )
                 .padding(.top, 20)
             } else {
                 let visible = Self.filter(state.companies, query: query)
                 if visible.isEmpty {
-                    ContentUnavailableView.search(text: query)
-                        .padding(.top, 20)
+                    noMatch
                 } else {
                     companyList(visible)
                 }
@@ -153,24 +174,34 @@ struct SearchView: View {
             ProgressView("불러오는 중…")
                 .frame(maxWidth: .infinity)
                 .padding(.top, 60)
-        } else if let blockingError = state.blockingError {
-            ContentUnavailableView {
-                Label("오류", systemImage: "exclamationmark.triangle")
-            } description: {
-                Text(blockingError)
-            } actions: {
-                Button("다시 시도") {
-                    Task { await state.retry() }
-                }
-                .buttonStyle(.bordered)
-            }
         }
+    }
+
+    /// The corpus is a fixed, small set. The system's stock "No Results"
+    /// reads as a failure and is localized to the device language, not the
+    /// app's — so say what is actually here instead.
+    private var noMatch: some View {
+        ContentUnavailableView {
+            Label("‘\(query)’는 수집 목록에 없습니다", systemImage: "magnifyingglass")
+        } description: {
+            Text("지금 이 앱에는 \(state.companies.count)개 회사의 공시가 수집되어 있습니다.")
+        } actions: {
+            Button("전체 목록 보기") {
+                query = ""
+                searchFocused = false
+            }
+            .buttonStyle(.ledger)
+        }
+        .padding(.top, 20)
     }
 
     private func companyList(_ visible: [Company]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(Self.grouped(visible), id: \.source) { group in
-                SectionHeader(title: group.source == .dart ? "DART — 한국 공시" : "SEC — 미국 공시")
+                SectionHeader(
+                    title: group.source == .dart ? "DART — 한국 공시" : "SEC — 미국 공시",
+                    detail: "\(group.companies.count)"
+                )
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(group.companies) { company in
                         NavigationLink(value: company) {

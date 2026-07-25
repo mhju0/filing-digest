@@ -49,14 +49,16 @@ enum NarrativeBlockedReason: String, Decodable, CaseIterable, Hashable, Sendable
     case narrativeUnavailable = "narrative_unavailable"
     case evidenceIntegrity = "evidence_integrity"
 
+    /// A withheld narrative is the guard working, not a failure — the copy
+    /// says what was held back and points at the values that survived.
     var userMessage: String {
         switch self {
         case .numberGuard:
-            "수치 정확성 검증을 통과하지 못해 AI 서술을 표시하지 않습니다."
+            "생성된 문장에 금액이 섞여 있어 보류했습니다. 아래 값은 공시 원문 그대로입니다."
         case .narrativeUnavailable:
-            "서술 생성 기능을 사용할 수 없어 확정 수치만 표시합니다."
+            "지금은 서술을 만들 수 없습니다. 아래 값은 공시 원문 그대로입니다."
         case .evidenceIntegrity:
-            "인용 근거를 원문까지 안전하게 확인할 수 없어 AI 서술을 표시하지 않습니다."
+            "인용을 원문까지 확인하지 못해 서술을 보류했습니다. 아래 값은 공시 원문 그대로입니다."
         }
     }
 }

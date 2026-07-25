@@ -48,22 +48,58 @@ enum Theme {
 // MARK: - Shared components
 
 /// Small-caps section header over a thin rule ("요약", "출처", …).
+/// `detail` carries a count or scope on the trailing edge — the corpus is
+/// bounded, and saying how bounded is what keeps browsing honest.
 struct SectionHeader: View {
     let title: String
+    var detail: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(Theme.sectionLabel)
-                .tracking(1.2)
-                .foregroundStyle(Theme.inkMuted)
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(Theme.sectionLabel)
+                    .tracking(1.2)
+                if let detail {
+                    Spacer(minLength: 8)
+                    Text(detail)
+                        .font(Theme.sectionLabel)
+                        .monospacedDigit()
+                }
+            }
+            .foregroundStyle(Theme.inkMuted)
             Rectangle()
                 .fill(Theme.hairline)
                 .frame(height: 1)
         }
         .padding(.top, 8)
+        .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
+}
+
+/// Outlined ledger button. The system `.bordered` capsule was the one
+/// component that broke the square, hairline vocabulary everywhere else,
+/// and it only ever appeared on error screens — the worst place to look
+/// like a different app.
+struct LedgerButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 18)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .overlay(
+                RoundedRectangle(cornerRadius: 2)
+                    .strokeBorder(Color.accentColor, lineWidth: 1)
+            )
+            .opacity(configuration.isPressed ? 0.55 : 1)
+    }
+}
+
+extension ButtonStyle where Self == LedgerButtonStyle {
+    static var ledger: LedgerButtonStyle { LedgerButtonStyle() }
 }
 
 /// Square citation marker — the brand's smallest unit. Filled ledger green

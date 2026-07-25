@@ -108,20 +108,20 @@ struct AnswerView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let blockingError = state.blockingError {
             ContentUnavailableView {
-                Label("오류", systemImage: "exclamationmark.triangle")
+                Label("답변을 가져오지 못했습니다", systemImage: "exclamationmark.triangle")
             } description: {
                 Text(blockingError)
             } actions: {
                 Button("다시 시도") {
                     Task { await state.retry() }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.ledger)
             }
         } else {
             ContentUnavailableView(
-                "공시 기반 Q&A",
-                systemImage: "questionmark.bubble",
-                description: Text("질문하면 공시 인용이 붙은 답변과 확정 수치를 보여줍니다.")
+                "공시에 있는 것만 답합니다",
+                systemImage: "text.quote",
+                description: Text("답변의 모든 문장에 원문 인용이 붙습니다. 근거를 찾지 못하면 답하지 않습니다.")
             )
         }
     }
@@ -215,10 +215,10 @@ struct AnswerView: View {
             Image(systemName: "shield.lefthalf.filled")
                 .foregroundStyle(Color.accentColor)
             VStack(alignment: .leading, spacing: 4) {
-                Text("정확한 수치는 아래 표에서 확인하세요")
+                Text("숫자는 AI가 쓰지 않습니다")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.ink)
-                Text(reason?.userMessage ?? "AI 서술을 표시할 수 없어 아래 확정 수치만 제공합니다.")
+                Text(reason?.userMessage ?? "이 답변의 서술은 보류하고, 공시 원문 수치만 보여줍니다.")
                     .font(.caption)
                     .foregroundStyle(Theme.inkMuted)
             }
@@ -229,9 +229,9 @@ struct AnswerView: View {
 
     private var noResultsNotice: some View {
         ContentUnavailableView(
-            "관련 공시를 찾지 못했습니다",
+            "공시에서 근거를 찾지 못했습니다",
             systemImage: "doc.text.magnifyingglass",
-            description: Text("이 질문에 인용할 공시 문단이 없어 답변을 생성하지 않았습니다.")
+            description: Text("인용할 문단이 없어 답하지 않았습니다. 이 회사의 사업, 리스크, 조직에 대해 물어보세요.")
         )
     }
 
