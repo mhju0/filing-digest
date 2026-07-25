@@ -53,8 +53,26 @@ enum APIError: Error, LocalizedError {
 // MARK: - Client
 
 struct APIClient {
-    /// Default local dev backend (see repo docker-compose / API contract).
-    static let defaultBaseURL = URL(string: "http://127.0.0.1:8001")!
+    /// Loopback is correct on the Simulator, which shares the host's network
+    /// stack, and wrong on a device, where 127.0.0.1 is the phone itself.
+    /// A device build supplies the host's address through `FDBackendURL`
+    /// (Info.plist <- FD_BACKEND_URL <- a local, gitignored xcconfig), so
+    /// the address never has to be committed and a fresh clone still runs.
+    static let defaultBaseURL = configuredBaseURL ?? URL(string: "http://127.0.0.1:8001")!
+
+    /// Reads the build-time backend override, if one was supplied and parses.
+    /// An unsubstituted or malformed value falls back rather than throwing:
+    /// a misconfigured build should still show its own connection error.
+    static var configuredBaseURL: URL? {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "FDBackendURL") as? String
+        else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix("$("),
+              let url = URL(string: trimmed),
+              url.scheme != nil, url.host != nil
+        else { return nil }
+        return url
+    }
 
     let baseURL: URL
     private let session: URLSession

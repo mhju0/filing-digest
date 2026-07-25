@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Only the keys Xcode cannot generate live here; GENERATE_INFOPLIST_FILE
+	  stays on and merges the rest in.
+
+	  On the Simulator the backend is reached over loopback, which App
+	  Transport Security exempts outright. A real device is a different
+	  machine from the one running uvicorn, so it has to cross the local
+	  network to a plain-HTTP dev server. NSAllowsLocalNetworking is the
+	  narrow, documented exception for exactly that: it permits unqualified
+	  and .local hostnames without opening arbitrary loads to the internet.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>같은 Wi-Fi에 있는 Mac의 Filing Digest 서버에서 공시를 불러옵니다.</string>
+	<!--
+	  Empty in a fresh checkout, and APIClient falls back to loopback, so a
+	  clone builds and runs against the Simulator with no setup. A device
+	  build supplies FD_BACKEND_URL from a local, gitignored xcconfig.
+	-->
+	<key>FDBackendURL</key>
+	<string>$(FD_BACKEND_URL)</string>
+</dict>
+</plist>

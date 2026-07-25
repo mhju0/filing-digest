@@ -32,6 +32,9 @@ DerivedData/
 xcuserdata/
 .swiftpm/
 
+# Local signing identity and dev backend address — personal, machine-specific.
+ios/Local.xcconfig
+
 # macOS
 .DS_Store
 .idea/
