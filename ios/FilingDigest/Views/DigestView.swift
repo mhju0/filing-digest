@@ -185,6 +185,30 @@ struct DigestView: View {
             }
         }
 
+        // Q&A is the headline feature and lived behind an unlabelled toolbar
+        // glyph, two screens deep. The toolbar button stays for reach while
+        // scrolling; this is the one that can be found.
+        NavigationLink {
+            AnswerView(client: client, company: company)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "text.bubble")
+                Text(language == .ko ? "이 회사에 질문하기" : "Ask about this company")
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: 8)
+                Image(systemName: "arrow.right").font(.caption)
+            }
+            .foregroundStyle(Color.accentColor)
+            .padding(14)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .overlay(
+                RoundedRectangle(cornerRadius: 2)
+                    .strokeBorder(Color.accentColor, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+
         if let summary = digest.summary(for: language) {
             SectionHeader(title: language == .ko ? "요약" : "SUMMARY")
             Text(summary)

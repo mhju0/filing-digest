@@ -71,11 +71,11 @@ struct AnswerView: View {
                     .strokeBorder(Theme.border, lineWidth: 1)
             )
             .onSubmit {
-                Task { await ask() }
+                Task { await ask(query) }
             }
 
             Button {
-                Task { await ask() }
+                Task { await ask(query) }
             } label: {
                 Image(systemName: "arrow.up")
                     .font(.body.weight(.semibold))
@@ -133,11 +133,7 @@ struct AnswerView: View {
                 .buttonStyle(.ledger)
             }
         } else {
-            ContentUnavailableView(
-                "공시에 있는 것만 답합니다",
-                systemImage: "text.quote",
-                description: Text("답변의 모든 문장에 원문 인용이 붙습니다. 근거를 찾지 못하면 답하지 않습니다.")
-            )
+            starter
         }
     }
 
@@ -154,6 +150,77 @@ struct AnswerView: View {
                 .foregroundStyle(Theme.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// Questions that ask for a number come back `blocked` by design, so an
+    /// empty screen plus a text field invites exactly the question the guard
+    /// will withhold. These are the shapes that retrieve well against an
+    /// annual report, and they teach the rule faster than any explanation.
+    /// Korean phrasing also works against the SEC corpus — KURE-v1 is one
+    /// cross-lingual embedding space.
+    private static let suggestedQuestions = [
+        "주요 사업 부문은 무엇인가요",
+        "주요 리스크 요인은 무엇인가요",
+        "연구개발 조직은 어떻게 구성되어 있나요",
+    ]
+
+    private var starter: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Image(systemName: "text.quote")
+                        .font(.title)
+                        .foregroundStyle(Theme.inkMuted)
+                    Text("공시에 있는 것만 답합니다")
+                        .font(Theme.display(.title3))
+                        .foregroundStyle(Theme.ink)
+                    Text("답변의 모든 문장에 원문 인용이 붙습니다. 근거를 찾지 못하면 답하지 않습니다.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 28)
+                .accessibilityElement(children: .combine)
+
+                SectionHeader(title: "이렇게 물어보세요")
+
+                VStack(spacing: 9) {
+                    ForEach(Self.suggestedQuestions, id: \.self) { question in
+                        Button {
+                            Task { await ask(question) }
+                        } label: {
+                            suggestionRow(question)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(UUID(uuidString: company.id) == nil)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 8)
+            .readableWidth()
+        }
+    }
+
+    private func suggestionRow(_ question: String) -> some View {
+        HStack(spacing: 10) {
+            Text("?")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.accentColor)
+            Text(question)
+                .font(.subheadline)
+                .foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.leading)
+            Spacer(minLength: 8)
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 11)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        .overlay(
+            RoundedRectangle(cornerRadius: 2)
+                .strokeBorder(Theme.border, lineWidth: 1)
+        )
     }
 
     /// Generation takes several seconds. Replacing the screen with a bare
@@ -376,8 +443,8 @@ struct AnswerView: View {
 
     // MARK: Action
 
-    private func ask() async {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func ask(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let companyId = UUID(uuidString: company.id) else { return }
         // Clearing here, not after the response, is what makes a second
         // question possible without selecting and deleting the first one.
