@@ -42,6 +42,7 @@ struct SearchView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
+                .readableWidth()
             }
             .paperBackground()
             .toolbar {

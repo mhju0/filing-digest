@@ -181,4 +181,13 @@ extension View {
     func paperBackground() -> some View {
         self.background(Theme.paper.ignoresSafeArea())
     }
+
+    /// Caps the measure and centres what is left. Nothing here was bounded,
+    /// so in landscape and on iPad a paragraph ran the full width of the
+    /// display — the one thing an annual-report system must never do.
+    func readableWidth(_ limit: CGFloat = 640) -> some View {
+        self
+            .frame(maxWidth: limit)
+            .frame(maxWidth: .infinity)
+    }
 }

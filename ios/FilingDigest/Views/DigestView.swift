@@ -64,15 +64,19 @@ struct DigestView: View {
             .padding(.horizontal, 20)
             .padding(.top, 4)
             .padding(.bottom, 24)
+            .readableWidth()
         }
         .paperBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text("FILING DIGEST")
-                    .font(Theme.sectionLabel)
-                    .tracking(2)
-                    .foregroundStyle(Theme.inkMuted)
+                // The wordmark belongs to the root screen. Once you are inside
+                // a company, the useful thing to hold at the top is which
+                // company — the serif header scrolls away, this does not.
+                Text(company.name)
+                    .font(Theme.display(.headline))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {

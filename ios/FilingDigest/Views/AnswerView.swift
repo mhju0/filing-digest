@@ -84,6 +84,7 @@ struct AnswerView: View {
             .disabled(!canAsk)
             .accessibilityLabel("질문 전송")
         }
+        .readableWidth()
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
         .background(Theme.paper)
@@ -108,6 +109,7 @@ struct AnswerView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
+                .readableWidth()
             }
         } else if state.isLoading {
             pendingAnswer
@@ -179,6 +181,7 @@ struct AnswerView: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)
+            .readableWidth()
             .accessibilityElement(children: .combine)
             .accessibilityLabel("답변 생성 중. 질문: \(state.askedQuery)")
         }
