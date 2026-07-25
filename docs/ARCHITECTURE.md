@@ -1,7 +1,7 @@
 # Filing Digest Architecture
 
-This document describes the v0.3.0 portfolio architecture and API contract
-v0.3.
+This document describes the v0.4.0 portfolio architecture. The API contract and
+database schema remain at v0.3; v0.4 is an iOS client release.
 
 ## System overview
 

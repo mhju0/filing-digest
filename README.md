@@ -19,7 +19,7 @@ citation-grounded FastAPI retrieval pipeline.
 
 </div>
 
-> **Status:** v0.3.0, feature-complete portfolio project in maintenance mode.
+> **Status:** v0.4.0, feature-complete portfolio project in maintenance mode.
 > There is no hosted public demo; run it locally with your own DART and Upstage
 > credentials. No production data or API keys are included.
 

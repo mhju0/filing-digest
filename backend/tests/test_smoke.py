@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from app import digest_narrative
+from app import __version__, digest_narrative
 from app.llm.base import LLMResult
 from app.llm.deps import get_llm_client
 from app.main import app
@@ -52,7 +52,7 @@ UNKNOWN_ID = "99999999-9999-4999-8999-999999999999"
 def test_health() -> None:
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "version": "0.3.0"}
+    assert resp.json() == {"status": "ok", "version": __version__}
 
 
 def test_companies_search_all() -> None:
