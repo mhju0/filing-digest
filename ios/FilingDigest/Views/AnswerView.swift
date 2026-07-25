@@ -20,6 +20,9 @@ struct AnswerView: View {
 
     @StateObject private var state: AnswerState
     @State private var query = ""
+    /// Only consulted where the figures track is supplementary; a withheld
+    /// narrative expands it unconditionally.
+    @State private var figuresExpanded = false
 
     init(client: APIClient, company: Company) {
         self.client = client
@@ -49,11 +52,14 @@ struct AnswerView: View {
     private var inputBar: some View {
         HStack(spacing: 10) {
             TextField(
-                state.response == nil ? "이 회사에 대해 질문하세요" : "이어서 질문하기",
+                // "이어서" promised a thread the backend does not keep: every
+                // /answer call is single-shot and carries no history.
+                state.response == nil ? "이 회사에 대해 질문하세요" : "다른 질문하기",
                 text: $query,
                 axis: .vertical
             )
             .lineLimit(1...4)
+            .submitLabel(.send)
             .font(.body)
             .foregroundStyle(Theme.ink)
             .padding(.horizontal, 12)
@@ -104,8 +110,7 @@ struct AnswerView: View {
                 .padding(.bottom, 8)
             }
         } else if state.isLoading {
-            ProgressView("답변 생성 중…")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            pendingAnswer
         } else if let blockingError = state.blockingError {
             ContentUnavailableView {
                 Label("답변을 가져오지 못했습니다", systemImage: "exclamationmark.triangle")
@@ -141,6 +146,44 @@ struct AnswerView: View {
         }
     }
 
+    /// Generation takes several seconds. Replacing the screen with a bare
+    /// spinner took the question away with it, so the reader spent the wait
+    /// with nothing to look at and no reminder of what they had asked.
+    private var pendingAnswer: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                questionQuote
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("답변 생성 중")
+                            .font(Theme.sectionLabel)
+                            .tracking(1.2)
+                            .foregroundStyle(Theme.inkMuted)
+                    }
+                    Rectangle().fill(Theme.hairline).frame(height: 1)
+                }
+                .padding(.top, 8)
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach([1.0, 0.96, 0.88, 0.58], id: \.self) { fraction in
+                        Rectangle()
+                            .fill(Theme.hairline)
+                            .frame(height: 11)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .scaleEffect(x: fraction, anchor: .leading)
+                    }
+                }
+                Text("공시 원문에서 근거를 찾는 중입니다.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.inkMuted)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("답변 생성 중. 질문: \(state.askedQuery)")
+        }
+    }
+
     /// The asked question as an editorial pull-quote: 2px ink rule + serif.
     private var questionQuote: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -165,12 +208,18 @@ struct AnswerView: View {
             if let answer = response.answer, let evidenceIndex = state.evidenceIndex {
                 narrativeSection(answer, evidenceIndex: evidenceIndex)
             }
+            // The prose answered the question; these are reference material.
+            figuresSection(response.figures, collapsible: true)
         case .blocked:
             blockedNotice(reason: response.blockedReason)
+            // The narrative was withheld, so these values ARE the answer.
+            figuresSection(response.figures, collapsible: false)
         case .noResults:
             noResultsNotice
+            // Nothing matched the question, so the whole-company figures are
+            // unrelated to it — showing them open reads as a wrong answer.
+            figuresSection(response.figures, collapsible: true)
         }
-        figuresSection(response.figures)
     }
 
     @ViewBuilder
@@ -235,26 +284,40 @@ struct AnswerView: View {
         )
     }
 
+    /// Whole-company figures, which is every reporting period the corpus holds
+    /// for this company — 18 rows for a three-year Samsung ingest. Under a
+    /// one-paragraph answer that reads as the answer, so a supplementary
+    /// track collapses behind its own count and a load-bearing one does not.
     @ViewBuilder
-    private func figuresSection(_ figures: [Figure]) -> some View {
+    private func figuresSection(_ figures: [Figure], collapsible: Bool) -> some View {
         if !figures.isEmpty {
+            let showsRows = !collapsible || figuresExpanded
             VStack(alignment: .leading, spacing: 0) {
-                Text("확정 수치 — 구조화 공시 데이터")
-                    .font(Theme.sectionLabel)
-                    .tracking(1)
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.bottom, 4)
-                    .accessibilityAddTraits(.isHeader)
-                ForEach(Array(figures.enumerated()), id: \.offset) { index, figure in
-                    if index > 0 {
-                        Rectangle()
-                            .fill(Theme.hairline)
-                            .frame(height: 1)
+                if collapsible {
+                    Button {
+                        withAnimation(.snappy(duration: 0.22)) { figuresExpanded.toggle() }
+                    } label: {
+                        figuresHeader(count: figures.count, chevron: true)
                     }
-                    FigureRow(figure: figure)
+                    .accessibilityLabel("공시 원문 수치 \(figures.count)건")
+                    .accessibilityHint(figuresExpanded ? "접기" : "펼치기")
+                } else {
+                    figuresHeader(count: figures.count, chevron: false)
+                }
+
+                if showsRows {
+                    ForEach(Array(figures.enumerated()), id: \.offset) { index, figure in
+                        if index > 0 {
+                            Rectangle()
+                                .fill(Theme.hairline)
+                                .frame(height: 1)
+                        }
+                        FigureRow(figure: figure)
+                    }
                 }
             }
-            .padding(14)
+            .padding(.horizontal, 14)
+            .padding(.vertical, showsRows ? 8 : 0)
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(
                 RoundedRectangle(cornerRadius: 2)
@@ -263,11 +326,36 @@ struct AnswerView: View {
         }
     }
 
+    /// "확정 수치 — 구조화 공시 데이터" named the pipeline, not the thing.
+    private func figuresHeader(count: Int, chevron: Bool) -> some View {
+        HStack(spacing: 8) {
+            Text("공시 원문 수치")
+                .font(Theme.sectionLabel)
+                .tracking(1)
+            Spacer(minLength: 8)
+            Text("\(count)건")
+                .font(.caption.monospacedDigit())
+            if chevron {
+                Image(systemName: figuresExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption2.weight(.semibold))
+            }
+        }
+        .foregroundStyle(Color.accentColor)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        .accessibilityAddTraits(.isHeader)
+    }
+
     // MARK: Action
 
     private func ask() async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let companyId = UUID(uuidString: company.id) else { return }
+        // Clearing here, not after the response, is what makes a second
+        // question possible without selecting and deleting the first one.
+        // A failure is still replayable: AnswerState keeps the failed intent.
+        query = ""
+        figuresExpanded = false
         await state.submit(query: trimmed, companyID: companyId)
     }
 }
