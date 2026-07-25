@@ -51,6 +51,7 @@ scratchpad/
 CLAUDE.md
 AGENTS.md
 GEMINI.md
+docs/agents/
 .claude/
 .codex/
 .cursor/

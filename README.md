@@ -34,6 +34,8 @@ uncited claims or financial numbers in generated text.
 - Read bilingual company digests with filing-linked metric cards and YoY changes.
 - Ask cross-lingual questions and inspect claim-level excerpts plus the original
   filing source.
+- Open the regulator's original disclosure in the app from any metric card,
+  citation, or source row, without losing your place.
 - Preserve exact financial values on the authoritative figures track even when
   the narrative is blocked or no relevant passage is found.
 - Ingest the latest DART annual report or SEC 10-K from one CLI command.
@@ -73,9 +75,13 @@ The answer path has two independent tracks:
 3. Citations resolve to bounded Filing Chunk excerpts; deduplicated Filing
    Sources provide stable, openable regulator documents.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for component boundaries,
-schema decisions, and the API contract. The implemented visual system is in
-[docs/design/DESIGN.md](docs/design/DESIGN.md).
+| Document | Contents |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Component boundaries, schema decisions, API contract |
+| [CONTEXT.md](CONTEXT.md) | Domain glossary — the vocabulary the code is named after |
+| [docs/adr/](docs/adr/) | Architecture decisions and the alternatives they replaced |
+| [docs/design/DESIGN.md](docs/design/DESIGN.md) | The implemented visual system and its accessibility floor |
+| [docs/dart-api-notes.md](docs/dart-api-notes.md) | Non-obvious OpenDART response behaviors |
 
 ## Stack
 
@@ -180,7 +186,37 @@ xcodebuild -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
   -destination 'generic/platform=iOS Simulator' build
 ```
 
-The app targets `http://127.0.0.1:8001` for simulator development.
+### Run on a device
+
+The Simulator shares the host's network stack, so a fresh checkout needs no
+configuration: `APIClient` falls back to `http://127.0.0.1:8001`. On a real
+device that address is the phone itself, so the build has to be told where the
+Mac is. Create `ios/Local.xcconfig` — it is gitignored, because a signing
+identity and a LAN address belong to one machine, not to the repository:
+
+```text
+DEVELOPMENT_TEAM = YOURTEAMID
+FD_SLASH = /
+FD_BACKEND_URL = http:$(FD_SLASH)$(FD_SLASH)your-mac.local:8001
+```
+
+`//` opens a comment in an xcconfig, so a literal URL silently truncates to
+`http:`; routing the slashes through `FD_SLASH` avoids it. The value reaches the
+app as `FDBackendURL` in `ios/FilingDigest-Info.plist`, and an unset or
+malformed value falls back to loopback rather than failing the build.
+
+```bash
+xcodebuild -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
+  -xcconfig ios/Local.xcconfig -destination 'id=<device-udid>' \
+  -allowProvisioningUpdates build
+```
+
+Serve on the LAN with `--host 0.0.0.0`, and note that this exposes an
+unauthenticated API to everyone on the same Wi-Fi. macOS also blocks incoming
+connections to the venv Python binary by default; allow it in System Settings →
+Network → Firewall. App Transport Security permits the plain-HTTP dev server
+through `NSAllowsLocalNetworking`, which covers `.local` and unqualified
+hostnames only — not arbitrary internet loads.
 
 ## API
 
