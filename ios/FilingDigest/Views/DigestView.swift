@@ -21,6 +21,7 @@ struct DigestView: View {
 
     @StateObject private var state: DigestState
     @State private var language: Language = .ko
+    @State private var openFiling: OpenableFiling?
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -86,6 +87,7 @@ struct DigestView: View {
                 }
             }
         }
+        .filingSourceSheet($openFiling)
         .task(id: company.id) { await state.load(companyID: company.id) }
         .refreshable { await state.refresh() }
         .onDisappear { state.cancel() }
@@ -160,9 +162,25 @@ struct DigestView: View {
         }
 
         if !digest.metrics.isEmpty {
+            // Every card already carries the Filing Source its value came
+            // from; the card just never did anything with it. Deduplicated
+            // by contract, but never trap the UI on unexpected server data.
+            let sourcesByID = Dictionary(
+                digest.filingSources.map { ($0.id, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(digest.metrics) { metric in
-                    MetricCardView(metric: metric, language: language)
+                    if let source = sourcesByID[metric.filingSourceId],
+                       let openable = OpenableFiling(source) {
+                        Button { openFiling = openable } label: {
+                            MetricCardView(metric: metric, language: language, isOpenable: true)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("이 수치가 실린 공시를 엽니다")
+                    } else {
+                        MetricCardView(metric: metric, language: language, isOpenable: false)
+                    }
                 }
             }
         }
@@ -179,7 +197,7 @@ struct DigestView: View {
             SectionHeader(title: language == .ko ? "출처" : "SOURCES")
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(digest.filingSources) { filingSource in
-                    FilingSourceRow(filingSource: filingSource)
+                    FilingSourceRow(filingSource: filingSource) { openFiling = $0 }
                     Rectangle()
                         .fill(Theme.hairline)
                         .frame(height: 1)
@@ -203,13 +221,25 @@ struct DigestView: View {
 private struct MetricCardView: View {
     let metric: MetricCard
     let language: Language
+    let isOpenable: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(metric.label(for: language))
-                .font(.caption)
-                .foregroundStyle(Theme.inkMuted)
-                .lineLimit(1)
+            HStack(alignment: .top, spacing: 4) {
+                Text(metric.label(for: language))
+                    .font(.caption)
+                    .foregroundStyle(Theme.inkMuted)
+                    .lineLimit(1)
+                if isOpenable {
+                    Spacer(minLength: 0)
+                    // A bordered box that does nothing reads as broken; this
+                    // is the smallest mark that says the box goes somewhere.
+                    Image(systemName: "arrow.up.forward")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.inkMuted)
+                        .accessibilityHidden(true)
+                }
+            }
             Text(valueText)
                 .font(.title3.weight(.semibold))
                 .monospacedDigit()
@@ -243,30 +273,47 @@ private struct MetricCardView: View {
 // MARK: - Filing Source row
 
 /// Source row shared by DigestView and AnswerView: hairline-separated,
-/// title links to the original filing, mono metadata line.
+/// mono metadata line. The whole row opens the filing, not just the title —
+/// a two-line title is a poor tap target for the app's central action.
 struct FilingSourceRow: View {
     let filingSource: FilingSource
+    var onOpen: ((OpenableFiling) -> Void)?
 
+    @ViewBuilder
     var body: some View {
+        if let openable = OpenableFiling(filingSource), let onOpen {
+            Button { onOpen(openable) } label: { row(isOpenable: true) }
+                .buttonStyle(.plain)
+                .accessibilityHint("공시 원문을 앱에서 엽니다")
+        } else {
+            row(isOpenable: false)
+        }
+    }
+
+    private func row(isOpenable: Bool) -> some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                if let url = filingSource.openableURL {
-                    Link(filingSource.title, destination: url)
-                        .font(.subheadline.weight(.semibold))
-                } else {
-                    Text(filingSource.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.ink)
+                Text(filingSource.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(isOpenable ? Color.accentColor : Theme.ink)
+                    .multilineTextAlignment(.leading)
+                HStack(spacing: 5) {
+                    if let filedAt = filingSource.filedAt {
+                        Text(filedAt).font(.caption.monospaced())
+                    }
+                    if isOpenable {
+                        Text(filingSource.filedAt == nil ? "앱에서 열기" : "· 앱에서 열기")
+                            .font(.caption)
+                    }
                 }
-                if let filedAt = filingSource.filedAt {
-                    Text(filedAt)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(Theme.inkMuted)
-                }
+                .foregroundStyle(Theme.inkMuted)
             }
-            Spacer()
+            Spacer(minLength: 8)
             SourceBadge(source: filingSource.source)
         }
         .padding(.vertical, 12)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }

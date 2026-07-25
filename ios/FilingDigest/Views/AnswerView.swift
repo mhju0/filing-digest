@@ -20,6 +20,7 @@ struct AnswerView: View {
 
     @StateObject private var state: AnswerState
     @State private var query = ""
+    @State private var openFiling: OpenableFiling?
     /// Only consulted where the figures track is supplementary; a withheld
     /// narrative expands it unconditionally.
     @State private var figuresExpanded = false
@@ -44,6 +45,7 @@ struct AnswerView: View {
                         .foregroundStyle(Theme.ink)
                 }
             }
+            .filingSourceSheet($openFiling)
             .onDisappear { state.cancel() }
     }
 
@@ -100,16 +102,22 @@ struct AnswerView: View {
     @ViewBuilder
     private var content: some View {
         if let response = state.response {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    questionQuote
-                    requestStatus
-                    resultContent(response)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        questionQuote
+                        requestStatus
+                        resultContent(response) { markerIndex in
+                            withAnimation(.snappy) {
+                                proxy.scrollTo(Self.sourceAnchor(markerIndex), anchor: .top)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+                    .readableWidth()
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
-                .readableWidth()
             }
         } else if state.isLoading {
             pendingAnswer
@@ -204,12 +212,20 @@ struct AnswerView: View {
 
     // MARK: 3-state result
 
+    /// Scroll anchor for the source group a citation marker points at.
+    private static func sourceAnchor(_ markerIndex: Int) -> String {
+        "filing-source-\(markerIndex)"
+    }
+
     @ViewBuilder
-    private func resultContent(_ response: AnswerResponse) -> some View {
+    private func resultContent(
+        _ response: AnswerResponse,
+        onCitationTap: @escaping (Int) -> Void
+    ) -> some View {
         switch response.narrativeStatus {
         case .ok:
             if let answer = response.answer, let evidenceIndex = state.evidenceIndex {
-                narrativeSection(answer, evidenceIndex: evidenceIndex)
+                narrativeSection(answer, evidenceIndex: evidenceIndex, onCitationTap: onCitationTap)
             }
             // The prose answered the question; these are reference material.
             figuresSection(response.figures, collapsible: true)
@@ -226,10 +242,18 @@ struct AnswerView: View {
     }
 
     @ViewBuilder
-    private func narrativeSection(_ answer: Answer, evidenceIndex: AnswerEvidenceIndex) -> some View {
+    private func narrativeSection(
+        _ answer: Answer,
+        evidenceIndex: AnswerEvidenceIndex,
+        onCitationTap: @escaping (Int) -> Void
+    ) -> some View {
         SectionHeader(title: "답변")
         ForEach(Array(answer.answerSegments.enumerated()), id: \.offset) { _, segment in
-            SegmentView(segment: segment, evidenceIndex: evidenceIndex)
+            SegmentView(
+                segment: segment,
+                evidenceIndex: evidenceIndex,
+                onCitationTap: onCitationTap
+            )
         }
         if !evidenceIndex.groups.isEmpty {
             sourcesSection(evidenceIndex.groups)
@@ -246,13 +270,14 @@ struct AnswerView: View {
                     HStack(alignment: .top, spacing: 10) {
                         CitationMarker(index: index + 1)
                             .padding(.top, 14)
-                        FilingSourceRow(filingSource: group.filingSource)
+                        FilingSourceRow(filingSource: group.filingSource) { openFiling = $0 }
                     }
                     ForEach(group.citations) { citation in
                         CitationEvidenceRow(citation: citation)
                             .padding(.leading, 34)
                     }
                 }
+                .id(Self.sourceAnchor(index + 1))
                 Rectangle()
                     .fill(Theme.hairline)
                     .frame(height: 1)
@@ -407,6 +432,7 @@ private struct CitationEvidenceRow: View {
 private struct SegmentView: View {
     let segment: AnswerSegment
     let evidenceIndex: AnswerEvidenceIndex
+    let onCitationTap: (Int) -> Void
 
     private var sourceIndices: [Int] {
         var seenIndices = Set<Int>()
@@ -429,9 +455,22 @@ private struct SegmentView: View {
             if !sourceIndices.isEmpty {
                 FlowLayout(spacing: 6) {
                     ForEach(sourceIndices, id: \.self) { index in
-                        CitationMarker(index: index)
+                        // A footnote mark that does not take you to the
+                        // footnote is the one affordance this app cannot
+                        // afford to fake — evidence is the product.
+                        Button { onCitationTap(index) } label: {
+                            CitationMarker(index: index)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("출처 \(index)번")
+                        .accessibilityHint("해당 공시 출처로 이동합니다")
                     }
                 }
+                // 44pt hit areas around 16pt marks would otherwise leave a
+                // gutter under every paragraph.
+                .padding(.vertical, -12)
             }
         }
         .padding(.bottom, 4)
