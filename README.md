@@ -44,9 +44,9 @@ uncited claims or financial numbers in generated text.
 
 <img src="docs/screenshots/strip_core.png" alt="Browse, digest, cited answer, and guarded figures screens">
 
-<img src="docs/screenshots/strip_more.png" alt="SEC digest, cross-lingual search, dark mode, and no-results screens">
+<img src="docs/screenshots/strip_more.png" alt="SEC digest, a Korean question answered from a US 10-K, no results, and dark mode">
 
-<img src="docs/screenshots/walkthrough.gif" alt="Filing Digest end-to-end walkthrough"> &nbsp; <img src="docs/screenshots/answer_states.gif" alt="Answer states: ok, blocked, and no results">
+<img src="docs/screenshots/walkthrough.gif" alt="Filing Digest end-to-end walkthrough: browse, filter, digest, ask, cited answer"> &nbsp; <img src="docs/screenshots/answer_states.gif" alt="Answer states: ok, blocked, and no results">
 
 </div>
 
