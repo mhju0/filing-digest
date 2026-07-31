@@ -13,11 +13,15 @@ A bilingual iOS reader for Korean DART and US SEC filings, backed by a
 citation-grounded FastAPI retrieval pipeline.
 
 [![CI](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml/badge.svg)](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-1d5c45.svg)](LICENSE)
 ![Python 3.11](https://img.shields.io/badge/Python-3.11-3776ab.svg)
 ![iOS 17+](https://img.shields.io/badge/iOS-17%2B-black.svg)
 
 </div>
+
+## License
+
+Copyright (c) 2026 Michael Ju. All rights reserved.
+No license is granted for use, copying, modification, or distribution of this code as of 2026-07-30. This repository is public for portfolio review purposes only.
 
 > **Status:** v0.4.0, feature-complete portfolio project in maintenance mode.
 > There is no hosted public demo; run it locally with your own DART and Upstage
@@ -245,7 +249,3 @@ write endpoint.
 - `backend/db/init.sql` initializes an empty database. Versioned SQL migrations
   under `backend/db/migrations/` upgrade existing local volumes; back up the
   database before applying them.
-
-## License
-
-[MIT](LICENSE)
