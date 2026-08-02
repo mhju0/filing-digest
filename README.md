@@ -18,11 +18,6 @@ citation-grounded FastAPI retrieval pipeline.
 
 </div>
 
-## License
-
-Copyright (c) 2026 Michael Ju. All rights reserved.
-No license is granted for use, copying, modification, or distribution of this code as of 2026-07-30. This repository is public for portfolio review purposes only.
-
 > **Status:** v0.4.0, feature-complete portfolio project in maintenance mode.
 > There is no hosted public demo; run it locally with your own DART and Upstage
 > credentials. No production data or API keys are included.
@@ -249,3 +244,8 @@ write endpoint.
 - `backend/db/init.sql` initializes an empty database. Versioned SQL migrations
   under `backend/db/migrations/` upgrade existing local volumes; back up the
   database before applying them.
+
+## License
+
+Copyright (c) 2026 Michael Ju. All rights reserved.
+No license is granted for use, copying, modification, or distribution of this code as of 2026-07-30. This repository is public for portfolio review purposes only.
