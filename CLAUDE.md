@@ -36,9 +36,9 @@ FastAPI + PostgreSQL(pgvector) 백엔드.
 
 ## DB
 
-- Postgres 식별자: DB/유저 `filing_digest`, 로컬 dev 비밀번호는
-  `backend/.env`의 `DATABASE_URL`/`PGPASSWORD`에서만 읽는다(하드코딩 금지;
-  `backend/.env.example` 참고). 드라이버는 psycopg3 (`postgresql+psycopg://` DSN).
+- Postgres 식별자: DB/유저 `filing_digest`, 로컬 dev 비밀번호 `filing_digest_dev`
+  (`backend/.env.example`의 `DATABASE_URL`에도 그대로 있는 로컬 기본값).
+  드라이버는 psycopg3 (`postgresql+psycopg://` DSN).
 - 임베딩: `vector(1024)` — KURE-v1(nlpai-lab/KURE-v1). 저장 시
   `normalize_embeddings=True` 고정, 거리 함수는 cosine(`<=>`) —
   벡터 인덱스를 만들 때 반드시 `vector_cosine_ops` operator class를 쓸 것.
@@ -49,10 +49,9 @@ FastAPI + PostgreSQL(pgvector) 백엔드.
   않는다. `brew services`로 이미 상시 기동 중이라 **Docker Desktop을 켤
   필요가 없다.**
   - `backend/.env`의 `DATABASE_URL`은 `localhost:5432`.
-  - 접속: 먼저 `set -a; source backend/.env; set +a`로 `PGPASSWORD`를 불러온 뒤
-    `PGPASSWORD="$PGPASSWORD"
+  - 접속: `PGPASSWORD=filing_digest_dev
     /opt/homebrew/opt/postgresql@16/bin/psql -h localhost -p 5432
-    -U filing_digest -d filing_digest` (비밀번호는 `backend/.env`에만 둔다).
+    -U filing_digest -d filing_digest`
   - pgvector 0.8.4는 **소스 빌드**로 설치했다. `brew install pgvector`는
     postgresql@17/@18용으로만 빌드되므로 @16에는 쓸 수 없다. 재설치가
     필요하면:
