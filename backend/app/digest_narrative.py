@@ -24,9 +24,10 @@ FIXED, query-less business-overview summary for a company's filing:
   stronger no-numbers instruction; a second trip yields null summaries (the
   digest still returns its authoritative figures -- the summary is an
   enhancement, never a source of numbers).
-- CACHE: a process-local dict keyed by ``filing_id`` memoizes SUCCESSFUL
-  summaries (no TTL, no new deps). Guard-blocked / failed generations are NOT
-  cached, so a later request can retry.
+- CACHE: a process-local dict memoizes SUCCESSFUL summaries for the exact
+  retrieved Filing Chunk snapshot. Reingestion replaces chunk identities, so
+  the same Filing Identity cannot reuse stale prose. Guard-blocked / failed
+  generations are NOT cached, so a later request can retry.
 
 Unlike /answer's narrative, a digest summary carries NO per-segment citations
 (the digest already exposes a filing-level citation card), so none of the
@@ -37,6 +38,7 @@ import logging
 import re
 import unicodedata
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel
@@ -69,10 +71,15 @@ _MAX_TOKENS = 512
 # financial guard cannot.
 _ANY_DIGIT_RE = re.compile(r"\d")
 
-# Process-local memo of SUCCESSFUL summaries, keyed by filing_id (a plain dict
-# with no TTL or extra dependency). Guard-blocked/failed generations are never
-# stored so a later request gets a fresh attempt.
-_SUMMARY_CACHE: dict[uuid.UUID, tuple[str, str]] = {}
+@dataclass(frozen=True)
+class _CachedSummary:
+    snapshot_chunk_ids: frozenset[uuid.UUID]
+    summaries: tuple[str, str]
+
+
+# Process-local memo of successful summaries. Each filing retains only the
+# summary for the exact retrieved Filing Chunk snapshot that produced it.
+_SUMMARY_CACHE: dict[uuid.UUID, _CachedSummary] = {}
 
 
 class DigestNarrativeError(RuntimeError):
@@ -253,7 +260,8 @@ async def build_company_summary(
     query, no user input), then generates a guarded prose summary. Returns
     ``(None, None)`` when there are no chunks to retrieve or the number guard
     blocks the prose twice -- the caller keeps its authoritative figures either
-    way. Successful summaries are memoized by ``filing_id``.
+    way. Successful summaries are memoized by Filing Identity and the exact
+    retrieved Filing Chunk snapshot.
 
     ``filing_id``, when given by the caller (the /digest route's deterministic
     "latest filing" -- see ``routes.py``'s ``target_period`` selection), scopes
@@ -282,17 +290,18 @@ async def build_company_summary(
     # Cache key: the caller-provided (deterministic) filing_id when given,
     # else the top-retrieved chunk's filing (prior company-wide fallback).
     cache_key = filing_id if filing_id is not None else chunks[0].filing_id
+    snapshot_chunk_ids = frozenset(chunk.chunk_id for chunk in chunks)
     cached = _SUMMARY_CACHE.get(cache_key)
-    if cached is not None:
+    if cached is not None and cached.snapshot_chunk_ids == snapshot_chunk_ids:
         logger.info("digest summary cache hit for filing_id=%s", cache_key)
-        return cached
+        return cached.summaries
 
     summary = await _generate_summary(client, chunks)
     if summary is None:
         return (None, None)
 
     result = (summary.summary_ko, summary.summary_en)
-    _SUMMARY_CACHE[cache_key] = result
+    _SUMMARY_CACHE[cache_key] = _CachedSummary(snapshot_chunk_ids, result)
     logger.info(
         "digest summary generated and cached for filing_id=%s (%d source chunk(s))",
         cache_key,
