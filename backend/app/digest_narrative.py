@@ -263,8 +263,8 @@ async def build_company_summary(
     way. Successful summaries are memoized by Filing Identity and the exact
     retrieved Filing Chunk snapshot.
 
-    ``filing_id``, when given by the caller (the /digest route's deterministic
-    "latest filing" -- see ``routes.py``'s ``target_period`` selection), scopes
+    ``filing_id``, when given by the caller (the digest service's deterministic
+    "latest filing" selection), scopes
     retrieval to that ONE filing via :func:`app.search.service.search_chunks`'s
     ``filing_id`` parameter, so a multi-filing company's summary is always
     generated from its intended filing rather than whichever chunk search
@@ -272,7 +272,7 @@ async def build_company_summary(
     from) falls back to the prior company-wide retrieval.
 
     May raise :class:`DigestNarrativeError` (unparseable body) or Solar/httpx
-    transport errors -- the /digest route catches those and falls back to null
+    transport errors -- the digest service catches those and falls back to null
     summaries so a summary failure never breaks the figures response. Retrieval
     (``search_chunks``) errors are NOT swallowed here (shared infra, same as
     /search and /answer).

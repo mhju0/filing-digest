@@ -94,7 +94,7 @@ def sec_period(fiscal_year: int) -> str:
 def sec_unit_for(metric: str) -> str:
     """Return the ``financials.unit`` for a SEC metric (per-share vs absolute USD).
 
-    Mirrors ``persist.unit_for`` but in USD vocabulary: EPS metrics ->
+    EPS metrics ->
     ``UNIT_USD_PER_SHARE``, everything else -> ``UNIT_USD``. Pure.
     """
     return UNIT_USD_PER_SHARE if metric in _EPS_METRICS else UNIT_USD
@@ -216,7 +216,7 @@ def _filing_fiscal_year(filing: SecFilingItem, own_facts: list[SecFinancialItem]
     )
 
 
-# -- impure: fetch + atomic snapshot replacement + scoped indexing -----------
+# -- impure adapter fetch -----------------------------------------------------
 
 
 @dataclass(frozen=True)

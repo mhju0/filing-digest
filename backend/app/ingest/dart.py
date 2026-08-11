@@ -38,13 +38,7 @@ from app.ingest.chunking import Chunk, chunk_document
 
 logger = logging.getLogger(__name__)
 
-# -- standard vocabulary (idempotency depends on these being stable) ----------
-
-# Written verbatim into companies/filings/financials.source. financials.source
-# has NO CHECK constraint (unlike companies.source), so a typo would silently
-# create a second, non-matching row -- hence a single constant.
-SOURCE_DART = RegulatorySource.dart.value
-SOURCE_SEC = RegulatorySource.sec.value
+# -- DART financial vocabulary -----------------------------------------------
 
 # Default currency for KRW-denominated DART numbers when a row omits `currency`
 # (domestic filings report in won).
@@ -56,19 +50,10 @@ DEFAULT_CURRENCY = "KRW"
 UNIT_KRW = "KRW"  # absolute won (revenue, operating_income, net_income, ...)
 UNIT_KRW_PER_SHARE = "KRW_PER_SHARE"  # won per share (eps, eps_diluted)
 
-# Standard metric keys. These MIRROR app.clients.dart._ACCOUNT_ID_TO_METRIC (the
-# account_id -> metric mapping); DART's structured API is the single source of
-# numbers, and these are the keys it produces. Kept as named constants here so
-# the unit split (below) and any downstream reader reference one spelling.
-METRIC_REVENUE = ReportedMetric.revenue.value
-METRIC_OPERATING_INCOME = ReportedMetric.operating_income.value
-METRIC_NET_INCOME = ReportedMetric.net_income.value  # total 당기순이익
-METRIC_NET_INCOME_ATTRIBUTABLE = ReportedMetric.net_income_attributable.value
-METRIC_EPS = ReportedMetric.eps.value  # basic EPS, per-share KRW
-METRIC_EPS_DILUTED = ReportedMetric.eps_diluted.value
-
 # Per-share metrics -> UNIT_KRW_PER_SHARE; everything else -> UNIT_KRW.
-_EPS_METRICS = frozenset({METRIC_EPS, METRIC_EPS_DILUTED})
+_EPS_METRICS = frozenset(
+    {ReportedMetric.eps.value, ReportedMetric.eps_diluted.value}
+)
 
 # reprt_code (docs §3) -> (period suffix, fiscal_quarter, filing_type). The
 # `period` string is the canonical, re-run-stable identity used by the financials

@@ -17,6 +17,7 @@ from app.llm.solar import SolarApiError, SolarClientError
 from app.schemas import (
     AnswerRequest,
     AnswerResponse,
+    Figure,
     NarrativeBlockedReason,
     NarrativeStatus,
 )
@@ -24,6 +25,24 @@ from app.search.constants import SIMILARITY_THRESHOLD
 from app.search.service import search_chunks
 
 logger = logging.getLogger(__name__)
+
+
+def _answer_without_narrative(
+    request: AnswerRequest,
+    figures: list[Figure],
+    status: NarrativeStatus,
+    blocked_reason: NarrativeBlockedReason | None = None,
+) -> AnswerResponse:
+    """Build the shared figures-only response for unavailable narratives."""
+    return AnswerResponse(
+        answer=None,
+        figures=figures,
+        citations=[],
+        filing_sources=[],
+        company_id=request.company_id,
+        narrative_status=status,
+        blocked_reason=blocked_reason,
+    )
 
 
 async def build_answer_response(
@@ -41,13 +60,10 @@ async def build_answer_response(
     figures = build_figures(rows)
 
     if not chunks or chunks[0].score < SIMILARITY_THRESHOLD:
-        return AnswerResponse(
-            answer=None,
-            figures=figures,
-            citations=[],
-            filing_sources=[],
-            company_id=request.company_id,
-            narrative_status=NarrativeStatus.no_results,
+        return _answer_without_narrative(
+            request,
+            figures,
+            NarrativeStatus.no_results,
         )
 
     try:
@@ -59,14 +75,11 @@ async def build_answer_response(
             "number guard blocked narrative for company_id=%s; returning figures only",
             request.company_id,
         )
-        return AnswerResponse(
-            answer=None,
-            figures=figures,
-            citations=[],
-            filing_sources=[],
-            company_id=request.company_id,
-            narrative_status=NarrativeStatus.blocked,
-            blocked_reason=NarrativeBlockedReason.number_guard,
+        return _answer_without_narrative(
+            request,
+            figures,
+            NarrativeStatus.blocked,
+            NarrativeBlockedReason.number_guard,
         )
     except (SolarApiError, SolarClientError, httpx.HTTPError) as exc:
         logger.warning(
@@ -75,14 +88,11 @@ async def build_answer_response(
             request.company_id,
             type(exc).__name__,
         )
-        return AnswerResponse(
-            answer=None,
-            figures=figures,
-            citations=[],
-            filing_sources=[],
-            company_id=request.company_id,
-            narrative_status=NarrativeStatus.blocked,
-            blocked_reason=NarrativeBlockedReason.narrative_unavailable,
+        return _answer_without_narrative(
+            request,
+            figures,
+            NarrativeStatus.blocked,
+            NarrativeBlockedReason.narrative_unavailable,
         )
     except (CitationError, NarrativeError) as exc:
         logger.warning(
@@ -92,14 +102,11 @@ async def build_answer_response(
             type(exc).__name__,
             exc,
         )
-        return AnswerResponse(
-            answer=None,
-            figures=figures,
-            citations=[],
-            filing_sources=[],
-            company_id=request.company_id,
-            narrative_status=NarrativeStatus.blocked,
-            blocked_reason=NarrativeBlockedReason.evidence_integrity,
+        return _answer_without_narrative(
+            request,
+            figures,
+            NarrativeStatus.blocked,
+            NarrativeBlockedReason.evidence_integrity,
         )
 
     if not answer.answer_segments:
@@ -108,13 +115,10 @@ async def build_answer_response(
             "returning no_results",
             request.company_id,
         )
-        return AnswerResponse(
-            answer=None,
-            figures=figures,
-            citations=[],
-            filing_sources=[],
-            company_id=request.company_id,
-            narrative_status=NarrativeStatus.no_results,
+        return _answer_without_narrative(
+            request,
+            figures,
+            NarrativeStatus.no_results,
         )
 
     filing_ids = {chunk.filing_id for chunk in chunks}
@@ -136,14 +140,11 @@ async def build_answer_response(
             request.company_id,
             exc,
         )
-        return AnswerResponse(
-            answer=None,
-            figures=figures,
-            citations=[],
-            filing_sources=[],
-            company_id=request.company_id,
-            narrative_status=NarrativeStatus.blocked,
-            blocked_reason=NarrativeBlockedReason.evidence_integrity,
+        return _answer_without_narrative(
+            request,
+            figures,
+            NarrativeStatus.blocked,
+            NarrativeBlockedReason.evidence_integrity,
         )
 
     return AnswerResponse(
