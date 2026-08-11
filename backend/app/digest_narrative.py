@@ -269,6 +269,12 @@ async def build_company_summary(
     (``search_chunks``) errors are NOT swallowed here (shared infra, same as
     /search and /answer).
     """
+    if filing_id is not None:
+        cached = _SUMMARY_CACHE.get(filing_id)
+        if cached is not None:
+            logger.info("digest summary cache hit for filing_id=%s", filing_id)
+            return cached
+
     chunks = await search_chunks(
         session,
         query=_OVERVIEW_QUERY,

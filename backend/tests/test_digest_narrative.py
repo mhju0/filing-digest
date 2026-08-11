@@ -151,14 +151,25 @@ def test_guard_block_twice_returns_null(monkeypatch) -> None:
     assert client.calls == 2
 
 
-def test_cache_hit_calls_llm_once(monkeypatch) -> None:
-    # Only ONE body is queued: a second LLM call would AssertionError, so the
-    # second build must be served from the filing_id cache.
-    _patch_chunks(monkeypatch, [_chunk()])
+def test_explicit_cache_hit_skips_retrieval_and_llm(monkeypatch) -> None:
+    search_calls = 0
+
+    async def _tracked_search(*args, **kwargs):
+        nonlocal search_calls
+        search_calls += 1
+        return [_chunk()]
+
+    monkeypatch.setattr(digest_narrative, "search_chunks", _tracked_search)
     client = _StubClient([_CLEAN_BODY])
-    first = asyncio.run(build_company_summary(object(), client, _COMPANY_ID))
-    second = asyncio.run(build_company_summary(object(), client, _COMPANY_ID))
+    first = asyncio.run(
+        build_company_summary(object(), client, _COMPANY_ID, _FILING_ID)
+    )
+    second = asyncio.run(
+        build_company_summary(object(), client, _COMPANY_ID, _FILING_ID)
+    )
+
     assert first == second == (_CLEAN_KO, _CLEAN_EN)
+    assert search_calls == 1
     assert client.calls == 1
 
 
