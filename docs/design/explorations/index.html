@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Four UI and UX directions for the Filing Digest iOS app">
+  <title>Filing Digest — UI/UX Design Lab</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#concept-stage">Skip to mock designs</a>
+  <header class="lab-header">
+    <div>
+      <p class="eyebrow">Filing Digest / Design Lab 01</p>
+      <h1>Four ways to make<br>evidence feel inevitable.</h1>
+    </div>
+    <p class="lab-intro">Twelve screens derived from the repository’s real browse, digest, question, and citation model. Production UI is unchanged.</p>
+  </header>
+
+  <nav class="concept-tabs" aria-label="Design concepts">
+    <div class="tab-list" role="tablist" aria-label="Select a concept">
+      <button id="tab-ledger" class="concept-tab is-active" role="tab" aria-selected="true" aria-controls="concept-ledger" data-concept="ledger">
+        <span>01</span> Ledger Focus
+      </button>
+      <button id="tab-desk" class="concept-tab" role="tab" aria-selected="false" aria-controls="concept-desk" data-concept="desk" tabindex="-1">
+        <span>02</span> Research Desk
+      </button>
+      <button id="tab-signal" class="concept-tab" role="tab" aria-selected="false" aria-controls="concept-signal" data-concept="signal" tabindex="-1">
+        <span>03</span> Signal Brief
+      </button>
+      <button id="tab-thread" class="concept-tab" role="tab" aria-selected="false" aria-controls="concept-thread" data-concept="thread" tabindex="-1">
+        <span>04</span> Evidence Thread
+      </button>
+    </div>
+  </nav>
+
+  <main id="concept-stage" tabindex="-1">
+    <section id="concept-ledger" class="concept concept-ledger is-active" role="tabpanel" aria-labelledby="tab-ledger" data-panel="ledger">
+      <div class="concept-heading">
+        <div>
+          <p class="concept-number">Concept 01 / Evolution</p>
+          <h2>Ledger Focus</h2>
+        </div>
+        <p>Refine the annual-report language into a calmer index, a stronger figure hierarchy, and evidence that opens without breaking reading position.</p>
+      </div>
+      <ol class="flow-rail" aria-label="Ledger Focus flow">
+        <li><span>1</span> Index</li><li><span>2</span> Folio</li><li><span>3</span> Ask</li><li><span>4</span> Verify</li>
+      </ol>
+      <div class="screen-grid">
+        <article class="screen-card">
+          <p class="screen-label">01 — 회사 색인</p>
+          <div class="phone ledger-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="appbar"><span class="mini-wordmark">FILING DIGEST</span><button class="icon-button" aria-label="저장한 회사 열기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg></button></div>
+            <div class="phone-body">
+              <p class="folio-id">수집된 공시 / 회사 8곳</p>
+              <h3>공시를,<br>읽을 수 있게.</h3>
+              <p class="lede">구조화된 수치. 인용된 설명. 원문까지 한 번에.</p>
+              <label class="search-box"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><span>회사 또는 티커</span><kbd>⌘K</kbd></label>
+              <div class="section-rule"><span>최근 본 회사</span><span>2</span></div>
+              <button class="index-feature">
+                <span class="index-rank">01</span><span><strong>삼성전자</strong><small>005930 · 코스피</small></span><span class="source-tag">DART</span><span>→</span>
+              </button>
+              <button class="index-feature">
+                <span class="index-rank">02</span><span><strong>애플</strong><small>AAPL · 나스닥</small></span><span class="source-tag neutral">SEC</span><span>→</span>
+              </button>
+              <div class="section-rule"><span>전체 회사</span><span>8</span></div>
+              <div class="compact-index"><span>SK하이닉스</span><span>000660</span><span>›</span></div>
+              <div class="compact-index"><span>현대자동차</span><span>005380</span><span>›</span></div>
+              <div class="compact-index"><span>엔비디아</span><span>NVDA</span><span>›</span></div>
+            </div>
+          </div>
+          <p class="screen-note">최근 본 회사와 전체 회사를 분리해, 제한된 공시 목록을 빠르게 훑을 수 있습니다.</p>
+        </article>
+
+        <article class="screen-card">
+          <p class="screen-label">02 — 회사 요약</p>
+          <div class="phone ledger-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="appbar"><button class="icon-button" aria-label="뒤로 가기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><span class="mini-wordmark localized">삼성전자</span><button class="icon-button" aria-label="이 회사에 질문하기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v11H9l-4 3z"/><path d="M9.5 9a2.5 2.5 0 1 1 3.3 2.4c-.8.3-.8 1.1-.8 1.1M12 14.5v.2"/></svg></button></div>
+            <div class="phone-body">
+              <div class="company-kicker"><span>005930 / 코스피</span><span class="source-tag">DART</span></div>
+              <h3>삼성전자</h3>
+              <div class="period-row"><span>2025년 사업보고서</span><button class="language-switch" aria-label="표시 언어 변경"><span aria-current="true">한국어</span><span>영어</span></button></div>
+              <div class="hero-metric">
+                <span>매출액</span><strong>333.6<span>조 원</span></strong><small class="positive">↑ 전년 대비 16.2%</small>
+              </div>
+              <div class="metric-strip">
+                <div><small>영업이익</small><strong>43.6조</strong><span>+129%</span></div>
+                <div><small>당기순이익</small><strong>45.2조</strong><span>+21.4%</span></div>
+                <div><small>주당순이익</small><strong>6,605원</strong><span>+18.1%</span></div>
+              </div>
+              <button class="primary-line">이 회사에 질문하기 <span>→</span></button>
+              <div class="section-rule"><span>핵심 요약</span><span>01</span></div>
+              <p class="body-copy">반도체 업황 회복과 메모리 수요가 실적 개선을 이끌었습니다. 모바일과 가전 부문은 수익성 중심의 운영을 이어갔습니다.</p>
+              <button class="source-line"><span><small>근거 공시</small><strong>2025년 사업보고서</strong></span><span>원문 열기 ↗</span></button>
+            </div>
+          </div>
+          <p class="screen-note">대표 수치 하나를 먼저 읽고, 나머지 수치는 같은 기준선에서 빠르게 비교합니다.</p>
+        </article>
+
+        <article class="screen-card">
+          <p class="screen-label">03 — 답변과 근거 서랍</p>
+          <div class="phone ledger-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="appbar"><button class="icon-button" aria-label="뒤로 가기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><span class="mini-wordmark localized">삼성전자 / 답변</span><button class="icon-button" aria-label="답변 닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
+            <div class="phone-body answer-body">
+              <p class="question-line">“주요 리스크 요인은 무엇인가요”</p>
+              <div class="section-rule"><span>답변 / 주장 3개</span><span>근거 확인됨</span></div>
+              <p class="answer-copy">주요 리스크는 시장위험, 신용위험, 유동성위험으로 구분됩니다. 각 위험을 정기적으로 측정하고 관리 정책을 운영합니다. <button class="cite-square" aria-label="근거 1 열기">1</button></p>
+              <p class="answer-copy">환율과 금리 변동은 손익에 영향을 줄 수 있으며, 회사는 파생상품과 한도를 통해 노출을 관리합니다. <button class="cite-square" aria-label="근거 1 열기">1</button> <button class="cite-square" aria-label="근거 2 열기">2</button></p>
+              <div class="evidence-drawer">
+                <div class="drawer-handle"></div>
+                <div class="drawer-title"><span><small>근거 01</small><strong>시장위험 관리</strong></span><button aria-label="근거 닫기">×</button></div>
+                <blockquote>“당사는 시장위험, 신용위험 및 유동성위험을 식별하고 평가하여…”</blockquote>
+                <div class="source-meta"><span>2025년 사업보고서 · 원문 구역 42</span><span>DART</span></div>
+                <button class="primary-fill">공시 원문에서 보기 <span>↗</span></button>
+              </div>
+            </div>
+          </div>
+          <p class="screen-note">근거를 서랍으로 열어, 확인 중인 주장과 원문 발췌를 한 화면에서 함께 봅니다.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="concept-desk" class="concept concept-desk" role="tabpanel" aria-labelledby="tab-desk" data-panel="desk" hidden>
+      <div class="concept-heading">
+        <div><p class="concept-number">Concept 02 / Workspace</p><h2>Research Desk</h2></div>
+        <p>A high-density analyst surface: command-driven discovery, compact figures, and a persistent source inspector that turns verification into the default state.</p>
+      </div>
+      <ol class="flow-rail" aria-label="Research Desk flow"><li><span>1</span> Command</li><li><span>2</span> Workspace</li><li><span>3</span> Select</li><li><span>4</span> Inspect</li></ol>
+      <div class="screen-grid">
+        <article class="screen-card">
+          <p class="screen-label">01 — Command home</p>
+          <div class="phone desk-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="desk-top"><span class="desk-mark">FD<span>]</span></span><button class="icon-button" aria-label="Open settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg></button></div>
+            <div class="phone-body">
+              <p class="desk-overline">RESEARCH CONSOLE</p>
+              <h3>What are you<br>checking today?</h3>
+              <label class="command-box"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><span>Company, ticker, or question</span></label>
+              <div class="quick-commands"><button>⌘ Company</button><button>↗ Filing</button><button>? Ask</button></div>
+              <div class="desk-section"><span>RECENT WORKSPACES</span><span>UPDATED</span></div>
+              <button class="workspace-row"><span class="desk-source dart">DA</span><span><strong>삼성전자</strong><small>FY2025 annual filing</small></span><span><b>3</b><small>sources</small></span><span>›</span></button>
+              <button class="workspace-row"><span class="desk-source sec">SE</span><span><strong>Apple Inc.</strong><small>FY2025 10-K</small></span><span><b>2</b><small>sources</small></span><span>›</span></button>
+              <div class="desk-section"><span>INDEX STATUS</span><span>8 / 8 READY</span></div>
+              <div class="status-grid"><div><span>4</span><small>DART</small></div><div><span>4</span><small>SEC</small></div><div><span>100%</span><small>INDEXED</small></div></div>
+            </div>
+            <nav class="desk-tabs" aria-label="Research Desk primary"><button class="active"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><span>Command</span></button><button><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>Workspaces</span></button><button><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg><span>Sources</span></button></nav>
+          </div>
+          <p class="screen-note">The start screen behaves like a research command palette, with corpus readiness shown as product trust metadata.</p>
+        </article>
+
+        <article class="screen-card">
+          <p class="screen-label">02 — Dense brief workspace</p>
+          <div class="phone desk-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="desk-top"><button class="icon-button" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><span class="desk-title">SAMSUNG ELECTRONICS</span><button class="icon-button" aria-label="More options"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+            <div class="phone-body desk-brief">
+              <div class="desk-company"><span><small>005930 · KOSPI</small><strong>삼성전자</strong></span><span class="desk-pill">DART / FY25</span></div>
+              <div class="seg-tabs"><button class="active">Brief</button><button>Ask</button><button>Sources <b>1</b></button></div>
+              <div class="ticker-grid"><div><small>REVENUE</small><strong>333.6조</strong><span class="up">▲ 16.2%</span></div><div><small>OP. INCOME</small><strong>43.6조</strong><span class="up">▲ 129%</span></div><div><small>NET INCOME</small><strong>45.2조</strong><span class="up">▲ 21.4%</span></div><div><small>EPS</small><strong>6,605</strong><span class="up">▲ 18.1%</span></div></div>
+              <div class="desk-section"><span>NARRATIVE BRIEF</span><span>KO / EN</span></div>
+              <p class="desk-copy">반도체 업황 회복과 고부가 메모리 수요가 실적 개선을 이끌었습니다. 회사는 수익성 중심의 제품 믹스를 강화하고 있습니다.</p>
+              <div class="desk-section"><span>FIGURE LEDGER</span><span>4 ROWS</span></div>
+              <div class="data-table"><div class="thead"><span>METRIC</span><span>FY25</span><span>YoY</span></div><button><span>매출액</span><b>333.6조</b><i>+16.2%</i></button><button><span>영업이익</span><b>43.6조</b><i>+129%</i></button><button><span>당기순이익</span><b>45.2조</b><i>+21.4%</i></button></div>
+              <button class="desk-cta">ASK THIS FILING <span>→</span></button>
+            </div>
+            <nav class="desk-tabs" aria-label="Workspace sections"><button class="active"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M9 4v16M9 10h11"/></svg><span>Brief</span></button><button><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v11H9l-4 3z"/><path d="M10 9a2 2 0 1 1 2.7 1.9c-.7.3-.7 1.1-.7 1.1M12 14h.01"/></svg><span>Ask</span></button><button><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg><span>Sources</span></button></nav>
+          </div>
+          <p class="screen-note">Tabs become columns on iPad; the figure ledger and narrative remain independently scannable.</p>
+        </article>
+
+        <article class="screen-card">
+          <p class="screen-label">03 — Answer + inspector</p>
+          <div class="phone desk-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="desk-top"><button class="icon-button" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><span class="desk-title">ANSWER / 003</span><button class="icon-button" aria-label="Export answer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4M5 13v7h14v-7"/></svg></button></div>
+            <div class="phone-body desk-answer">
+              <div class="desk-query"><small>QUERY</small><p>주요 리스크 요인은 무엇인가요</p><span>3 claims · 2 evidence excerpts</span></div>
+              <div class="claim active"><div><span>CLAIM 01</span><button aria-label="Open evidence 1">E1 ↗</button></div><p>시장위험, 신용위험, 유동성위험을 주요 재무 위험으로 관리합니다.</p></div>
+              <div class="claim"><div><span>CLAIM 02</span><button aria-label="Open evidence 2">E2 ↗</button></div><p>환율과 금리 변동 노출을 한도와 파생상품으로 관리합니다.</p></div>
+              <aside class="inspector">
+                <div class="inspector-head"><span><small>ACTIVE EVIDENCE</small><strong>E1 · 시장위험 관리</strong></span><span class="desk-pill">DART</span></div>
+                <blockquote>당사는 시장위험, 신용위험 및 유동성위험을 식별하고 평가하여 영향을 최소화하고 있습니다.</blockquote>
+                <div class="inspector-meta"><span>Section 42 · chunk 128</span><span>FY2025</span></div>
+                <button>OPEN REGULATOR FILING <span>↗</span></button>
+              </aside>
+            </div>
+            <div class="desk-composer"><span>Ask another question</span><button aria-label="Send question">↑</button></div>
+          </div>
+          <p class="screen-note">Selecting a claim swaps the inspector in place; regular width pins this inspector as the third column.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="concept-signal" class="concept concept-signal" role="tabpanel" aria-labelledby="tab-signal" data-panel="signal" hidden>
+      <div class="concept-heading">
+        <div><p class="concept-number">Concept 03 / Briefing</p><h2>Signal Brief</h2></div>
+        <p>A warmer, scan-first experience organized around what changed. It creates a reason to return while keeping the complete company index one tap away.</p>
+      </div>
+      <ol class="flow-rail" aria-label="Signal Brief flow"><li><span>1</span> Latest</li><li><span>2</span> Brief</li><li><span>3</span> Explain</li><li><span>4</span> Source</li></ol>
+      <div class="screen-grid">
+        <article class="screen-card">
+          <p class="screen-label">01 — Latest briefing feed</p>
+          <div class="phone signal-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="signal-appbar"><span class="signal-logo">Filing<span>Digest</span></span><button class="avatar" aria-label="Open profile">MJ</button></div>
+            <div class="phone-body">
+              <div class="signal-greeting"><p>Tuesday, 11 August</p><h3>오늘의 공시 브리핑</h3><span>최근 수집된 연차보고서에서 확인한 변화입니다.</span></div>
+              <article class="lead-brief">
+                <div class="brief-top"><span class="company-orb">삼</span><span><strong>삼성전자</strong><small>FY2025 · DART</small></span><span class="new-pill">NEW</span></div>
+                <h4>영업이익이 전년보다 크게 늘었습니다.</h4>
+                <div class="change-stat"><strong>43.6조 원</strong><span>전년 대비 +129%</span></div>
+                <div class="spark" aria-label="Operating income rose over three periods"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <button>3분 브리핑 읽기 <span>→</span></button>
+              </article>
+              <div class="signal-section"><span>MORE UPDATES</span><button>전체 회사</button></div>
+              <button class="update-card"><span class="company-orb apple">A</span><span><strong>Apple Inc.</strong><small>매출액 +6.4%</small></span><b>416.2B</b><span>›</span></button>
+              <button class="update-card"><span class="company-orb nvidia">N</span><span><strong>NVIDIA</strong><small>신규 10-K 수집</small></span><b>10-K</b><span>›</span></button>
+            </div>
+            <nav class="signal-tabs" aria-label="Signal Brief primary"><button class="active"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7v9h-6v-6h-4v6H4z"/></svg>Today</button><button><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9l5-3v14m0-8 6-3v11m0-7 5 2v5M7 10h.01M7 14h.01M12 13h.01M12 17h.01"/></svg>Companies</button><button><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg>Saved</button></nav>
+          </div>
+          <p class="screen-note">A latest-first feed creates return value; exhaustive browse remains a labeled destination, never hidden.</p>
+        </article>
+
+        <article class="screen-card">
+          <p class="screen-label">02 — Narrative briefing</p>
+          <div class="phone signal-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="signal-appbar"><button class="icon-button" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><span class="signal-title">삼성전자</span><button class="icon-button" aria-label="Save briefing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg></button></div>
+            <div class="phone-body signal-detail">
+              <div class="brief-hero"><span class="source-chip">DART · FY2025</span><h3>회복의 숫자,<br>수익성의 과제.</h3><p>사업보고서에서 읽은 세 가지 핵심 변화</p></div>
+              <div class="signal-card emphasis"><div><span>01</span><small>OPERATING INCOME</small></div><strong>43.6조 원</strong><p><b>전년 대비 +129%</b> · 반도체 업황 회복이 이익 개선을 이끌었습니다.</p><button>왜 늘었나요? <span>→</span></button></div>
+              <div class="signal-pair"><div><small>매출액</small><strong>333.6조</strong><span>+16.2%</span></div><div><small>순이익</small><strong>45.2조</strong><span>+21.4%</span></div></div>
+              <div class="signal-section"><span>IN PLAIN LANGUAGE</span><span>2 MIN</span></div>
+              <p class="signal-copy">고부가 메모리 수요가 회복되며 실적이 개선됐습니다. 다만 환율과 경쟁 심화는 다음 기간에도 확인할 위험입니다.</p>
+              <button class="source-proof"><span><small>PROOF ATTACHED</small><strong>사업보고서 원문 수치 4건</strong></span><span>보기 →</span></button>
+            </div>
+          </div>
+          <p class="screen-note">The briefing explains the meaning of a change, while exact figures remain a clearly attached proof layer.</p>
+        </article>
+
+        <article class="screen-card">
+          <p class="screen-label">03 — Contextual explanation</p>
+          <div class="phone signal-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="signal-appbar"><button class="icon-button" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><span class="signal-title">영업이익 · 설명</span><button class="icon-button" aria-label="More options"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+            <div class="phone-body signal-explain">
+              <div class="asked-signal"><small>YOU ASKED</small><p>영업이익은 왜 늘었나요?</p></div>
+              <div class="answer-status"><span><i></i> 2개 근거로 확인됨</span><span>FY2025</span></div>
+              <h3>반도체 부문의 회복이 가장 큰 배경입니다.</h3>
+              <p>메모리 수요와 가격 환경이 개선됐고, 고부가 제품 비중이 늘며 수익성이 회복됐습니다. <button class="signal-cite">근거 1</button></p>
+              <p>모바일과 가전 부문은 수익성 중심의 운영을 이어가 전체 이익을 뒷받침했습니다. <button class="signal-cite">근거 2</button></p>
+              <article class="proof-card"><div><span><small>EVIDENCE 01</small><strong>사업 부문별 실적</strong></span><span class="source-chip">DART</span></div><blockquote>“메모리 시장은 고용량·고성능 제품 수요를 중심으로…”</blockquote><span>사업보고서 2025 · section 18</span><button>원문에서 확인하기 <b>↗</b></button></article>
+            </div>
+            <div class="signal-composer"><span>이어서 묻지 않고, 새 질문하기</span><button aria-label="Compose another question">＋</button></div>
+          </div>
+          <p class="screen-note">Questions originate from a visible signal, while copy clarifies that each submission is a new single-shot question.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="concept-thread" class="concept concept-thread" role="tabpanel" aria-labelledby="tab-thread" data-panel="thread" hidden>
+      <div class="concept-heading">
+        <div><p class="concept-number">Concept 04 / Question-first</p><h2>Evidence Thread</h2></div>
+        <p>A question-first redesign where each claim and excerpt form one navigable proof path. Browse supports the task; it no longer defines the home screen.</p>
+      </div>
+      <ol class="flow-rail" aria-label="Evidence Thread flow"><li><span>1</span> Compose</li><li><span>2</span> Claims</li><li><span>3</span> Map</li><li><span>4</span> Filing</li></ol>
+      <div class="screen-grid">
+        <article class="screen-card">
+          <p class="screen-label">01 — Question composer</p>
+          <div class="phone thread-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="thread-appbar"><span class="bracket-mark">[<b>FD</b>]</span><button class="icon-button" aria-label="Open company index"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button></div>
+            <div class="phone-body">
+              <p class="thread-overline">ASK THE PUBLIC RECORD</p>
+              <h3>질문에서<br><em>근거까지.</em></h3>
+              <p class="thread-lede">회사 공시 안에서만 찾고, 모든 답변을 원문과 연결합니다.</p>
+              <div class="company-selector"><span class="thread-source">D</span><span><small>ASKING ABOUT</small><strong>삼성전자 · 005930</strong></span><button aria-label="Change company">⌄</button></div>
+              <label class="thread-compose"><span>무엇을 확인할까요?</span><textarea aria-label="Question" placeholder="예: 주요 리스크 요인은 무엇인가요"></textarea><button>근거와 함께 답하기 <b>→</b></button></label>
+              <div class="thread-section"><span>GOOD QUESTION SHAPES</span><span>03</span></div>
+              <button class="prompt-card"><span>01</span><p>주요 사업 부문은 무엇인가요</p><span>→</span></button>
+              <button class="prompt-card"><span>02</span><p>주요 리스크 요인은 무엇인가요</p><span>→</span></button>
+              <button class="browse-link">질문 대신 회사 둘러보기 <span>→</span></button>
+            </div>
+          </div>
+          <p class="screen-note">Company scope is explicit inside the composer; suggested shapes teach what the evidence pipeline answers well.</p>
+        </article>
+
+        <article class="screen-card">
+          <p class="screen-label">02 — Claim-by-claim answer</p>
+          <div class="phone thread-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="thread-appbar"><button class="icon-button" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><span class="thread-title">삼성전자 / ANSWER</span><button class="icon-button" aria-label="Show source map"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="12" r="2"/><circle cx="7" cy="19" r="2"/><path d="m8 7 8 4m0 2-7 5"/></svg></button></div>
+            <div class="phone-body thread-answer">
+              <div class="thread-question"><small>QUESTION 04</small><p>주요 리스크 요인은 무엇인가요?</p><span>3 claims · 1 filing · 2 excerpts</span></div>
+              <div class="thread-section"><span>ANSWER THREAD</span><span>GROUNDED</span></div>
+              <article class="thread-claim"><span class="claim-no">01</span><div><p>시장위험, 신용위험, 유동성위험을 주요 재무 위험으로 구분합니다.</p><button><i>1</i><span><small>EVIDENCE</small>시장위험 관리 · section 42</span><b>→</b></button></div></article>
+              <article class="thread-claim"><span class="claim-no">02</span><div><p>환율과 금리 변동은 손익과 자본에 영향을 줄 수 있습니다.</p><button><i>1</i><span><small>SAME SOURCE</small>시장위험 관리 · section 42</span><b>→</b></button></div></article>
+              <article class="thread-claim"><span class="claim-no">03</span><div><p>한도 설정과 파생상품을 통해 위험 노출을 관리합니다.</p><button><i>2</i><span><small>EVIDENCE</small>금융위험 관리 · section 43</span><b>→</b></button></div></article>
+              <button class="source-map-button"><span>증거 경로 전체 보기</span><span>3 claims → 2 excerpts → 1 filing</span><b>↗</b></button>
+            </div>
+          </div>
+          <p class="screen-note">Every paragraph is a claim object with its proof attached, reducing travel between prose and detached footnotes.</p>
+        </article>
+
+        <article class="screen-card">
+          <p class="screen-label">03 — Evidence source map</p>
+          <div class="phone thread-phone">
+            <div class="status"><span>9:41</span><span>● ◒</span></div>
+            <div class="thread-appbar"><button class="icon-button" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button><span class="thread-title">EVIDENCE MAP</span><button class="icon-button" aria-label="Help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.3 2.3 0 1 1 3 2.2c-.8.3-.8 1.3-.8 1.3M12 16h.01"/></svg></button></div>
+            <div class="phone-body evidence-map">
+              <div class="map-summary"><small>TRACE COMPLETE</small><strong>3</strong><span>claims</span><b>→</b><strong>2</strong><span>excerpts</span><b>→</b><strong>1</strong><span>filing</span></div>
+              <div class="map-filing"><div><span class="thread-source">D</span><span><small>PRIMARY FILING</small><strong>삼성전자 사업보고서 2025</strong><em>DART · filed 2026-03-10</em></span></div><button>공시 원문 열기 <span>↗</span></button></div>
+              <div class="map-tree">
+                <article><span class="tree-line"></span><header><i>1</i><span><small>EXCERPT 01</small><strong>시장위험 관리</strong></span></header><blockquote>“시장위험, 신용위험 및 유동성위험을 식별하고 평가하여…”</blockquote><footer><span>supports claims</span><b>01</b><b>02</b><em>section 42</em></footer></article>
+                <article><span class="tree-line"></span><header><i>2</i><span><small>EXCERPT 02</small><strong>금융위험 관리</strong></span></header><blockquote>“한도 설정 및 파생상품 거래를 통하여 위험을 관리…”</blockquote><footer><span>supports claim</span><b>03</b><em>section 43</em></footer></article>
+              </div>
+              <p class="map-caption">Each claim resolves through a bounded excerpt to one openable regulator filing.</p>
+            </div>
+          </div>
+          <p class="screen-note">The map makes evidence integrity legible: many claims may share excerpts, and many excerpts may share one filing.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lab-footer"><p>Filing Digest UI/UX exploration · August 2026</p><p>Four concepts / twelve screens / one evidence contract</p></footer>
+  <script src="app.js"></script>
+</body>
+</html>
