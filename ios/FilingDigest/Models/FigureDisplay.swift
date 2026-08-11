@@ -17,6 +17,17 @@
 
 import Foundation
 
+struct FormattedFigureValue: Equatable {
+    let number: String
+    let unit: String
+    let separator: String
+
+    var combined: String {
+        guard !unit.isEmpty else { return number }
+        return "\(number)\(separator)\(unit)"
+    }
+}
+
 enum FigureDisplay {
 
     // MARK: - Tables (raw key -> (ko, en))
@@ -75,11 +86,21 @@ enum FigureDisplay {
     /// else keeps the exact grouped number. Display-only — the exact value
     /// still lives in the model and callers may show it alongside.
     static func formattedValue(_ value: Double, unit: String, language: Language) -> String {
+        formattedValueParts(value, unit: unit, language: language).combined
+    }
+
+    /// The same display value split into typographic roles so a large figure
+    /// and its smaller unit can share a reliable first-text baseline.
+    static func formattedValueParts(
+        _ value: Double,
+        unit: String,
+        language: Language
+    ) -> FormattedFigureValue {
         let magnitude = abs(value)
 
-        func scaled(_ divisor: Double, _ suffix: String) -> String {
+        func scaled(_ divisor: Double, _ suffix: String) -> FormattedFigureValue {
             let n = (value / divisor).formatted(.number.precision(.fractionLength(0...1)))
-            return "\(n)\(suffix)"
+            return FormattedFigureValue(number: n, unit: suffix, separator: "")
         }
 
         switch unit {
@@ -101,6 +122,10 @@ enum FigureDisplay {
 
         let number = value.formatted(.number.precision(.fractionLength(0...2)))
         let unitText = unitName(unit, language: language)
-        return unit.isEmpty ? number : "\(number)\(language == .ko ? "" : " ")\(unitText)"
+        return FormattedFigureValue(
+            number: number,
+            unit: unit.isEmpty ? "" : unitText,
+            separator: unit.isEmpty || language == .ko ? "" : " "
+        )
     }
 }

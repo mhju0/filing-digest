@@ -27,6 +27,10 @@ struct AnswerEvidenceTests {
         #expect(index.sourceIndex(forCitationID: third.id) == 2)
         #expect(index.groups.map(\.filingSource.id) == [firstSource.id, secondSource.id])
         #expect(index.groups[0].citations.map(\.excerpt) == ["second", "first"])
+        #expect(index.group(atSourceIndex: 1)?.filingSource.id == firstSource.id)
+        #expect(index.group(atSourceIndex: 2)?.filingSource.id == secondSource.id)
+        #expect(index.group(atSourceIndex: 0) == nil)
+        #expect(index.group(atSourceIndex: 3) == nil)
     }
 
     @Test("an unresolved Citation fails closed")

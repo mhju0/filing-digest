@@ -458,9 +458,133 @@ struct FigureDisplayFormattingTests {
             FigureDisplay.formattedValue(2_131, unit: "KRW", language: .ko) == "2,131원"
         )
     }
+
+    @Test("Formatted values expose aligned number and unit roles")
+    func valueParts() {
+        let korean = FigureDisplay.formattedValueParts(
+            333_600_000_000_000,
+            unit: "KRW",
+            language: .ko
+        )
+        #expect(korean.number == "333.6")
+        #expect(korean.unit == "조 원")
+        #expect(korean.combined == "333.6조 원")
+
+        let english = FigureDisplay.formattedValueParts(
+            391_035_000_000,
+            unit: "USD",
+            language: .en
+        )
+        #expect(english.number == "391")
+        #expect(english.unit == "B USD")
+        #expect(english.combined == "391B USD")
+    }
 }
 
-@Suite("SearchView browse-first filtering and grouping")
+@Suite("Korean company and market display")
+struct KoreanDisplayTests {
+    @Test("Common US company names and market names are localized")
+    func localizedNames() {
+        let apple = Company(
+            id: UUID().uuidString,
+            name: "Apple Inc.",
+            nameEn: "Apple Inc.",
+            ticker: "AAPL",
+            market: .nasdaq,
+            source: .sec
+        )
+
+        #expect(apple.koreanDisplayName == "애플")
+        #expect(apple.koreanSecurityIdentifier == "티커 AAPL")
+
+        let naver = Company(
+            id: "naver",
+            name: "NAVER",
+            nameEn: "NAVER Corporation",
+            ticker: "035420",
+            market: .kospi,
+            source: .dart
+        )
+        #expect(naver.koreanDisplayName == "네이버")
+        #expect(naver.koreanSecurityIdentifier == "종목코드 035420")
+        #expect(Market.kospi.koreanDisplayName == "코스피")
+        #expect(Market.nasdaq.koreanDisplayName == "나스닥")
+        #expect(Market.nyse.koreanDisplayName == "뉴욕증권거래소")
+    }
+
+    @Test("Unknown companies keep their disclosed name")
+    func unknownNameFallback() {
+        let company = Company(
+            id: UUID().uuidString,
+            name: "Example Holdings",
+            nameEn: nil,
+            ticker: "EXM",
+            market: .nyse,
+            source: .sec
+        )
+
+        #expect(company.koreanDisplayName == "Example Holdings")
+        #expect(company.koreanSecurityIdentifier == "티커 EXM")
+    }
+
+    @Test("Korean numeric stock codes are explicitly labeled")
+    func koreanStockCodeLabel() {
+        let samsung = Company(
+            id: UUID().uuidString,
+            name: "삼성전자",
+            nameEn: "Samsung Electronics",
+            ticker: "005930",
+            market: .kospi,
+            source: .dart
+        )
+
+        #expect(samsung.koreanSecurityIdentifier == "종목코드 005930")
+    }
+}
+
+@Suite("Digest Ledger metric hierarchy")
+struct DigestMetricHierarchyTests {
+    @Test("Revenue leads the folio regardless of API order")
+    func revenueIsHeroMetric() {
+        let metrics = [
+            metric(.eps, label: "주당순이익"),
+            metric(.netIncome, label: "당기순이익"),
+            metric(.revenue, label: "매출액"),
+            metric(.operatingIncome, label: "영업이익"),
+        ]
+
+        #expect(DigestView.orderedMetrics(metrics).map(\.key) == [
+            .revenue, .operatingIncome, .netIncome, .eps,
+        ])
+    }
+
+    @Test("Unknown future ordering preserves API order after known metrics")
+    func stableKnownMetricOrder() {
+        let metrics = [
+            metric(.operatingMargin, label: "영업이익률"),
+            metric(.epsDiluted, label: "희석주당순이익"),
+        ]
+
+        #expect(DigestView.orderedMetrics(metrics).map(\.key) == [
+            .epsDiluted, .operatingMargin,
+        ])
+    }
+
+    private func metric(_ key: FinancialMetric, label: String) -> MetricCard {
+        MetricCard(
+            key: key,
+            labelKo: label,
+            labelEn: label,
+            value: 1,
+            unit: "KRW",
+            yoyDeltaPct: nil,
+            source: .dart,
+            filingSourceId: "source"
+        )
+    }
+}
+
+@Suite("SearchView Ledger index filtering, ordering, and recents")
 struct SearchFilterTests {
     private static func company(
         _ name: String, nameEn: String? = nil, ticker: String? = nil,
@@ -490,16 +614,35 @@ struct SearchFilterTests {
         #expect(SearchView.filter(corpus, query: "삼성").map(\.name) == ["삼성전자"])
         #expect(SearchView.filter(corpus, query: "hynix").map(\.name) == ["SK하이닉스"])
         #expect(SearchView.filter(corpus, query: "msft").map(\.name) == ["MICROSOFT CORP"])
+        #expect(SearchView.filter(corpus, query: "애플").map(\.name) == ["Apple Inc."])
         #expect(SearchView.filter(corpus, query: "카카오").isEmpty)
     }
 
-    @Test("Grouping is DART then SEC, dropping empty groups, preserving order")
-    func grouping() {
-        let groups = SearchView.grouped(corpus)
-        #expect(groups.map(\.source) == [.dart, .sec])
-        #expect(groups[0].companies.map(\.name) == ["삼성전자", "SK하이닉스"])
+    @Test("All companies use their Korean display names for ordering")
+    func ordering() {
+        #expect(SearchView.ordered(corpus).map(\.koreanDisplayName) == [
+            "SK하이닉스", "마이크로소프트", "삼성전자", "애플",
+        ])
+    }
 
-        let secOnly = SearchView.grouped(corpus.filter { $0.source == .sec })
-        #expect(secOnly.map(\.source) == [.sec])
+    @Test("Recent companies move to the front, deduplicate, and stay bounded")
+    func recents() {
+        let companies = corpus
+        let first = companies[0].id
+        let second = companies[1].id
+        let third = companies[2].id
+
+        let existing = SearchView.updatedRecentIDs(opening: second, existing: [first])
+        #expect(existing == [second, first])
+
+        let repeated = SearchView.updatedRecentIDs(opening: first, existing: existing)
+        #expect(repeated == [first, second])
+
+        let bounded = SearchView.updatedRecentIDs(opening: third, existing: repeated)
+        #expect(bounded == [third, first])
+        #expect(SearchView.recentCompanies(in: companies, storedIDs: bounded).map(\.id) == bounded)
+
+        let storage = bounded.joined(separator: ",")
+        #expect(SearchView.recentIDs(from: storage) == bounded)
     }
 }

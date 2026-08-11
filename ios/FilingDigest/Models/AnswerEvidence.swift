@@ -146,6 +146,14 @@ struct AnswerEvidenceIndex: Hashable, Sendable {
     func sourceIndex(forCitationID id: String) -> Int? {
         sourceIndexByCitationID[id]
     }
+
+    /// Citation markers are one-based for readers; array storage is not.
+    /// Invalid marker numbers fail closed instead of selecting adjacent proof.
+    func group(atSourceIndex index: Int) -> Group? {
+        let offset = index - 1
+        guard groups.indices.contains(offset) else { return nil }
+        return groups[offset]
+    }
 }
 
 extension AnswerResponse {

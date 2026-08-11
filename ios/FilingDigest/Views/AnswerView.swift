@@ -20,7 +20,7 @@ struct AnswerView: View {
 
     @StateObject private var state: AnswerState
     @State private var query = ""
-    @State private var openFiling: OpenableFiling?
+    @State private var selectedEvidence: EvidenceSelection?
     /// Only consulted where the figures track is supplementary; a withheld
     /// narrative expands it unconditionally.
     @State private var figuresExpanded = false
@@ -40,12 +40,20 @@ struct AnswerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text(company.name)
+                    Text("\(company.koreanDisplayName) / 답변")
                         .font(Theme.display(.headline))
                         .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
                 }
             }
-            .filingSourceSheet($openFiling)
+            .toolbarBackground(Theme.paper, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .sheet(item: $selectedEvidence) { selection in
+                EvidenceSheet(selection: selection)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(Theme.paper)
+            }
             .onDisappear { state.cancel() }
     }
 
@@ -77,23 +85,34 @@ struct AnswerView: View {
             Button {
                 Task { await ask(query) }
             } label: {
-                Image(systemName: "arrow.up")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Theme.paper)
-                    .frame(width: 44, height: 44)
-                    .background(Rectangle().fill(canAsk ? Theme.ink : Theme.inkMuted))
+                Group {
+                    if state.isLoading {
+                        ProgressView()
+                            .tint(Theme.paper)
+                    } else {
+                        Image(systemName: "arrow.up")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Theme.paper)
+                    }
+                }
+                .frame(width: 44, height: 44)
+                .background(Rectangle().fill(canAsk ? Theme.ink : Theme.border))
             }
             .disabled(!canAsk)
             .accessibilityLabel("질문 전송")
         }
         .readableWidth()
-        .padding(.horizontal, 20)
+        .padding(.horizontal, Theme.pageInset)
         .padding(.vertical, 10)
         .background(Theme.paper)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Theme.hairline).frame(height: 1)
+        }
     }
 
     private var canAsk: Bool {
         UUID(uuidString: company.id) != nil
+            && !state.isLoading
             && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -102,22 +121,21 @@ struct AnswerView: View {
     @ViewBuilder
     private var content: some View {
         if let response = state.response {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        questionQuote
-                        requestStatus
-                        resultContent(response) { markerIndex in
-                            withAnimation(.snappy) {
-                                proxy.scrollTo(Self.sourceAnchor(markerIndex), anchor: .top)
-                            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
+                    questionQuote
+                    requestStatus
+                    resultContent(response) { markerIndex in
+                        if let evidenceIndex = state.evidenceIndex,
+                           let group = evidenceIndex.group(atSourceIndex: markerIndex) {
+                            selectedEvidence = EvidenceSelection(index: markerIndex, group: group)
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-                    .readableWidth()
                 }
+                .padding(.horizontal, Theme.pageInset)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+                .readableWidth()
             }
         } else if state.isLoading {
             pendingAnswer
@@ -196,7 +214,7 @@ struct AnswerView: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Theme.pageInset)
             .padding(.bottom, 8)
             .readableWidth()
         }
@@ -254,7 +272,7 @@ struct AnswerView: View {
                     .font(.caption)
                     .foregroundStyle(Theme.inkMuted)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Theme.pageInset)
             .padding(.top, 12)
             .readableWidth()
             .accessibilityElement(children: .combine)
@@ -268,9 +286,8 @@ struct AnswerView: View {
             Rectangle()
                 .fill(Theme.ink)
                 .frame(width: 2)
-            Text(state.askedQuery)
-                .font(.system(.title3, design: .serif))
-                .italic()
+            Text("“\(state.askedQuery)”")
+                .font(.system(.title3, design: .serif, weight: .semibold))
                 .foregroundStyle(Theme.ink)
         }
         .fixedSize(horizontal: false, vertical: true)
@@ -278,11 +295,6 @@ struct AnswerView: View {
     }
 
     // MARK: 3-state result
-
-    /// Scroll anchor for the source group a citation marker points at.
-    private static func sourceAnchor(_ markerIndex: Int) -> String {
-        "filing-source-\(markerIndex)"
-    }
 
     @ViewBuilder
     private func resultContent(
@@ -314,41 +326,16 @@ struct AnswerView: View {
         evidenceIndex: AnswerEvidenceIndex,
         onCitationTap: @escaping (Int) -> Void
     ) -> some View {
-        SectionHeader(title: "답변")
+        SectionHeader(
+            title: "답변 / 주장 \(answer.answerSegments.count)개",
+            detail: "근거 확인됨"
+        )
         ForEach(Array(answer.answerSegments.enumerated()), id: \.offset) { _, segment in
             SegmentView(
                 segment: segment,
                 evidenceIndex: evidenceIndex,
                 onCitationTap: onCitationTap
             )
-        }
-        if !evidenceIndex.groups.isEmpty {
-            sourcesSection(evidenceIndex.groups)
-        }
-    }
-
-    /// Sources section: one group per Filing Source, numbered to match
-    /// the square markers rendered inline in `SegmentView`.
-    private func sourcesSection(_ groups: [AnswerEvidenceIndex.Group]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(title: "출처")
-            ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .top, spacing: 10) {
-                        CitationMarker(index: index + 1)
-                            .padding(.top, 14)
-                        FilingSourceRow(filingSource: group.filingSource) { openFiling = $0 }
-                    }
-                    ForEach(group.citations) { citation in
-                        CitationEvidenceRow(citation: citation)
-                            .padding(.leading, 34)
-                    }
-                }
-                .id(Self.sourceAnchor(index + 1))
-                Rectangle()
-                    .fill(Theme.hairline)
-                    .frame(height: 1)
-            }
         }
     }
 
@@ -455,41 +442,6 @@ struct AnswerView: View {
     }
 }
 
-// MARK: - Evidence preview
-
-private struct CitationEvidenceRow: View {
-    let citation: Citation
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(citation.excerpt)
-                .font(.caption)
-                .foregroundStyle(Theme.ink)
-                .lineLimit(4)
-            Text(anchorText)
-                .font(.caption2.monospaced())
-                .foregroundStyle(Theme.inkMuted)
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
-    }
-
-    private var anchorText: String {
-        var parts: [String] = []
-        if let sectionTitle = citation.anchor.sectionTitle, !sectionTitle.isEmpty {
-            parts.append(sectionTitle)
-        }
-        if let sectionOrder = citation.anchor.sectionOrder {
-            parts.append("section \(sectionOrder)")
-        }
-        if let partIndex = citation.anchor.partIndex {
-            parts.append("part \(partIndex)")
-        }
-        parts.append("chunk \(citation.anchor.chunkIndex)")
-        return parts.joined(separator: " · ")
-    }
-}
-
 // MARK: - Segment
 
 /// One narrated paragraph plus square citation markers in a wrapping row.
@@ -516,9 +468,9 @@ private struct SegmentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(segment.text)
-                .font(.body)
+                .font(.system(.body, design: .serif))
                 .foregroundStyle(Theme.ink)
-                .lineSpacing(6)
+                .lineSpacing(7)
             if !sourceIndices.isEmpty {
                 FlowLayout(spacing: 6) {
                     ForEach(sourceIndices, id: \.self) { index in
@@ -531,8 +483,8 @@ private struct SegmentView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("출처 \(index)번")
-                        .accessibilityHint("해당 공시 출처로 이동합니다")
+                        .accessibilityLabel("근거 \(index)번")
+                        .accessibilityHint("해당 공시 근거를 엽니다")
                     }
                 }
                 // 44pt hit areas around 16pt marks would otherwise leave a
@@ -541,6 +493,125 @@ private struct SegmentView: View {
             }
         }
         .padding(.bottom, 4)
+    }
+}
+
+// MARK: - Evidence sheet
+
+private struct EvidenceSelection: Identifiable {
+    let index: Int
+    let group: AnswerEvidenceIndex.Group
+
+    var id: String { group.id }
+}
+
+private struct EvidenceSheet: View {
+    let selection: EvidenceSelection
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var openFiling: OpenableFiling?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("근거 \(selection.index.formatted(.number.precision(.integerLength(2))))")
+                            .font(Theme.sectionLabel)
+                            .monospacedDigit()
+                            .foregroundStyle(Theme.inkMuted)
+                        Text(evidenceTitle)
+                            .font(Theme.display(.title3))
+                            .foregroundStyle(Theme.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isHeader)
+
+                    ForEach(selection.group.citations) { citation in
+                        EvidenceExcerpt(citation: citation)
+                    }
+
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(selection.group.filingSource.title)
+                            .font(.caption)
+                            .foregroundStyle(Theme.inkMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        SourceBadge(source: selection.group.filingSource.source)
+                    }
+
+                    Button {
+                        openFiling = OpenableFiling(selection.group.filingSource)
+                    } label: {
+                        HStack {
+                            Text("공시 원문에서 보기")
+                            Spacer(minLength: 8)
+                            Image(systemName: "arrow.up.forward")
+                        }
+                    }
+                    .buttonStyle(.ledgerFilled)
+                }
+                .padding(.horizontal, Theme.pageInset)
+                .padding(.top, 16)
+                .padding(.bottom, 32)
+                .readableWidth()
+            }
+            .paperBackground()
+            .navigationTitle("근거 확인")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("근거 닫기")
+                }
+            }
+            .toolbarBackground(Theme.paper, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .filingSourceSheet($openFiling)
+        }
+        .tint(Color.accentColor)
+    }
+
+    private var evidenceTitle: String {
+        selection.group.citations.compactMap(\.anchor.sectionTitle).first
+            ?? selection.group.filingSource.title
+    }
+}
+
+private struct EvidenceExcerpt: View {
+    let citation: Citation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("“\(citation.excerpt)”")
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(Theme.ink)
+                .lineSpacing(7)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(anchorText)
+                .font(.caption.monospaced())
+                .foregroundStyle(Theme.inkMuted)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var anchorText: String {
+        var parts: [String] = []
+        if let sectionOrder = citation.anchor.sectionOrder {
+            parts.append("원문 구역 \(sectionOrder)")
+        }
+        if let partIndex = citation.anchor.partIndex {
+            parts.append("부분 \(partIndex)")
+        }
+        parts.append("문단 \(citation.anchor.chunkIndex)")
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -584,9 +655,9 @@ private struct FigureRow: View {
         let title = FigureDisplay.periodTitle(figure.period, language: .ko)
         let kind = figure.periodKind == .instant ? "기준일" : "기간"
         if let quarter = figure.fiscalQuarter {
-            return "\(title) · \(kind) · FY\(figure.fiscalYear) Q\(quarter)"
+            return "\(title) · \(kind) · 회계연도 \(figure.fiscalYear) · \(quarter)분기"
         }
-        return "\(title) · \(kind) · FY\(figure.fiscalYear)"
+        return "\(title) · \(kind) · 회계연도 \(figure.fiscalYear)"
     }
 
     /// Abbreviated display value (조/억) — readable at a glance.

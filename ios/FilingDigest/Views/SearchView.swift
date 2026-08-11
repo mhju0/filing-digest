@@ -15,6 +15,7 @@ struct SearchView: View {
 
     @StateObject private var state: SearchState
     @State private var query = ""
+    @AppStorage("recentCompanyIDs") private var recentCompanyIDsStorage = ""
     @FocusState private var searchFocused: Bool
 
     init(client: APIClient) {
@@ -27,7 +28,7 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
                     // A blocking failure means there is nothing to browse or
                     // filter, so the browse chrome would only be furniture
                     // around a dead end. Give the whole screen to the recovery.
@@ -40,8 +41,9 @@ struct SearchView: View {
                         content
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Theme.pageInset)
                 .padding(.top, 8)
+                .padding(.bottom, 32)
                 .readableWidth()
             }
             .paperBackground()
@@ -53,9 +55,12 @@ struct SearchView: View {
                         .foregroundStyle(Theme.inkMuted)
                 }
             }
+            .toolbarBackground(Theme.paper, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: Company.self) { company in
                 DigestView(client: client, company: company)
+                    .onAppear { recordRecent(company) }
             }
             .task { await state.loadIfNeeded() }
             .refreshable { await state.refresh() }
@@ -67,21 +72,23 @@ struct SearchView: View {
     // MARK: Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("공시를 읽다")
+        VStack(alignment: .leading, spacing: 12) {
+            Text(state.hasLoaded ? "수집된 공시 / 회사 \(state.companies.count)곳" : "수집된 공시")
+                .font(Theme.sectionLabel)
+                .monospacedDigit()
+                .foregroundStyle(Theme.inkMuted)
+            Text("공시를,\n읽을 수 있게.")
                 .font(Theme.display(.largeTitle))
                 .foregroundStyle(Theme.ink)
-            HStack(spacing: 10) {
-                Rectangle()
-                    .fill(Theme.ink)
-                    .frame(width: 2)
-                Text("DART · SEC 공시 기반, 인용으로 검증된 요약")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.inkMuted)
-            }
-            .fixedSize(horizontal: false, vertical: true)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("구조화된 수치. 인용된 설명. 원문까지 한 번에.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 12)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: Search field (filters the loaded list)
@@ -90,7 +97,7 @@ struct SearchView: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(Theme.inkMuted)
-            TextField("회사 이름 또는 티커로 필터", text: $query)
+            TextField("회사 또는 티커", text: $query)
                 .font(.body)
                 .foregroundStyle(Theme.ink)
                 .focused($searchFocused)
@@ -196,27 +203,62 @@ struct SearchView: View {
         .padding(.top, 20)
     }
 
+    @ViewBuilder
     private func companyList(_ visible: [Company]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(Self.grouped(visible), id: \.source) { group in
-                SectionHeader(
-                    title: group.source == .dart ? "DART — 한국 공시" : "SEC — 미국 공시",
-                    detail: "\(group.companies.count)"
-                )
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(group.companies) { company in
+        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let recent = Self.recentCompanies(
+                in: visible,
+                storedIDs: Self.recentIDs(from: recentCompanyIDsStorage)
+            )
+
+            VStack(alignment: .leading, spacing: 0) {
+                SectionHeader(title: "최근 본 회사", detail: "\(recent.count)")
+                if recent.isEmpty {
+                    Text("회사를 열면 최근 본 순서대로 여기에 표시됩니다.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkMuted)
+                        .padding(.vertical, 16)
+                } else {
+                    ForEach(Array(recent.enumerated()), id: \.element.id) { index, company in
                         NavigationLink(value: company) {
-                            CompanyRow(company: company)
+                            FeaturedCompanyRow(company: company, rank: index + 1)
                         }
-                        .buttonStyle(.plain)
-                        Rectangle()
-                            .fill(Theme.hairline)
-                            .frame(height: 1)
+                        .buttonStyle(.ledgerRow)
+                        rowDivider
                     }
                 }
-                .padding(.bottom, 12)
+            }
+
+            VStack(alignment: .leading, spacing: 0) {
+                let ordered = Self.ordered(visible)
+                SectionHeader(title: "전체 회사", detail: "\(ordered.count)")
+                ForEach(ordered) { company in
+                    NavigationLink(value: company) {
+                        CompactCompanyRow(company: company)
+                    }
+                    .buttonStyle(.ledgerRow)
+                    rowDivider
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                let ordered = Self.ordered(visible)
+                SectionHeader(title: "검색 결과", detail: "\(ordered.count)")
+                ForEach(ordered) { company in
+                    NavigationLink(value: company) {
+                        FeaturedCompanyRow(company: company)
+                    }
+                    .buttonStyle(.ledgerRow)
+                    rowDivider
+                }
             }
         }
+    }
+
+    private var rowDivider: some View {
+        Rectangle()
+            .fill(Theme.hairline)
+            .frame(height: 1)
     }
 
     // MARK: Pure helpers (unit-tested)
@@ -229,42 +271,60 @@ struct SearchView: View {
         guard !trimmed.isEmpty else { return companies }
         return companies.filter { company in
             company.name.localizedCaseInsensitiveContains(trimmed)
+                || company.koreanDisplayName.localizedCaseInsensitiveContains(trimmed)
                 || (company.nameEn?.localizedCaseInsensitiveContains(trimmed) ?? false)
                 || (company.ticker?.localizedCaseInsensitiveContains(trimmed) ?? false)
         }
     }
 
-    /// Stable DART-then-SEC grouping, preserving server order within a group.
-    static func grouped(_ companies: [Company]) -> [(source: RegulatorySource, companies: [Company])] {
-        [RegulatorySource.dart, .sec].compactMap { source in
-            let members = companies.filter { $0.source == source }
-            return members.isEmpty ? nil : (source, members)
+    static func ordered(_ companies: [Company]) -> [Company] {
+        companies.sorted {
+            $0.koreanDisplayName.localizedStandardCompare($1.koreanDisplayName) == .orderedAscending
         }
     }
 
+    static func recentIDs(from storage: String) -> [String] {
+        storage.split(separator: ",").map(String.init)
+    }
+
+    static func updatedRecentIDs(opening companyID: String, existing: [String]) -> [String] {
+        [companyID] + Array(existing.filter { $0 != companyID }.prefix(1))
+    }
+
+    static func recentCompanies(in companies: [Company], storedIDs: [String]) -> [Company] {
+        let byID = Dictionary(uniqueKeysWithValues: companies.map { ($0.id, $0) })
+        return storedIDs.compactMap { byID[$0] }
+    }
+
+    private func recordRecent(_ company: Company) {
+        recentCompanyIDsStorage = Self.updatedRecentIDs(
+            opening: company.id,
+            existing: Self.recentIDs(from: recentCompanyIDsStorage)
+        ).joined(separator: ",")
+    }
 }
 
-// MARK: - Row
+// MARK: - Rows
 
-private struct CompanyRow: View {
+private struct FeaturedCompanyRow: View {
     let company: Company
+    var rank: Int? = nil
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
+            if let rank {
+                Text(rank.formatted(.number.precision(.integerLength(2))))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 24, alignment: .leading)
+            }
             VStack(alignment: .leading, spacing: 4) {
-                Text(company.name)
-                    .font(.body.weight(.semibold))
+                Text(company.koreanDisplayName)
+                    .font(Theme.display(.body))
                     .foregroundStyle(Theme.ink)
-                if let nameEn = company.nameEn, nameEn != company.name {
-                    Text(nameEn)
-                        .font(.caption)
-                        .foregroundStyle(Theme.inkMuted)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
                 if company.ticker != nil || company.market != nil {
                     Text(
-                        [company.ticker, company.market?.rawValue]
+                        [company.koreanSecurityIdentifier, company.market?.koreanDisplayName]
                             .compactMap(\.self)
                             .joined(separator: " · ")
                     )
@@ -279,6 +339,36 @@ private struct CompanyRow: View {
                 .foregroundStyle(Theme.inkMuted)
         }
         .padding(.vertical, 14)
+        .frame(minHeight: 64)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct CompactCompanyRow: View {
+    let company: Company
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(company.koreanDisplayName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                    .multilineTextAlignment(.leading)
+                if let identifier = company.koreanSecurityIdentifier {
+                    Text(identifier)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Theme.inkMuted)
+                }
+            }
+            Spacer(minLength: 8)
+            SourceBadge(source: company.source)
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Theme.inkMuted)
+        }
+        .padding(.vertical, 12)
+        .frame(minHeight: 60)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
