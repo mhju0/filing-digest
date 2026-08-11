@@ -7,6 +7,14 @@ struct AnswerIntent: Equatable, Sendable {
     let period: String?
 }
 
+private enum AnswerStateError: LocalizedError {
+    case invalidEvidence
+
+    var errorDescription: String? {
+        "서버 응답 형식이 앱과 맞지 않습니다."
+    }
+}
+
 /// Owns Answer request identity, evidence validation, and latest-intent state.
 @MainActor
 final class AnswerState: ObservableObject {
@@ -84,7 +92,7 @@ final class AnswerState: ObservableObject {
                 do {
                     index = try result.makeEvidenceIndex()
                 } catch {
-                    throw APIError.decoding(error)
+                    throw AnswerStateError.invalidEvidence
                 }
                 guard let self,
                       !Task.isCancelled,
