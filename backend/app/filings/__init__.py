@@ -4,17 +4,16 @@ from app.filings.model import (
     CompanyIdentity,
     FilingChunk,
     FilingIdentity,
-    FinancialFact,
     NormalizedFiling,
     RegulatedCompany,
     RegulatorySource,
-    ReportingPeriod,
 )
 from app.filings.persistence import (
     PersistedFiling,
     load_normalized_filing,
     persist_normalized_filing,
 )
+from app.financials.model import FinancialFact, ReportingPeriod
 
 __all__ = [
     "CompanyIdentity",

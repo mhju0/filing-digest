@@ -25,15 +25,14 @@ from app.clients.dart import (
 from app.filings.model import (
     CompanyIdentity,
     FilingIdentity,
-    FinancialFact,
     NormalizedFiling,
     RegulatedCompany,
     RegulatorySource,
-    ReportingPeriod,
 )
 from app.filings.model import (
     FilingChunk as NormalizedChunk,
 )
+from app.financials.model import FinancialFact, ReportingPeriod
 from app.financials.vocabulary import PeriodKind, ReportedMetric
 from app.ingest.chunking import Chunk, chunk_document
 

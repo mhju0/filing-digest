@@ -77,9 +77,9 @@ applicable. Figures can still be returned when the narrative is withheld.
 |---|---|
 | HTTP transport and contracts | `backend/app/api/routes.py`, `backend/app/schemas.py` |
 | Digest and answer orchestration | `backend/app/digests/`, `backend/app/answers/` |
-| Filing domain and persistence | `backend/app/filings/`, `backend/app/ingest/` |
+| Filing domain and persistence | `backend/app/filings/` |
 | Regulatory adapters and ingest lifecycle | `backend/app/ingest/dart.py`, `backend/app/ingest/sec_ingest.py`, `backend/app/ingest/pipeline.py` |
-| Financial vocabulary | `backend/app/financials/`, `contracts/financial-vocabulary.json` |
+| Financial facts and vocabulary | `backend/app/financials/`, `contracts/financial-vocabulary.json` |
 | Evidence resolution | `backend/app/evidence/` |
 | DART integration | `backend/app/clients/dart.py`, `backend/app/ingest/dart.py` |
 | SEC integration | `backend/app/clients/sec.py`, `sec_document.py`, `sec_ingest.py` |

@@ -12,7 +12,7 @@ Design (mirrors the DART adapter; the differences are all SEC-specific):
 
 2. **USD units, not KRW.** SEC facts use their own unit vocabulary while the
    adapter translates ``SecFinancialItem.value`` directly into canonical
-   :class:`~app.filings.model.FinancialFact` objects.
+   :class:`~app.financials.model.FinancialFact` objects.
 
 3. **Chunks carry no rcept_no.** SEC filings have no DART receipt number, so
    ``chunk_document`` is called with ``rcept_no=None``; the citation anchor's
@@ -40,18 +40,13 @@ from app.filings.model import (
     CompanyIdentity,
     FilingChunk,
     FilingIdentity,
-    FinancialFact,
     NormalizedFiling,
     RegulatedCompany,
     RegulatorySource,
-    ReportingPeriod,
 )
+from app.financials.model import FinancialFact, ReportingPeriod
 from app.financials.vocabulary import PeriodKind, ReportedMetric
 from app.ingest.chunking import Chunk, chunk_document
-from app.ingest.dart import (
-    METRIC_EPS,
-    METRIC_EPS_DILUTED,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +62,10 @@ UNIT_USD = "USD"  # absolute USD (revenue, operating_income, net_income)
 UNIT_USD_PER_SHARE = "USD_PER_SHARE"  # USD per share (eps, eps_diluted)
 CURRENCY_USD = "USD"
 
-# Per-share metrics -> UNIT_USD_PER_SHARE; everything else -> UNIT_USD. Reuses the
-# standard metric keys from the DART adapter (one spelling shared by both).
-_EPS_METRICS = frozenset({METRIC_EPS, METRIC_EPS_DILUTED})
+# Per-share metrics -> UNIT_USD_PER_SHARE; everything else -> UNIT_USD.
+_EPS_METRICS = frozenset(
+    {ReportedMetric.eps.value, ReportedMetric.eps_diluted.value}
+)
 
 
 class SecIngestError(RuntimeError):

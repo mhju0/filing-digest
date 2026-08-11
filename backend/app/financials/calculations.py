@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
 
-from app.filings.model import FinancialFact, ReportingPeriod
+from app.financials.model import FinancialFact, ReportingPeriod
 from app.financials.vocabulary import DerivedMetric, PeriodKind, ReportedMetric
 
 MAX_COMPARABLE_DURATION_DIFFERENCE_DAYS = 7

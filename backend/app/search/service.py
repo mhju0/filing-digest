@@ -28,8 +28,9 @@ Design:
 
 import logging
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Protocol
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,7 +88,18 @@ def _distance_to_similarity(distance: float) -> float:
     return 1.0 - distance
 
 
-def _row_to_result(row: Any) -> SearchResult:
+class SearchResultRow(Protocol):
+    """Database result shape required to build one semantic search hit."""
+
+    id: uuid.UUID
+    filing_id: uuid.UUID
+    content: str
+    chunk_index: int
+    meta: Mapping[str, object] | None
+    distance: float
+
+
+def _row_to_result(row: SearchResultRow) -> SearchResult:
     """Assemble one DB row (chunk columns + ``meta`` + raw distance) into a
     :class:`SearchResult` (pure).
 

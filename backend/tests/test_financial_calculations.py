@@ -6,8 +6,8 @@ from decimal import Decimal
 
 import pytest
 
-from app.filings.model import FinancialFact, ReportingPeriod
 from app.financials.calculations import derive_operating_margin
+from app.financials.model import FinancialFact, ReportingPeriod
 from app.financials.vocabulary import DerivedMetric, PeriodKind, ReportedMetric
 
 

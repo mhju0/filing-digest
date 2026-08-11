@@ -14,12 +14,11 @@ from app.filings.model import (
     CompanyIdentity,
     FilingChunk,
     FilingIdentity,
-    FinancialFact,
     NormalizedFiling,
     RegulatedCompany,
     RegulatorySource,
-    ReportingPeriod,
 )
+from app.financials.model import FinancialFact, ReportingPeriod
 from app.financials.vocabulary import PeriodKind, ReportedMetric
 
 
