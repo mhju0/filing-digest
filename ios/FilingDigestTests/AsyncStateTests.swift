@@ -114,7 +114,7 @@ struct AsyncStateTests {
 
         #expect(state.response == nil)
         #expect(state.evidenceIndex == nil)
-        #expect(state.blockingError != nil)
+        #expect(state.blockingError == "서버 응답 형식이 앱과 맞지 않습니다.")
     }
 
     private func digest(companyID: String) -> CompanyDigest {

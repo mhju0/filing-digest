@@ -80,7 +80,12 @@ final class AnswerState: ObservableObject {
         let task = Task { @MainActor [weak self] in
             do {
                 let result = try await operation(intent.query, intent.companyID, intent.period)
-                let index = try result.makeEvidenceIndex()
+                let index: AnswerEvidenceIndex?
+                do {
+                    index = try result.makeEvidenceIndex()
+                } catch {
+                    throw APIError.decoding(error)
+                }
                 guard let self,
                       !Task.isCancelled,
                       self.generation == requestGeneration
