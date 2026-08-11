@@ -5,12 +5,9 @@ Usage (run from ``backend/`` with the repo venv):
     python -m app.ingest --source dart --ticker 005930
     python -m app.ingest --source sec --ticker MSFT
 
-DART: resolves ticker -> corp_code, picks the latest 사업보고서 (annual
-report, reprt_code 11011) from list.json, ingests it atomically
-(:func:`app.ingest.persist.ingest_filing`), then backfills embeddings.
-SEC: resolves ticker -> CIK via company_tickers.json, then
-:func:`app.ingest.sec_ingest.ingest_sec_filing` (latest 10-K, backfill
-included).
+DART and SEC resolve their source-specific identities and build a Normalized
+Filing through their adapters. The shared ingestion module then persists and
+indexes either source through the same lifecycle.
 
 Selection/matching logic lives in pure functions (``select_latest_annual``,
 ``match_ticker``) so it is unit-testable without network or DB.
@@ -26,9 +23,9 @@ from app.clients.dart import DartClient, FilingItem
 from app.clients.sec import SecClient, SecCompanyMatch
 from app.config import get_settings
 from app.db.session import get_async_engine, get_async_session
-from app.embeddings.backfill import index_filing_embeddings
-from app.ingest.persist import ingest_filing
-from app.ingest.sec_ingest import ingest_sec_filing
+from app.ingest import ingest_filing
+from app.ingest.dart import DartFilingAdapter
+from app.ingest.sec_ingest import SecFilingAdapter
 from app.logging_config import configure_logging
 
 logger = logging.getLogger(__name__)
@@ -98,19 +95,23 @@ async def _run_dart(ticker: str) -> None:
             bsns_year,
         )
 
-        async with get_async_session() as session:
-            result = await ingest_filing(
-                session, client, corp_code, item.rcept_no, bsns_year, _ANNUAL_REPRT_CODE
-            )
-        async with get_async_session() as session:
-            embedded = await index_filing_embeddings(session, result.filing_id)
+        result = await ingest_filing(
+            DartFilingAdapter(
+                client=client,
+                corp_code=corp_code,
+                filing_item=item,
+                bsns_year=bsns_year,
+                reprt_code=_ANNUAL_REPRT_CODE,
+            ),
+            get_async_session,
+        )
         logger.info(
             "done: company=%s filing=%s financials=%d chunks=%d embeddings=%d",
             result.company_id,
             result.filing_id,
             result.financials_written,
             result.chunks_written,
-            embedded,
+            result.embeddings_backfilled,
         )
     finally:
         await client.aclose()
@@ -124,7 +125,9 @@ async def _run_sec(ticker: str) -> None:
         match = match_ticker(matches, ticker)
         logger.info("selected %s (CIK %s)", match.title, match.cik)
 
-        result = await ingest_sec_filing(client, get_async_session, match.cik)
+        result = await ingest_filing(
+            SecFilingAdapter(client=client, cik=match.cik), get_async_session
+        )
         logger.info(
             "done: company=%s filing=%s financials=%d chunks=%d embeddings=%d",
             result.company_id,

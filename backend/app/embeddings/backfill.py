@@ -1,6 +1,6 @@
 """Index KURE-v1 vectors and publish filing-level search readiness.
 
-The step after ingest (app/ingest/persist.py) writes chunks with
+The step after ingest writes chunks with
 ``embedding = NULL``; this module fills those vectors. It is a batch job, not a
 request path -- run it once by hand (``python -m app.embeddings.backfill``) or
 call :func:`backfill_embeddings` from another async context. Ingest callers use

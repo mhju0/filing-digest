@@ -5,8 +5,8 @@ Two layers, no network / no DB / no model load:
 - **Normalized adapter and selectors** (``build_sec_normalized_filing`` /
   ``sec_period`` / ``sec_unit_for`` / ``select_target_filing`` /
   ``_filing_fiscal_year``) are driven with fixture objects only.
-- **``ingest_sec_filing`` orchestration** is exercised with a mocked ``SecClient``
-  and fakes at its two public side-effect seams: atomic Normalized Filing
+- **Shared ingestion orchestration** is exercised with the SEC adapter and
+  fakes at its two internal side-effect seams: atomic Normalized Filing
   persistence and filing-scoped indexing. The real HTML parser, database, and
   KURE model stay out of these offline tests.
 """
@@ -30,9 +30,10 @@ from app.clients.sec import (
 from app.clients.sec_document import SecDocumentParseError
 from app.filings.persistence import PersistedFiling
 from app.financials.vocabulary import PeriodKind, ReportedMetric
-from app.ingest import sec_ingest
+from app.ingest import pipeline, sec_ingest
 from app.ingest.chunking import chunk_document
 from app.ingest.sec_ingest import (
+    SecFilingAdapter,
     SecIngestError,
     _filing_fiscal_year,
     build_sec_normalized_filing,
@@ -285,7 +286,7 @@ def test_find_company_by_cik_matches_normalized_cik() -> None:
     assert find_company_by_cik(records, 1) is None  # absent -> None, not a raise
 
 
-# -- ingest_sec_filing orchestration (mocked client + fake session) -----------
+# -- shared ingestion lifecycle with the SEC adapter --------------------------
 
 
 class _FakeSession:
@@ -364,7 +365,7 @@ def _patch_backfill(monkeypatch, *, count=4) -> list:
         calls.append((session, filing_id))
         return count
 
-    monkeypatch.setattr(sec_ingest, "index_filing_embeddings", fake_backfill)
+    monkeypatch.setattr(pipeline, "index_filing_embeddings", fake_backfill)
     return calls
 
 
@@ -389,18 +390,20 @@ def _patch_persistence(monkeypatch) -> tuple[list, dict]:
             filing_chunks_written=len(filing.filing_chunks),
         )
 
-    monkeypatch.setattr(sec_ingest, "persist_normalized_filing", fake_persist)
+    monkeypatch.setattr(pipeline, "persist_normalized_filing", fake_persist)
     return calls, identities
 
 
-def test_ingest_sec_filing_happy_path_wires_all_stages(monkeypatch) -> None:
+def test_shared_ingestion_wires_sec_adapter_persistence_and_indexing(monkeypatch) -> None:
     received = _patch_parse(monkeypatch)
     persistence_calls, _ = _patch_persistence(monkeypatch)
     backfill_calls = _patch_backfill(monkeypatch, count=4)
     client = _FakeSecClient(filings=[_FILING_2022, _FILING_2023], facts=_FACTS, match=_MATCH)
     factory = _FakeSessionFactory()
 
-    result = asyncio.run(sec_ingest.ingest_sec_filing(client, factory, _CIK))
+    result = asyncio.run(
+        pipeline.ingest_filing(SecFilingAdapter(client, _CIK), factory)
+    )
 
     # latest 10-K selected (filed 2023 > 2022); its primary doc fetched + parsed
     assert client.last_filing_types == ["10-K"]
@@ -409,7 +412,7 @@ def test_ingest_sec_filing_happy_path_wires_all_stages(monkeypatch) -> None:
     # facts filtered to the chosen accession only (5 of 6)
     assert result.financials_written == 5
     assert result.chunks_written >= 2
-    assert result.accession_number == _ACCN_2023
+    assert result.source_filing_id == _ACCN_2023
     # Scoped indexing uses a second, fresh session after atomic persistence.
     assert len(persistence_calls) == 1
     persisted = persistence_calls[0][1]
@@ -422,7 +425,7 @@ def test_ingest_sec_filing_happy_path_wires_all_stages(monkeypatch) -> None:
     assert factory.call_count == 2
 
 
-def test_ingest_sec_filing_filters_facts_to_chosen_accession(monkeypatch) -> None:
+def test_sec_adapter_filters_facts_to_chosen_accession(monkeypatch) -> None:
     _patch_parse(monkeypatch)
     _patch_persistence(monkeypatch)
     _patch_backfill(monkeypatch)
@@ -431,23 +434,29 @@ def test_ingest_sec_filing_filters_facts_to_chosen_accession(monkeypatch) -> Non
     factory = _FakeSessionFactory()
 
     result = asyncio.run(
-        sec_ingest.ingest_sec_filing(client, factory, _CIK, accession_number=_ACCN_2022)
+        pipeline.ingest_filing(
+            SecFilingAdapter(client, _CIK, accession_number=_ACCN_2022), factory
+        )
     )
 
     assert client.document_request == (_ACCN_2022, "aapl-20220924.htm")
-    assert result.accession_number == _ACCN_2022
+    assert result.source_filing_id == _ACCN_2022
     assert result.financials_written == 1  # only the 2022-accession revenue fact
 
 
-def test_ingest_sec_filing_idempotent_rerun(monkeypatch) -> None:
+def test_shared_ingestion_preserves_identity_across_reruns(monkeypatch) -> None:
     _patch_parse(monkeypatch)
     persistence_calls, identities = _patch_persistence(monkeypatch)
     _patch_backfill(monkeypatch)
     client = _FakeSecClient(filings=[_FILING_2023], facts=_FACTS, match=_MATCH)
     factory = _FakeSessionFactory()
 
-    first = asyncio.run(sec_ingest.ingest_sec_filing(client, factory, _CIK))
-    second = asyncio.run(sec_ingest.ingest_sec_filing(client, factory, _CIK))
+    first = asyncio.run(
+        pipeline.ingest_filing(SecFilingAdapter(client, _CIK), factory)
+    )
+    second = asyncio.run(
+        pipeline.ingest_filing(SecFilingAdapter(client, _CIK), factory)
+    )
 
     assert first.company_id == second.company_id  # upsert returns the same id
     assert first.filing_id == second.filing_id
@@ -458,7 +467,7 @@ def test_ingest_sec_filing_idempotent_rerun(monkeypatch) -> None:
     assert first.financials_written == second.financials_written == 5
 
 
-def test_ingest_sec_filing_parse_failure_propagates_and_persists_nothing(monkeypatch) -> None:
+def test_adapter_failure_opens_no_persistence_or_indexing_session(monkeypatch) -> None:
     _patch_parse(
         monkeypatch,
         raiser=SecDocumentParseError("Item 1 (Business): could not locate a heading"),
@@ -469,7 +478,9 @@ def test_ingest_sec_filing_parse_failure_propagates_and_persists_nothing(monkeyp
     factory = _FakeSessionFactory()
 
     with pytest.raises(SecDocumentParseError):
-        asyncio.run(sec_ingest.ingest_sec_filing(client, factory, _CIK))
+        asyncio.run(
+            pipeline.ingest_filing(SecFilingAdapter(client, _CIK), factory)
+        )
 
     # Fail-loud BEFORE any DB scope opens: no session, no backfill, no facts fetch.
     assert factory.call_count == 0

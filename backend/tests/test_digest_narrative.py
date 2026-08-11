@@ -36,6 +36,9 @@ _CLEAN_EN = (
     "producing a broad range of products."
 )
 _CLEAN_BODY = json.dumps({"summary_ko": _CLEAN_KO, "summary_en": _CLEAN_EN})
+_UPDATED_KO = "이 회사는 새로운 사업 분야를 중심으로 제품과 서비스를 제공한다."
+_UPDATED_EN = "The company now focuses on a new business area and its related offerings."
+_UPDATED_BODY = json.dumps({"summary_ko": _UPDATED_KO, "summary_en": _UPDATED_EN})
 
 # A Korean currency token (…원) is exactly what the suffix-anchored number guard
 # catches -- the natural failure the retry/fallback path must handle.
@@ -82,13 +85,16 @@ class _StubClient:
         )
 
 
-def _chunk(filing_id: uuid.UUID = _FILING_ID) -> SimpleNamespace:
-    """A minimal SearchResult stand-in: build_company_summary uses only
-    ``filing_id`` (cache key) and ``text`` (prompt)."""
+def _chunk(
+    filing_id: uuid.UUID = _FILING_ID,
+    *,
+    text: str = "사업의 개요: 회사는 반도체와 디스플레이를 생산한다.",
+) -> SimpleNamespace:
+    """Minimal SearchResult stand-in for retrieval, prompting, and cache identity."""
     return SimpleNamespace(
         chunk_id=uuid.uuid4(),
         filing_id=filing_id,
-        text="사업의 개요: 회사는 반도체와 디스플레이를 생산한다.",
+        text=text,
         score=0.7,
     )
 
@@ -162,6 +168,32 @@ def test_cache_hit_calls_llm_once(monkeypatch) -> None:
     assert client.calls == 1
 
 
+def test_replaced_snapshot_regenerates_summary(monkeypatch) -> None:
+    snapshots = iter(
+        [
+            [_chunk(text="기존 사업의 개요")],
+            [_chunk(text="새로운 사업의 개요")],
+        ]
+    )
+
+    async def _next_snapshot(*args, **kwargs):
+        return next(snapshots)
+
+    monkeypatch.setattr(digest_narrative, "search_chunks", _next_snapshot)
+    client = _StubClient([_CLEAN_BODY, _UPDATED_BODY])
+
+    first = asyncio.run(
+        build_company_summary(object(), client, _COMPANY_ID, _FILING_ID)
+    )
+    second = asyncio.run(
+        build_company_summary(object(), client, _COMPANY_ID, _FILING_ID)
+    )
+
+    assert first == (_CLEAN_KO, _CLEAN_EN)
+    assert second == (_UPDATED_KO, _UPDATED_EN)
+    assert client.calls == 2
+
+
 def test_null_result_is_not_cached(monkeypatch) -> None:
     # Guard blocks twice (null, not cached), then a later attempt succeeds --
     # a transient bad generation must not permanently disable the summary.
@@ -175,13 +207,10 @@ def test_null_result_is_not_cached(monkeypatch) -> None:
     assert client.calls == 3
 
 
-def test_explicit_filing_id_is_forwarded_to_search_and_used_as_cache_key(
-    monkeypatch,
-) -> None:
+def test_explicit_filing_id_is_forwarded_to_search(monkeypatch) -> None:
     # A different filing's chunk happens to rank first in retrieval (e.g. a
     # multi-filing company's search hit), but the caller-provided filing_id --
-    # not the top-retrieved chunk's own filing_id -- must be both the
-    # search_chunks scope and the cache key.
+    # not the top-retrieved chunk's own filing_id -- must scope search_chunks.
     _OTHER_FILING_ID = uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
     captured: dict = {}
     _patch_chunks(monkeypatch, [_chunk(filing_id=_OTHER_FILING_ID)], captured)
@@ -193,9 +222,6 @@ def test_explicit_filing_id_is_forwarded_to_search_and_used_as_cache_key(
 
     assert (ko, en) == (_CLEAN_KO, _CLEAN_EN)
     assert captured["filing_id"] == _FILING_ID
-    # Cached under the caller-provided filing_id, not the chunk's own.
-    assert digest_narrative._SUMMARY_CACHE[_FILING_ID] == (_CLEAN_KO, _CLEAN_EN)
-    assert _OTHER_FILING_ID not in digest_narrative._SUMMARY_CACHE
 
 
 def test_no_chunks_short_circuits_without_llm(monkeypatch) -> None:

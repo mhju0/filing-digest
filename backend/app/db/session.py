@@ -52,8 +52,7 @@ def get_async_session() -> AsyncSession:
 
     Intended to be used as an async context manager, e.g.:
 
-        async with get_async_session() as session:
-            await ingest_filing(session, ...)
+        result = await ingest_filing(adapter, get_async_session)
     """
     return get_async_session_factory()()
 

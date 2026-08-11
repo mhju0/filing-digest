@@ -18,13 +18,12 @@ from app.filings.model import (
     CompanyIdentity,
     FilingChunk,
     FilingIdentity,
-    FinancialFact,
     NormalizedFiling,
     RegulatedCompany,
     RegulatorySource,
-    ReportingPeriod,
 )
 from app.filings.persistence import load_normalized_filing, persist_normalized_filing
+from app.financials.model import FinancialFact, ReportingPeriod
 from app.financials.vocabulary import PeriodKind, ReportedMetric
 from app.search.service import search_chunks
 

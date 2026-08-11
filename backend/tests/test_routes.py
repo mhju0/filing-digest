@@ -1,9 +1,7 @@
-"""Offline unit tests for the pure /digest selection helpers in app.api.routes.
+"""Offline unit tests for company digest selection and HTTP contracts.
 
-No DB, no HTTP: app.api.routes.select_target_period / select_latest_filing_id
-are pure functions over already-fetched rows, so they are exercised directly
-here rather than through the full FastAPI route (which needs a live DB session
--- covered instead by the live verification for this change).
+The digest selection functions are pure over already-fetched rows, so they are
+exercised through the company digest module interface without DB or HTTP.
 """
 
 import datetime
@@ -15,14 +13,16 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.api import routes
-from app.api.routes import (
-    escape_ilike_literal,
+from app.api.routes import escape_ilike_literal
+from app.db.session import get_db_session
+from app.digests import (
     select_latest_filing_id,
     select_previous_period,
     select_target_period,
 )
-from app.db.session import get_db_session
+from app.digests import (
+    service as digests,
+)
 from app.financials.calculations import compute_yoy_deltas
 from app.llm.deps import get_llm_client
 from app.main import app
@@ -352,8 +352,8 @@ def test_digest_metrics_reference_explicit_filing_sources(monkeypatch) -> None:
 
     app.dependency_overrides[get_db_session] = _DigestSession
     app.dependency_overrides[get_llm_client] = lambda: object()
-    monkeypatch.setattr(routes, "fetch_financials", _financials)
-    monkeypatch.setattr(routes, "build_company_summary", _summary)
+    monkeypatch.setattr(digests, "fetch_financials", _financials)
+    monkeypatch.setattr(digests, "build_company_summary", _summary)
     try:
         response = TestClient(app).get(f"/companies/{company_id}/digest")
     finally:
@@ -419,8 +419,8 @@ def test_digest_omits_a_metric_without_an_openable_filing_source(monkeypatch) ->
 
     app.dependency_overrides[get_db_session] = _DigestSession
     app.dependency_overrides[get_llm_client] = lambda: object()
-    monkeypatch.setattr(routes, "fetch_financials", _financials)
-    monkeypatch.setattr(routes, "build_company_summary", _unexpected_summary)
+    monkeypatch.setattr(digests, "fetch_financials", _financials)
+    monkeypatch.setattr(digests, "build_company_summary", _unexpected_summary)
     try:
         response = TestClient(app).get(f"/companies/{company_id}/digest")
     finally:

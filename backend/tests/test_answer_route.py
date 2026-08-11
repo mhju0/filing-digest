@@ -1,8 +1,8 @@
-"""Offline route test for POST /answer (no DB, no model load, no live LLM).
+"""Offline tests for the answer module through its POST /answer adapter.
 
 Patches the impure boundaries the endpoint calls -- ``search_chunks`` (KURE embed
 + pgvector) and ``fetch_financials`` (DB read) -- and injects the LLM client via
-FastAPI's dependency override, so the wiring in :func:`app.api.routes.answer` runs
+FastAPI's dependency override, so :func:`app.answers.build_answer_response` runs
 end-to-end with no external dependency. Focus of this step: the empty-retrieval
 branch must NOT call the LLM (project rule: no narrative over zero sources), and
 ``AnswerResponse`` must serialize with the figures track intact. The real Solar
@@ -17,7 +17,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api import routes
+from app.answers import service as answers
 from app.db.session import get_db_session
 from app.llm.answer import Answer
 from app.llm.base import LLMResult
@@ -123,8 +123,8 @@ def test_answer_empty_chunks_skips_llm_and_still_returns_figures(api_client, mon
     async def _one_financial(*args, **kwargs):
         return [_financial_row()]
 
-    monkeypatch.setattr(routes, "search_chunks", _no_chunks)
-    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+    monkeypatch.setattr(answers, "search_chunks", _no_chunks)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
 
     resp = api_client.post(
         "/answer",
@@ -153,7 +153,7 @@ def test_answer_empty_chunks_skips_llm_and_still_returns_figures(api_client, mon
 
 def test_answer_low_score_chunk_returns_no_results(api_client, monkeypatch):
     # Non-empty retrieval whose best (only) chunk scores below
-    # SIMILARITY_THRESHOLD (routes.py's no_results gate also checks
+    # SIMILARITY_THRESHOLD (the answer module's no_results gate also checks
     # chunks[0].score, not just emptiness) must skip the LLM the same way
     # empty retrieval does -- weak grounding is not real grounding.
     app.dependency_overrides[get_llm_client] = lambda: _ExplodingClient()
@@ -164,8 +164,8 @@ def test_answer_low_score_chunk_returns_no_results(api_client, monkeypatch):
     async def _one_financial(*args, **kwargs):
         return [_financial_row()]
 
-    monkeypatch.setattr(routes, "search_chunks", _weak_chunk)
-    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+    monkeypatch.setattr(answers, "search_chunks", _weak_chunk)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
 
     resp = api_client.post(
         "/answer",
@@ -211,8 +211,8 @@ def test_answer_with_chunks_narrates_and_serializes(api_client, monkeypatch):
     async def _one_financial(*args, **kwargs):
         return [_financial_row()]
 
-    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
-    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+    monkeypatch.setattr(answers, "search_chunks", _one_chunk)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
 
     resp = api_client.post(
         "/answer",
@@ -277,8 +277,8 @@ def test_answer_unopenable_filing_source_blocks_narrative(api_client, monkeypatc
     async def _one_financial(*args, **kwargs):
         return [_financial_row()]
 
-    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
-    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+    monkeypatch.setattr(answers, "search_chunks", _one_chunk)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
 
     resp = api_client.post(
         "/answer",
@@ -309,9 +309,9 @@ def test_answer_number_guard_blocked_returns_figures_only(api_client, monkeypatc
     async def _raise_number_guard(*args, **kwargs):
         raise NumberInNarrativeError([])
 
-    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
-    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
-    monkeypatch.setattr(routes, "generate_narrative", _raise_number_guard)
+    monkeypatch.setattr(answers, "search_chunks", _one_chunk)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
+    monkeypatch.setattr(answers, "generate_narrative", _raise_number_guard)
 
     resp = api_client.post(
         "/answer",
@@ -353,9 +353,9 @@ def test_answer_llm_service_failure_returns_figures_only(
     async def _raise_service_error(*args, **kwargs):
         raise error
 
-    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
-    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
-    monkeypatch.setattr(routes, "generate_narrative", _raise_service_error)
+    monkeypatch.setattr(answers, "search_chunks", _one_chunk)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
+    monkeypatch.setattr(answers, "generate_narrative", _raise_service_error)
 
     resp = api_client.post(
         "/answer",
@@ -388,9 +388,9 @@ def test_answer_fabricated_citation_blocks_narrative_and_preserves_figures(
     async def _raise_citation_error(*args, **kwargs):
         raise CitationError([CitationViolation(0, "unknown", ("999",))])
 
-    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
-    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
-    monkeypatch.setattr(routes, "generate_narrative", _raise_citation_error)
+    monkeypatch.setattr(answers, "search_chunks", _one_chunk)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
+    monkeypatch.setattr(answers, "generate_narrative", _raise_citation_error)
 
     resp = api_client.post(
         "/answer",
@@ -419,8 +419,8 @@ def test_answer_fabricated_positional_label_blocks_narrative(api_client, monkeyp
     async def _one_financial(*args, **kwargs):
         return [_financial_row()]
 
-    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
-    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
+    monkeypatch.setattr(answers, "search_chunks", _one_chunk)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
 
     resp = api_client.post(
         "/answer",
@@ -454,9 +454,9 @@ def test_answer_mixed_citation_violations_block_narrative(api_client, monkeypatc
             ]
         )
 
-    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
-    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
-    monkeypatch.setattr(routes, "generate_narrative", _raise_citation_error)
+    monkeypatch.setattr(answers, "search_chunks", _one_chunk)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
+    monkeypatch.setattr(answers, "generate_narrative", _raise_citation_error)
 
     resp = api_client.post(
         "/answer",
@@ -486,9 +486,9 @@ def test_answer_empty_segments_returns_no_results(api_client, monkeypatch):
     async def _empty_answer(*args, **kwargs):
         return Answer(answer_segments=[])
 
-    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
-    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
-    monkeypatch.setattr(routes, "generate_narrative", _empty_answer)
+    monkeypatch.setattr(answers, "search_chunks", _one_chunk)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
+    monkeypatch.setattr(answers, "generate_narrative", _empty_answer)
 
     resp = api_client.post(
         "/answer",
@@ -516,9 +516,9 @@ def test_answer_claim_without_citation_is_evidence_integrity_block(api_client, m
     async def _raise_citation_error(*args, **kwargs):
         raise CitationError([CitationViolation(0, "empty", ())])
 
-    monkeypatch.setattr(routes, "search_chunks", _one_chunk)
-    monkeypatch.setattr(routes, "fetch_financials", _one_financial)
-    monkeypatch.setattr(routes, "generate_narrative", _raise_citation_error)
+    monkeypatch.setattr(answers, "search_chunks", _one_chunk)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
+    monkeypatch.setattr(answers, "generate_narrative", _raise_citation_error)
 
     resp = api_client.post(
         "/answer",

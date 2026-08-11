@@ -1,8 +1,10 @@
 """Deterministic resolution of Citations into openable Filing Sources."""
 
+import datetime
+import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Protocol
 from urllib.parse import urlsplit
 
 from app.filings import FilingIdentity, RegulatorySource
@@ -25,7 +27,31 @@ class EvidenceBundle:
     filing_sources: list[FilingSource]
 
 
-def _filing_identity(filing: Any) -> FilingIdentity:
+class EvidenceFiling(Protocol):
+    """Persisted filing shape required to resolve an openable source."""
+
+    id: uuid.UUID
+    source: str
+    rcept_no: str | None
+    sec_accession_no: str | None
+    title: str | None
+    url: str | None
+    filed_at: datetime.date | None
+
+
+class EvidenceChunk(Protocol):
+    """Retrieved chunk shape required to resolve a Citation."""
+
+    chunk_id: uuid.UUID
+    filing_id: uuid.UUID
+    text: str
+    section_title: str | None
+    section_order: int | None
+    part_index: int | None
+    chunk_index: int
+
+
+def _filing_identity(filing: EvidenceFiling) -> FilingIdentity:
     source = str(filing.source).strip()
     if source == "dart":
         value = filing.rcept_no
@@ -50,7 +76,7 @@ def _is_openable_url(value: str) -> bool:
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
-def filing_source_from_filing(filing: Any) -> FilingSource:
+def filing_source_from_filing(filing: EvidenceFiling) -> FilingSource:
     """Build a Filing Source from canonical regulator identity and metadata."""
 
     identity = _filing_identity(filing)
@@ -71,7 +97,7 @@ def filing_source_from_filing(filing: Any) -> FilingSource:
     )
 
 
-def _bounded_excerpt(text: Any) -> str:
+def _bounded_excerpt(text: object) -> str:
     excerpt = str(text).strip() if text is not None else ""
     if not excerpt:
         raise EvidenceIntegrityError("cited Filing Chunk has no evidence excerpt")
@@ -79,7 +105,9 @@ def _bounded_excerpt(text: Any) -> str:
 
 
 def resolve_evidence(
-    answer: Answer, chunks: Sequence[Any], filings: Sequence[Any]
+    answer: Answer,
+    chunks: Sequence[EvidenceChunk],
+    filings: Sequence[EvidenceFiling],
 ) -> EvidenceBundle:
     """Resolve an answer in first-citation order through chunks to filings."""
 

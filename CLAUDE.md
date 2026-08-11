@@ -113,7 +113,7 @@ FastAPI + PostgreSQL(pgvector) 백엔드.
 ## 순수 함수 분리
 
 파싱/매핑 로직은 네트워크·DB 없이 단위테스트 가능한 순수 함수로 만든다
-(기존 패턴: `persist.py`, `chunking.py`, `kure.py`).
+(기존 패턴: `dart.py`, `chunking.py`, `kure.py`).
 
 ## 작업 후 보고 양식
 

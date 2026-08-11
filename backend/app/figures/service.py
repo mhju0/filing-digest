@@ -13,7 +13,8 @@ caller runs the query; this module only shapes already-fetched rows.
 import logging
 import uuid
 from collections.abc import Iterable
-from typing import Any
+from decimal import Decimal
+from typing import Protocol
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,7 +88,21 @@ class FigureError(RuntimeError):
     """
 
 
-def build_figures(rows: Iterable[Any]) -> list[Figure]:
+class FinancialFigureRow(Protocol):
+    """Persisted financial shape required to build a public Figure."""
+
+    metric: str
+    value: Decimal
+    unit: str
+    currency: str | None
+    period: str
+    period_kind: str
+    fiscal_year: int
+    fiscal_quarter: int | None
+    filing_id: uuid.UUID | None
+
+
+def build_figures(rows: Iterable[FinancialFigureRow]) -> list[Figure]:
     """Shape already-fetched ``financials`` rows into :class:`Figure` (pure).
 
     Each ``row`` (an ORM ``Financial`` object or any row exposing the same
