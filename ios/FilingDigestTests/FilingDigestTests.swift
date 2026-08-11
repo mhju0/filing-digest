@@ -515,7 +515,7 @@ struct KoreanDisplayTests {
     }
 }
 
-@Suite("SearchView browse-first filtering and grouping")
+@Suite("SearchView Ledger index filtering, ordering, and recents")
 struct SearchFilterTests {
     private static func company(
         _ name: String, nameEn: String? = nil, ticker: String? = nil,
@@ -545,16 +545,35 @@ struct SearchFilterTests {
         #expect(SearchView.filter(corpus, query: "삼성").map(\.name) == ["삼성전자"])
         #expect(SearchView.filter(corpus, query: "hynix").map(\.name) == ["SK하이닉스"])
         #expect(SearchView.filter(corpus, query: "msft").map(\.name) == ["MICROSOFT CORP"])
+        #expect(SearchView.filter(corpus, query: "애플").map(\.name) == ["Apple Inc."])
         #expect(SearchView.filter(corpus, query: "카카오").isEmpty)
     }
 
-    @Test("Grouping is DART then SEC, dropping empty groups, preserving order")
-    func grouping() {
-        let groups = SearchView.grouped(corpus)
-        #expect(groups.map(\.source) == [.dart, .sec])
-        #expect(groups[0].companies.map(\.name) == ["삼성전자", "SK하이닉스"])
+    @Test("All companies use their Korean display names for ordering")
+    func ordering() {
+        #expect(SearchView.ordered(corpus).map(\.koreanDisplayName) == [
+            "SK하이닉스", "마이크로소프트", "삼성전자", "애플",
+        ])
+    }
 
-        let secOnly = SearchView.grouped(corpus.filter { $0.source == .sec })
-        #expect(secOnly.map(\.source) == [.sec])
+    @Test("Recent companies move to the front, deduplicate, and stay bounded")
+    func recents() {
+        let companies = corpus
+        let first = companies[0].id
+        let second = companies[1].id
+        let third = companies[2].id
+
+        let existing = SearchView.updatedRecentIDs(opening: second, existing: [first])
+        #expect(existing == [second, first])
+
+        let repeated = SearchView.updatedRecentIDs(opening: first, existing: existing)
+        #expect(repeated == [first, second])
+
+        let bounded = SearchView.updatedRecentIDs(opening: third, existing: repeated)
+        #expect(bounded == [third, first])
+        #expect(SearchView.recentCompanies(in: companies, storedIDs: bounded).map(\.id) == bounded)
+
+        let storage = bounded.joined(separator: ",")
+        #expect(SearchView.recentIDs(from: storage) == bounded)
     }
 }

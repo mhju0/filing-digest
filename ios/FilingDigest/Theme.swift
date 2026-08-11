@@ -118,12 +118,25 @@ struct LedgerFilledButtonStyle: ButtonStyle {
     }
 }
 
+/// Press feedback for ruled navigation rows. It keeps the paper surface and
+/// changes only opacity, so the ledger alignment never shifts under a finger.
+struct LedgerRowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.5 : 1)
+    }
+}
+
 extension ButtonStyle where Self == LedgerButtonStyle {
     static var ledger: LedgerButtonStyle { LedgerButtonStyle() }
 }
 
 extension ButtonStyle where Self == LedgerFilledButtonStyle {
     static var ledgerFilled: LedgerFilledButtonStyle { LedgerFilledButtonStyle() }
+}
+
+extension ButtonStyle where Self == LedgerRowButtonStyle {
+    static var ledgerRow: LedgerRowButtonStyle { LedgerRowButtonStyle() }
 }
 
 /// Square citation marker — the brand's smallest unit. Filled ledger green
