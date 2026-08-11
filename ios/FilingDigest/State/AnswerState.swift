@@ -1,10 +1,18 @@
 import Combine
 import Foundation
 
-struct AnswerIntent: Equatable, Hashable, Sendable {
+struct AnswerIntent: Equatable, Sendable {
     let query: String
     let companyID: UUID
     let period: String?
+}
+
+private enum AnswerStateError: LocalizedError {
+    case invalidEvidence
+
+    var errorDescription: String? {
+        "서버 응답 형식이 앱과 맞지 않습니다."
+    }
 }
 
 /// Owns Answer request identity, evidence validation, and latest-intent state.
@@ -34,21 +42,14 @@ final class AnswerState: ObservableObject {
     func submit(query: String, companyID: UUID, period: String? = nil) async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        await request(
-            AnswerIntent(query: trimmed, companyID: companyID, period: period),
-            force: true
-        )
-    }
-
-    func refresh() async {
-        guard let currentIntent else { return }
-        await request(currentIntent, force: true)
+        let intent = AnswerIntent(query: trimmed, companyID: companyID, period: period)
+        await request(intent)
     }
 
     /// Replays the exact failed intent, regardless of later draft-field edits.
     func retry() async {
         guard let intent = failedIntent ?? currentIntent else { return }
-        await request(intent, force: true)
+        await request(intent)
     }
 
     func cancel() {
@@ -58,13 +59,12 @@ final class AnswerState: ObservableObject {
         isLoading = false
     }
 
-    private func request(_ intent: AnswerIntent, force: Bool) async {
+    private func request(_ intent: AnswerIntent) async {
         let isSameIntent = currentIntent == intent
         if isSameIntent, let currentTask {
             await currentTask.value
             return
         }
-        if isSameIntent, response != nil, !force { return }
 
         currentTask?.cancel()
         generation += 1
@@ -88,7 +88,12 @@ final class AnswerState: ObservableObject {
         let task = Task { @MainActor [weak self] in
             do {
                 let result = try await operation(intent.query, intent.companyID, intent.period)
-                let index = try result.makeEvidenceIndex()
+                let index: AnswerEvidenceIndex?
+                do {
+                    index = try result.makeEvidenceIndex()
+                } catch {
+                    throw AnswerStateError.invalidEvidence
+                }
                 guard let self,
                       !Task.isCancelled,
                       self.generation == requestGeneration

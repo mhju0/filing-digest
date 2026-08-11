@@ -4,13 +4,10 @@ Environment variables are documented in ``backend/.env.example`` and mirror
 the fields on :class:`Settings`.
 """
 
-import logging
 from functools import lru_cache
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -47,11 +44,6 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5433/filing_digest"
     )
-
-    # [Verified] 1024 dims: KURE-v1 (nlpai-lab/KURE-v1) dense dimension.
-    # Reserved, not consumed: the actual schema dimension is fixed by
-    # vector(1024) in backend/db/init.sql. Changing this value alone has no effect.
-    embedding_dim: int = 1024
 
     # KURE-v1 (nlpai-lab/KURE-v1): the cross-lingual (KO/EN) 1024-dim model whose
     # vectors backfill filing_chunks.embedding. A HuggingFace model id; overriding

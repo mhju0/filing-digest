@@ -29,8 +29,6 @@ kept as defence-in-depth.
 import logging
 import re
 
-logger = logging.getLogger(__name__)
-
 # Loggers known to emit the DART API key in cleartext (the full request URL is
 # logged at INFO). Masking is installed on these at logger level so the record
 # itself is redacted before any handler -- including pytest's live-log handler --

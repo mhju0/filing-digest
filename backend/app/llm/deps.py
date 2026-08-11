@@ -10,14 +10,11 @@ The client is request-scoped. A shared lifespan client would improve connection
 reuse, but the current ownership model is explicit and leak-free.
 """
 
-import logging
 from collections.abc import AsyncIterator
 
 from app.config import get_settings
 from app.llm.base import LLMClient
 from app.llm.solar import SolarClient
-
-logger = logging.getLogger(__name__)
 
 
 async def get_llm_client() -> AsyncIterator[LLMClient]:
