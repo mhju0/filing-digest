@@ -34,16 +34,14 @@ final class AnswerState: ObservableObject {
     func submit(query: String, companyID: UUID, period: String? = nil) async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        await request(
-            AnswerIntent(query: trimmed, companyID: companyID, period: period),
-            force: true
-        )
+        let intent = AnswerIntent(query: trimmed, companyID: companyID, period: period)
+        await request(intent)
     }
 
     /// Replays the exact failed intent, regardless of later draft-field edits.
     func retry() async {
         guard let intent = failedIntent ?? currentIntent else { return }
-        await request(intent, force: true)
+        await request(intent)
     }
 
     func cancel() {
@@ -53,13 +51,12 @@ final class AnswerState: ObservableObject {
         isLoading = false
     }
 
-    private func request(_ intent: AnswerIntent, force: Bool) async {
+    private func request(_ intent: AnswerIntent) async {
         let isSameIntent = currentIntent == intent
         if isSameIntent, let currentTask {
             await currentTask.value
             return
         }
-        if isSameIntent, response != nil, !force { return }
 
         currentTask?.cancel()
         generation += 1
