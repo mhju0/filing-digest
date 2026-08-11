@@ -3,7 +3,7 @@ import Foundation
 /// Produces the ordered company index shown by the browse screen and owns the
 /// compact persistence format for its recent-company history.
 struct CompanyDirectory {
-    struct Snapshot: Equatable {
+    struct Snapshot {
         let isFiltering: Bool
         let visibleCompanies: [Company]
         let recentCompanies: [Company]
@@ -34,8 +34,8 @@ struct CompanyDirectory {
 
     /// Moves a company to the front, removes duplicates, and retains the two
     /// most recent companies without exposing the storage encoding to callers.
-    func recordingVisit(to companyID: String, in recentStorage: String) -> String {
-        let existing = recentIDs(from: recentStorage)
+    static func recordingVisit(to companyID: String, in recentStorage: String) -> String {
+        let existing = recentStorage.split(separator: ",").map(String.init)
         return ([companyID] + Array(existing.filter { $0 != companyID }.prefix(1)))
             .joined(separator: ",")
     }

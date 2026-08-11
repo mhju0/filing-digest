@@ -68,17 +68,18 @@ struct CompanyDirectoryTests {
         let first = companies[0].id
         let second = companies[1].id
         let third = companies[2].id
-        let directory = CompanyDirectory(companies: companies)
-
-        let existing = directory.recordingVisit(to: second, in: first)
+        let existing = CompanyDirectory.recordingVisit(to: second, in: first)
         #expect(existing == [second, first].joined(separator: ","))
 
-        let repeated = directory.recordingVisit(to: first, in: existing)
+        let repeated = CompanyDirectory.recordingVisit(to: first, in: existing)
         #expect(repeated == [first, second].joined(separator: ","))
 
-        let bounded = directory.recordingVisit(to: third, in: repeated)
+        let bounded = CompanyDirectory.recordingVisit(to: third, in: repeated)
         #expect(bounded == [third, first].joined(separator: ","))
-        let snapshot = directory.snapshot(query: "", recentStorage: bounded)
+        let snapshot = CompanyDirectory(companies: companies).snapshot(
+            query: "",
+            recentStorage: bounded
+        )
         #expect(snapshot.recentCompanies.map(\.id) == [third, first])
     }
 
