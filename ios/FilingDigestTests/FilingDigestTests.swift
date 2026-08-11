@@ -458,6 +458,61 @@ struct FigureDisplayFormattingTests {
             FigureDisplay.formattedValue(2_131, unit: "KRW", language: .ko) == "2,131원"
         )
     }
+
+    @Test("Formatted values expose aligned number and unit roles")
+    func valueParts() {
+        let korean = FigureDisplay.formattedValueParts(
+            333_600_000_000_000,
+            unit: "KRW",
+            language: .ko
+        )
+        #expect(korean.number == "333.6")
+        #expect(korean.unit == "조 원")
+        #expect(korean.combined == "333.6조 원")
+
+        let english = FigureDisplay.formattedValueParts(
+            391_035_000_000,
+            unit: "USD",
+            language: .en
+        )
+        #expect(english.number == "391")
+        #expect(english.unit == "B USD")
+        #expect(english.combined == "391B USD")
+    }
+}
+
+@Suite("Korean company and market display")
+struct KoreanDisplayTests {
+    @Test("Common US company names and market names are localized")
+    func localizedNames() {
+        let apple = Company(
+            id: UUID().uuidString,
+            name: "Apple Inc.",
+            nameEn: "Apple Inc.",
+            ticker: "AAPL",
+            market: .nasdaq,
+            source: .sec
+        )
+
+        #expect(apple.koreanDisplayName == "애플")
+        #expect(Market.kospi.koreanDisplayName == "코스피")
+        #expect(Market.nasdaq.koreanDisplayName == "나스닥")
+        #expect(Market.nyse.koreanDisplayName == "뉴욕증권거래소")
+    }
+
+    @Test("Unknown companies keep their disclosed name")
+    func unknownNameFallback() {
+        let company = Company(
+            id: UUID().uuidString,
+            name: "Example Holdings",
+            nameEn: nil,
+            ticker: "EXM",
+            market: .nyse,
+            source: .sec
+        )
+
+        #expect(company.koreanDisplayName == "Example Holdings")
+    }
 }
 
 @Suite("SearchView browse-first filtering and grouping")

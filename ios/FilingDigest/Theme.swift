@@ -43,6 +43,12 @@ enum Theme {
     /// Letter-spaced small-caps style is approximated with an uppercased
     /// caption + tracking; SwiftUI has no true small caps for Korean anyway.
     static let sectionLabel = Font.caption.weight(.semibold)
+
+    // MARK: Layout
+
+    static let pageInset: CGFloat = 20
+    static let sectionSpacing: CGFloat = 24
+    static let rowSpacing: CGFloat = 12
 }
 
 // MARK: - Shared components
@@ -55,11 +61,14 @@ struct SectionHeader: View {
     var detail: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
+            Rectangle()
+                .fill(Theme.hairline)
+                .frame(height: 1)
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
                     .font(Theme.sectionLabel)
-                    .tracking(1.2)
+                    .tracking(0.4)
                 if let detail {
                     Spacer(minLength: 8)
                     Text(detail)
@@ -68,11 +77,7 @@ struct SectionHeader: View {
                 }
             }
             .foregroundStyle(Theme.inkMuted)
-            Rectangle()
-                .fill(Theme.hairline)
-                .frame(height: 1)
         }
-        .padding(.top, 8)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
@@ -98,8 +103,27 @@ struct LedgerButtonStyle: ButtonStyle {
     }
 }
 
+/// Filled counterpart used only for the final action inside an evidence
+/// sheet. Press feedback changes opacity without moving adjacent content.
+struct LedgerFilledButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Theme.paper)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .contentShape(Rectangle())
+            .background(Rectangle().fill(Color.accentColor))
+            .opacity(configuration.isPressed ? 0.68 : 1)
+    }
+}
+
 extension ButtonStyle where Self == LedgerButtonStyle {
     static var ledger: LedgerButtonStyle { LedgerButtonStyle() }
+}
+
+extension ButtonStyle where Self == LedgerFilledButtonStyle {
+    static var ledgerFilled: LedgerFilledButtonStyle { LedgerFilledButtonStyle() }
 }
 
 /// Square citation marker — the brand's smallest unit. Filled ledger green

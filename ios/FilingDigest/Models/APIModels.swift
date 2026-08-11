@@ -39,6 +39,15 @@ enum Market: String, Codable, Hashable, Sendable {
     case kosdaq = "KOSDAQ"
     case nyse = "NYSE"
     case nasdaq = "NASDAQ"
+
+    var koreanDisplayName: String {
+        switch self {
+        case .kospi: "코스피"
+        case .kosdaq: "코스닥"
+        case .nyse: "뉴욕증권거래소"
+        case .nasdaq: "나스닥"
+        }
+    }
 }
 
 /// Canonical measures reported directly by a Corporate Filing.
@@ -116,6 +125,18 @@ struct Company: Codable, Identifiable, Hashable, Sendable {
     let ticker: String?
     let market: Market?
     let source: RegulatorySource
+
+    /// Familiar Korean names for the fixed reference corpus. Unknown companies
+    /// retain the regulator-provided name instead of inventing a translation.
+    var koreanDisplayName: String {
+        switch ticker?.uppercased() {
+        case "AAPL": "애플"
+        case "MSFT": "마이크로소프트"
+        case "NVDA": "엔비디아"
+        case "TSLA": "테슬라"
+        default: name
+        }
+    }
 }
 
 /// GET /companies?q= response envelope.
