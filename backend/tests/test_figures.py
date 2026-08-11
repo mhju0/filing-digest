@@ -131,7 +131,7 @@ class _CapturingSession:
 
 
 def test_fetch_financials_orders_by_period_desc_metric_asc() -> None:
-    # /answer (app.api.routes.answer) passes fetch_financials's rows straight
+    # The answer module passes fetch_financials's rows straight
     # into build_figures with no reordering of its own, so the figures list
     # returned to the iOS grounding panel is only as deterministic as this
     # query's ORDER BY. A stub session captures the built statement so this

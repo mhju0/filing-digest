@@ -76,6 +76,7 @@ applicable. Figures can still be returned when the narrative is withheld.
 | Area | Primary modules |
 |---|---|
 | HTTP transport and contracts | `backend/app/api/routes.py`, `backend/app/schemas.py` |
+| Digest and answer orchestration | `backend/app/digests/`, `backend/app/answers/` |
 | Filing domain and persistence | `backend/app/filings/`, `backend/app/ingest/` |
 | Financial vocabulary | `backend/app/financials/`, `contracts/financial-vocabulary.json` |
 | Evidence resolution | `backend/app/evidence/` |
