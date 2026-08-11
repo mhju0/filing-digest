@@ -171,11 +171,14 @@ struct SearchView: View {
                 )
                 .padding(.top, 20)
             } else {
-                let visible = Self.filter(state.companies, query: query)
-                if visible.isEmpty {
+                let snapshot = CompanyDirectory(companies: state.companies).snapshot(
+                    query: query,
+                    recentStorage: recentCompanyIDsStorage
+                )
+                if snapshot.visibleCompanies.isEmpty {
                     noMatch
                 } else {
-                    companyList(visible)
+                    companyList(snapshot)
                 }
             }
         } else if state.isLoading {
@@ -204,22 +207,17 @@ struct SearchView: View {
     }
 
     @ViewBuilder
-    private func companyList(_ visible: [Company]) -> some View {
-        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let recent = Self.recentCompanies(
-                in: visible,
-                storedIDs: Self.recentIDs(from: recentCompanyIDsStorage)
-            )
-
+    private func companyList(_ snapshot: CompanyDirectory.Snapshot) -> some View {
+        if !snapshot.isFiltering {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(title: "최근 본 회사", detail: "\(recent.count)")
-                if recent.isEmpty {
+                SectionHeader(title: "최근 본 회사", detail: "\(snapshot.recentCompanies.count)")
+                if snapshot.recentCompanies.isEmpty {
                     Text("회사를 열면 최근 본 순서대로 여기에 표시됩니다.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.inkMuted)
                         .padding(.vertical, 16)
                 } else {
-                    ForEach(Array(recent.enumerated()), id: \.element.id) { index, company in
+                    ForEach(Array(snapshot.recentCompanies.enumerated()), id: \.element.id) { index, company in
                         NavigationLink(value: company) {
                             FeaturedCompanyRow(company: company, rank: index + 1)
                         }
@@ -230,9 +228,8 @@ struct SearchView: View {
             }
 
             VStack(alignment: .leading, spacing: 0) {
-                let ordered = Self.ordered(visible)
-                SectionHeader(title: "전체 회사", detail: "\(ordered.count)")
-                ForEach(ordered) { company in
+                SectionHeader(title: "전체 회사", detail: "\(snapshot.visibleCompanies.count)")
+                ForEach(snapshot.visibleCompanies) { company in
                     NavigationLink(value: company) {
                         CompactCompanyRow(company: company)
                     }
@@ -242,9 +239,8 @@ struct SearchView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                let ordered = Self.ordered(visible)
-                SectionHeader(title: "검색 결과", detail: "\(ordered.count)")
-                ForEach(ordered) { company in
+                SectionHeader(title: "검색 결과", detail: "\(snapshot.visibleCompanies.count)")
+                ForEach(snapshot.visibleCompanies) { company in
                     NavigationLink(value: company) {
                         FeaturedCompanyRow(company: company)
                     }
@@ -261,46 +257,11 @@ struct SearchView: View {
             .frame(height: 1)
     }
 
-    // MARK: Pure helpers (unit-tested)
-
-    /// Case-insensitive substring filter over name / English name / ticker —
-    /// the same fields the backend's /companies?q= matches, so the local
-    /// filter and a server search agree.
-    static func filter(_ companies: [Company], query: String) -> [Company] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return companies }
-        return companies.filter { company in
-            company.name.localizedCaseInsensitiveContains(trimmed)
-                || company.koreanDisplayName.localizedCaseInsensitiveContains(trimmed)
-                || (company.nameEn?.localizedCaseInsensitiveContains(trimmed) ?? false)
-                || (company.ticker?.localizedCaseInsensitiveContains(trimmed) ?? false)
-        }
-    }
-
-    static func ordered(_ companies: [Company]) -> [Company] {
-        companies.sorted {
-            $0.koreanDisplayName.localizedStandardCompare($1.koreanDisplayName) == .orderedAscending
-        }
-    }
-
-    static func recentIDs(from storage: String) -> [String] {
-        storage.split(separator: ",").map(String.init)
-    }
-
-    static func updatedRecentIDs(opening companyID: String, existing: [String]) -> [String] {
-        [companyID] + Array(existing.filter { $0 != companyID }.prefix(1))
-    }
-
-    static func recentCompanies(in companies: [Company], storedIDs: [String]) -> [Company] {
-        let byID = Dictionary(uniqueKeysWithValues: companies.map { ($0.id, $0) })
-        return storedIDs.compactMap { byID[$0] }
-    }
-
     private func recordRecent(_ company: Company) {
-        recentCompanyIDsStorage = Self.updatedRecentIDs(
-            opening: company.id,
-            existing: Self.recentIDs(from: recentCompanyIDsStorage)
-        ).joined(separator: ",")
+        recentCompanyIDsStorage = CompanyDirectory(companies: state.companies).recordingVisit(
+            to: company.id,
+            in: recentCompanyIDsStorage
+        )
     }
 }
 
