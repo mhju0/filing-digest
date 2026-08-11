@@ -151,7 +151,7 @@ struct CitationMarker: View {
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
             .background(Rectangle().fill(Color.accentColor))
-            .accessibilityLabel("출처 \(index)번")
+            .accessibilityLabel("근거 \(index)번")
     }
 }
 
