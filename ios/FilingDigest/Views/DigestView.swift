@@ -262,15 +262,19 @@ struct DigestView: View {
                     }
                 }
             } else {
+                let columnCount = min(3, metrics.count)
                 LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 3),
+                    columns: Array(
+                        repeating: GridItem(.flexible(), spacing: 0),
+                        count: columnCount
+                    ),
                     spacing: 18
                 ) {
                     ForEach(Array(metrics.enumerated()), id: \.element.id) { index, metric in
                         supportingMetric(metric, source: sourcesByID[metric.filingSourceId])
                             .padding(.horizontal, 10)
                             .overlay(alignment: .trailing) {
-                                if (index + 1).isMultiple(of: 3) == false,
+                                if (index + 1).isMultiple(of: columnCount) == false,
                                    index < metrics.count - 1 {
                                     Rectangle().fill(Theme.hairline).frame(width: 1)
                                 }
@@ -314,13 +318,11 @@ struct DigestView: View {
         return 7
     }
 
-    /// "사업보고서 2023 · 공시 2024-03-12" — humanized period plus the filing
-    /// date of the first Filing Source (all metrics of a v0.3 digest come from a
-    /// single filing).
+    /// The source row below already carries the filing date. Keeping this line
+    /// to the humanized reporting period prevents an awkward wrap beside the
+    /// language control on compact phones.
     private func filingContext(_ digest: CompanyDigest) -> String {
-        let title = FigureDisplay.periodTitle(digest.period, language: language)
-        guard let filedAt = digest.filingSources.first?.filedAt else { return title }
-        return language == .ko ? "\(title) · 공시 \(filedAt)" : "\(title) · filed \(filedAt)"
+        FigureDisplay.periodTitle(digest.period, language: language)
     }
 }
 
