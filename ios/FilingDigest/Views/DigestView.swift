@@ -22,11 +22,7 @@ struct DigestView: View {
     @StateObject private var state: DigestState
     @State private var language: Language = .ko
     @State private var openFiling: OpenableFiling?
-
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-    ]
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(client: APIClient, company: Company) {
         self.client = client
@@ -38,7 +34,7 @@ struct DigestView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
                 companyHeader
 
                 if let digest = state.digest {
@@ -62,7 +58,7 @@ struct DigestView: View {
                     .frame(maxWidth: .infinity, minHeight: 380)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Theme.pageInset)
             .padding(.top, 4)
             .padding(.bottom, 24)
             .readableWidth()
@@ -74,7 +70,7 @@ struct DigestView: View {
                 // The wordmark belongs to the root screen. Once you are inside
                 // a company, the useful thing to hold at the top is which
                 // company — the serif header scrolls away, this does not.
-                Text(company.name)
+                Text(company.koreanDisplayName)
                     .font(Theme.display(.headline))
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1)
@@ -83,10 +79,13 @@ struct DigestView: View {
                 NavigationLink {
                     AnswerView(client: client, company: company)
                 } label: {
-                    Label("질문", systemImage: "questionmark.bubble")
+                    Image(systemName: "questionmark.bubble")
                 }
+                .accessibilityLabel("이 회사에 질문하기")
             }
         }
+        .toolbarBackground(Theme.paper, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .filingSourceSheet($openFiling)
         .task(id: company.id) { await state.load(companyID: company.id) }
         .refreshable { await state.refresh() }
@@ -96,24 +95,22 @@ struct DigestView: View {
     // MARK: Header
 
     private var companyHeader: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(company.name)
-                    .font(Theme.display(.title))
-                    .foregroundStyle(Theme.ink)
-                Spacer()
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center) {
+                Text(
+                    [company.ticker, company.market?.koreanDisplayName]
+                        .compactMap(\.self)
+                        .joined(separator: " / ")
+                )
+                .font(.caption.monospaced())
+                .foregroundStyle(Theme.inkMuted)
+                Spacer(minLength: 8)
                 SourceBadge(source: company.source)
             }
-            Text(
-                [company.nameEn != company.name ? company.nameEn : nil,
-                 company.ticker,
-                 company.market?.rawValue]
-                    .compactMap(\.self)
-                    .joined(separator: " · ")
-            )
-            .font(.caption)
-            .foregroundStyle(Theme.inkMuted)
-            .lineLimit(1)
+            Text(company.koreanDisplayName)
+                .font(Theme.display(.title))
+                .foregroundStyle(Theme.ink)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 8)
         .accessibilityElement(children: .combine)
@@ -138,18 +135,7 @@ struct DigestView: View {
 
     @ViewBuilder
     private func digestContent(_ digest: CompanyDigest) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(filingContext(digest))
-                .font(.subheadline)
-                .foregroundStyle(Theme.inkMuted)
-            Spacer()
-            Picker("언어", selection: $language) {
-                Text("한국어").tag(Language.ko)
-                Text("EN").tag(Language.en)
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 140)
-        }
+        periodRow(digest)
 
         if digest.metrics.isEmpty && digest.summary(for: language) == nil
             && digest.filingSources.isEmpty {
@@ -161,65 +147,61 @@ struct DigestView: View {
             .padding(.top, 20)
         }
 
-        if !digest.metrics.isEmpty {
-            // Every card already carries the Filing Source its value came
-            // from; the card just never did anything with it. Deduplicated
-            // by contract, but never trap the UI on unexpected server data.
+        let orderedMetrics = Self.orderedMetrics(digest.metrics)
+        if let heroMetric = orderedMetrics.first {
             let sourcesByID = Dictionary(
                 digest.filingSources.map { ($0.id, $0) },
                 uniquingKeysWith: { first, _ in first }
             )
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(digest.metrics) { metric in
-                    if let source = sourcesByID[metric.filingSourceId],
-                       let openable = OpenableFiling(source) {
-                        Button { openFiling = openable } label: {
-                            MetricCardView(metric: metric, language: language, isOpenable: true)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("이 수치가 실린 공시를 엽니다")
-                    } else {
-                        MetricCardView(metric: metric, language: language, isOpenable: false)
-                    }
+            let heroFiling = sourcesByID[heroMetric.filingSourceId].flatMap(OpenableFiling.init)
+
+            if let heroFiling {
+                Button { openFiling = heroFiling } label: {
+                    HeroMetricView(metric: heroMetric, language: language, isOpenable: true)
                 }
+                .buttonStyle(.ledgerRow)
+                .accessibilityHint("이 수치가 실린 공시를 엽니다")
+            } else {
+                HeroMetricView(metric: heroMetric, language: language, isOpenable: false)
             }
+
+            supportingMetrics(
+                Array(orderedMetrics.dropFirst()),
+                sourcesByID: sourcesByID
+            )
         }
 
-        // Q&A is the headline feature and lived behind an unlabelled toolbar
-        // glyph, two screens deep. The toolbar button stays for reach while
-        // scrolling; this is the one that can be found.
         NavigationLink {
             AnswerView(client: client, company: company)
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "text.bubble")
-                Text(language == .ko ? "이 회사에 질문하기" : "Ask about this company")
+                Text("이 회사에 질문하기")
                     .font(.subheadline.weight(.semibold))
                 Spacer(minLength: 8)
                 Image(systemName: "arrow.right").font(.caption)
             }
             .foregroundStyle(Color.accentColor)
-            .padding(14)
-            .frame(minHeight: 44)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 48)
             .contentShape(Rectangle())
-            .overlay(
-                RoundedRectangle(cornerRadius: 2)
-                    .strokeBorder(Color.accentColor, lineWidth: 1)
-            )
+            .overlay(Rectangle().strokeBorder(Color.accentColor, lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.ledgerRow)
 
         if let summary = digest.summary(for: language) {
-            SectionHeader(title: language == .ko ? "요약" : "SUMMARY")
-            Text(summary)
-                .font(.body)
-                .foregroundStyle(Theme.ink)
-                .lineSpacing(6)
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "핵심 요약", detail: "01")
+                Text(summary)
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(Theme.ink)
+                    .lineSpacing(7)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
 
         if !digest.filingSources.isEmpty {
-            SectionHeader(title: language == .ko ? "출처" : "SOURCES")
             VStack(alignment: .leading, spacing: 0) {
+                SectionHeader(title: "근거 공시", detail: "\(digest.filingSources.count)")
                 ForEach(digest.filingSources) { filingSource in
                     FilingSourceRow(filingSource: filingSource) { openFiling = $0 }
                     Rectangle()
@@ -228,6 +210,108 @@ struct DigestView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func periodRow(_ digest: CompanyDigest) -> some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(filingContext(digest))
+                    languagePicker
+                }
+            } else {
+                HStack(alignment: .center, spacing: 12) {
+                    Text(filingContext(digest))
+                    Spacer(minLength: 8)
+                    languagePicker
+                }
+            }
+        }
+        .font(.subheadline)
+        .foregroundStyle(Theme.inkMuted)
+        .padding(.vertical, 8)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Theme.hairline).frame(height: 1)
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Theme.hairline).frame(height: 1)
+        }
+    }
+
+    private var languagePicker: some View {
+        Picker("표시 언어", selection: $language) {
+            Text("한국어").tag(Language.ko)
+            Text("영어").tag(Language.en)
+        }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 156)
+    }
+
+    @ViewBuilder
+    private func supportingMetrics(
+        _ metrics: [MetricCard],
+        sourcesByID: [String: FilingSource]
+    ) -> some View {
+        if !metrics.isEmpty {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(metrics) { metric in
+                        supportingMetric(metric, source: sourcesByID[metric.filingSourceId])
+                        Rectangle().fill(Theme.hairline).frame(height: 1)
+                    }
+                }
+            } else {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 3),
+                    spacing: 18
+                ) {
+                    ForEach(Array(metrics.enumerated()), id: \.element.id) { index, metric in
+                        supportingMetric(metric, source: sourcesByID[metric.filingSourceId])
+                            .padding(.horizontal, 10)
+                            .overlay(alignment: .trailing) {
+                                if (index + 1).isMultiple(of: 3) == false,
+                                   index < metrics.count - 1 {
+                                    Rectangle().fill(Theme.hairline).frame(width: 1)
+                                }
+                            }
+                    }
+                }
+                .padding(.horizontal, -10)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func supportingMetric(_ metric: MetricCard, source: FilingSource?) -> some View {
+        if let source, let openable = OpenableFiling(source) {
+            Button { openFiling = openable } label: {
+                SupportingMetricView(metric: metric, language: language, isOpenable: true)
+            }
+            .buttonStyle(.ledgerRow)
+            .accessibilityHint("이 수치가 실린 공시를 엽니다")
+        } else {
+            SupportingMetricView(metric: metric, language: language, isOpenable: false)
+        }
+    }
+
+    static func orderedMetrics(_ metrics: [MetricCard]) -> [MetricCard] {
+        metrics.enumerated().sorted { lhs, rhs in
+            let lhsRank = metricRank(lhs.element.key)
+            let rhsRank = metricRank(rhs.element.key)
+            return lhsRank == rhsRank ? lhs.offset < rhs.offset : lhsRank < rhsRank
+        }.map(\.element)
+    }
+
+    private static func metricRank(_ metric: FinancialMetric) -> Int {
+        if metric == .revenue { return 0 }
+        if metric == .operatingIncome { return 1 }
+        if metric == .netIncome { return 2 }
+        if metric == .netIncomeAttributable { return 3 }
+        if metric == .eps { return 4 }
+        if metric == .epsDiluted { return 5 }
+        if metric == .operatingMargin { return 6 }
+        return 7
     }
 
     /// "사업보고서 2023 · 공시 2024-03-12" — humanized period plus the filing
@@ -240,24 +324,85 @@ struct DigestView: View {
     }
 }
 
-// MARK: - Metric card
+// MARK: - Metrics
 
-private struct MetricCardView: View {
+private struct HeroMetricView: View {
     let metric: MetricCard
     let language: Language
     let isOpenable: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 4) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(metric.label(for: language))
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.inkMuted)
+                Spacer(minLength: 8)
+                if isOpenable {
+                    Image(systemName: "arrow.up.forward")
+                        .font(.caption)
+                        .foregroundStyle(Theme.inkMuted)
+                        .accessibilityHidden(true)
+                }
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                Text(valueParts.number)
+                    .font(.system(.largeTitle, design: .default, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                if !valueParts.unit.isEmpty {
+                    Text(valueParts.unit)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                        .fixedSize()
+                }
+            }
+            if let delta = metric.yoyDeltaPct {
+                Text(deltaText(delta))
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(delta >= 0 ? Color.accentColor : Theme.negative)
+            }
+            VStack(spacing: 3) {
+                Rectangle().fill(Theme.hairline).frame(height: 1)
+                Rectangle().fill(Theme.hairline).frame(height: 1)
+            }
+        }
+        .padding(.top, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private var valueParts: FormattedFigureValue {
+        guard let value = metric.value else {
+            return FormattedFigureValue(number: "—", unit: "", separator: "")
+        }
+        return FigureDisplay.formattedValueParts(value, unit: metric.unit, language: language)
+    }
+
+    private func deltaText(_ delta: Double) -> String {
+        let formatted = delta.formatted(.number.precision(.fractionLength(0...1)))
+        return delta >= 0 ? "↑ 전년 대비 \(formatted)%" : "↓ 전년 대비 \(formatted)%"
+    }
+}
+
+private struct SupportingMetricView: View {
+    let metric: MetricCard
+    let language: Language
+    let isOpenable: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(metric.label(for: language))
                     .font(.caption)
                     .foregroundStyle(Theme.inkMuted)
-                    .lineLimit(1)
+                    .lineLimit(2)
                 if isOpenable {
                     Spacer(minLength: 0)
-                    // A bordered box that does nothing reads as broken; this
-                    // is the smallest mark that says the box goes somewhere.
                     Image(systemName: "arrow.up.forward")
                         .font(.caption2)
                         .foregroundStyle(Theme.inkMuted)
@@ -265,32 +410,34 @@ private struct MetricCardView: View {
                 }
             }
             Text(valueText)
-                .font(.title3.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(0.65)
             if let delta = metric.yoyDeltaPct {
-                Text(deltaText(delta))
-                    .font(.caption.weight(.semibold))
+                Text(delta >= 0 ? "+\(formattedDelta(delta))%" : "\(formattedDelta(delta))%")
+                    .font(.caption2)
                     .monospacedDigit()
                     .foregroundStyle(delta >= 0 ? Color.accentColor : Theme.negative)
+            } else {
+                Text("변동률 없음")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.inkMuted)
             }
         }
-        .ledgerCard()
+        .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
 
-    /// nil value -> dash, per contract UI rule. Large KRW/USD values are
-    /// abbreviated for readability (display-only; the wire value is exact).
     private var valueText: String {
         guard let value = metric.value else { return "—" }
         return FigureDisplay.formattedValue(value, unit: metric.unit, language: language)
     }
 
-    private func deltaText(_ delta: Double) -> String {
-        let formatted = delta.formatted(.number.precision(.fractionLength(0...1)))
-        return delta >= 0 ? "YoY +\(formatted)%" : "YoY \(formatted)%"
+    private func formattedDelta(_ delta: Double) -> String {
+        delta.formatted(.number.precision(.fractionLength(0...1)))
     }
 }
 
@@ -307,7 +454,7 @@ struct FilingSourceRow: View {
     var body: some View {
         if let openable = OpenableFiling(filingSource), let onOpen {
             Button { onOpen(openable) } label: { row(isOpenable: true) }
-                .buttonStyle(.plain)
+                .buttonStyle(.ledgerRow)
                 .accessibilityHint("공시 원문을 앱에서 엽니다")
         } else {
             row(isOpenable: false)

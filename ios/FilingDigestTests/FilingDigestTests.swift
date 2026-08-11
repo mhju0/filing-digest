@@ -515,6 +515,48 @@ struct KoreanDisplayTests {
     }
 }
 
+@Suite("Digest Ledger metric hierarchy")
+struct DigestMetricHierarchyTests {
+    @Test("Revenue leads the folio regardless of API order")
+    func revenueIsHeroMetric() {
+        let metrics = [
+            metric(.eps, label: "주당순이익"),
+            metric(.netIncome, label: "당기순이익"),
+            metric(.revenue, label: "매출액"),
+            metric(.operatingIncome, label: "영업이익"),
+        ]
+
+        #expect(DigestView.orderedMetrics(metrics).map(\.key) == [
+            .revenue, .operatingIncome, .netIncome, .eps,
+        ])
+    }
+
+    @Test("Unknown future ordering preserves API order after known metrics")
+    func stableKnownMetricOrder() {
+        let metrics = [
+            metric(.operatingMargin, label: "영업이익률"),
+            metric(.epsDiluted, label: "희석주당순이익"),
+        ]
+
+        #expect(DigestView.orderedMetrics(metrics).map(\.key) == [
+            .epsDiluted, .operatingMargin,
+        ])
+    }
+
+    private func metric(_ key: FinancialMetric, label: String) -> MetricCard {
+        MetricCard(
+            key: key,
+            labelKo: label,
+            labelEn: label,
+            value: 1,
+            unit: "KRW",
+            yoyDeltaPct: nil,
+            source: .dart,
+            filingSourceId: "source"
+        )
+    }
+}
+
 @Suite("SearchView Ledger index filtering, ordering, and recents")
 struct SearchFilterTests {
     private static func company(
