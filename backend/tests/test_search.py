@@ -4,7 +4,7 @@ The impure half (search_chunks: embed_texts + pgvector query) is mostly covered
 by the live end-to-end verification, not here -- except for the new
 ``filing_id`` filter, whose WHERE-clause wiring is cheap to check offline by
 compiling the built statement against a fake in-memory session (same pattern
-as test_persist.py's ``_FakeUpsertSession``). What is otherwise unit-tested is
+as test_dart_ingest.py's persistence fakes). What is otherwise unit-tested is
 score conversion, top_k clamping, and row -> SearchResult assembly, all pure.
 """
 

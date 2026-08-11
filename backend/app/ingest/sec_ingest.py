@@ -1,12 +1,10 @@
 """SEC adapter for the source-independent Normalized Filing seam.
 
-The SEC orchestration fetches and parses everything before building one complete
-:class:`app.filings.model.NormalizedFiling`. The shared persistence module then
-replaces its reported Financial Facts and Filing Chunks atomically by Filing
-Identity, keyed by ``sec_cik`` / ``sec_accession_no``. Embeddings are indexed only
-for that filing after the database snapshot commits.
+The SEC adapter fetches and parses everything before building one complete
+:class:`app.filings.model.NormalizedFiling`. The shared ingestion module owns
+persistence and filing-scoped indexing after this adapter returns.
 
-Design (mirrors persist.py; the differences are all SEC-specific):
+Design (mirrors the DART adapter; the differences are all SEC-specific):
 
 1. **Numbers come only from companyfacts.** ``fetch_company_facts`` is the single
    source of figures (never the LLM/document); the facts are filtered to the
@@ -22,23 +20,13 @@ Design (mirrors persist.py; the differences are all SEC-specific):
    accession is never stuffed into the DART-specific ``meta.rcept_no`` field --
    see :mod:`app.ingest.chunking`).
 
-4. **Filing-scoped indexing is part of the orchestration.** After persistence
-   commits, :func:`~app.embeddings.backfill.index_filing_embeddings` fills only
-   the target filing on a fresh session and publishes ``indexed_at`` only after
-   all of its chunks have vectors.
-
-The adapter exposes source vocabulary helpers plus
-:func:`build_sec_normalized_filing`; database row construction belongs solely
-to :mod:`app.filings.persistence`.
+The :class:`SecFilingAdapter` interface returns a complete snapshot; database
+row construction belongs solely to :mod:`app.filings.persistence`.
 """
 
 import datetime
 import logging
-import uuid
-from collections.abc import Callable
 from dataclasses import dataclass
-
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.sec import (
     SecClient,
@@ -48,7 +36,6 @@ from app.clients.sec import (
     format_cik,
 )
 from app.clients.sec_document import extract_10k_prose
-from app.embeddings.backfill import index_filing_embeddings
 from app.filings.model import (
     CompanyIdentity,
     FilingChunk,
@@ -59,21 +46,20 @@ from app.filings.model import (
     RegulatorySource,
     ReportingPeriod,
 )
-from app.filings.persistence import persist_normalized_filing
 from app.financials.vocabulary import PeriodKind, ReportedMetric
 from app.ingest.chunking import Chunk, chunk_document
-from app.ingest.persist import (
+from app.ingest.dart import (
     METRIC_EPS,
     METRIC_EPS_DILUTED,
 )
 
 logger = logging.getLogger(__name__)
 
-# The one SEC form this step ingests (annual report). Mirrors persist.py's report
+# The one SEC form this step ingests (annual report). Mirrors the DART report
 # codes: only 10-K is in scope; 10-Q and others are a future extension.
 _FORM_10K = "10-K"
 
-# SEC financials.unit / currency vocabulary. Parallels persist.py's UNIT_KRW /
+# SEC financials.unit / currency vocabulary. Parallels the DART UNIT_KRW /
 # UNIT_KRW_PER_SHARE split (the `unit` column distinguishes absolute vs per-share
 # so a reader never mistakes an EPS for an absolute amount); `currency` carries
 # the ISO code.
@@ -82,7 +68,7 @@ UNIT_USD_PER_SHARE = "USD_PER_SHARE"  # USD per share (eps, eps_diluted)
 CURRENCY_USD = "USD"
 
 # Per-share metrics -> UNIT_USD_PER_SHARE; everything else -> UNIT_USD. Reuses the
-# standard metric keys from persist.py (the single spelling shared with DART).
+# standard metric keys from the DART adapter (one spelling shared by both).
 _EPS_METRICS = frozenset({METRIC_EPS, METRIC_EPS_DILUTED})
 
 
@@ -94,18 +80,6 @@ class SecIngestError(RuntimeError):
     orchestration-level "no filing to ingest" / "cannot derive a required field"
     signal. Fail-loud -- we never silently ingest a different or partial filing.
     """
-
-
-@dataclass(frozen=True)
-class SecIngestResult:
-    """Outcome of one :func:`ingest_sec_filing` call (ids + written counts)."""
-
-    company_id: uuid.UUID
-    filing_id: uuid.UUID
-    accession_number: str
-    financials_written: int
-    chunks_written: int
-    embeddings_backfilled: int
 
 
 # -- pure vocabulary helpers --------------------------------------------------
@@ -249,89 +223,50 @@ def _filing_fiscal_year(filing: SecFilingItem, own_facts: list[SecFinancialItem]
 # -- impure: fetch + atomic snapshot replacement + scoped indexing -----------
 
 
-async def ingest_sec_filing(
-    sec_client: SecClient,
-    session_factory: Callable[[], AsyncSession],
-    cik: str | int,
-    accession_number: str | None = None,
-) -> SecIngestResult:
-    """Ingest ONE SEC 10-K into all 4 tables, then backfill its embeddings.
+@dataclass(frozen=True)
+class SecFilingAdapter:
+    """Fetch and normalize one selected or latest SEC 10-K."""
 
-    Flow (mirrors :func:`app.ingest.persist.ingest_filing`): resolve the filer's
-    display name (company_tickers) -> list 10-K filings and pick the latest (or
-    the given ``accession_number``) -> fetch the primary document -> extract Item
-    1/7 prose -> chunk it -> fetch companyfacts and filter to the chosen
-    accession's own-period figures. ALL network I/O + parsing happens *before* the
-    transaction opens, so a fetch/parse failure (e.g. ``SecDocumentParseError``)
-    raises before any write -- nothing is persisted. Then one ``session.begin()``
-    snapshot is adapted and atomically persisted through the shared Normalized
-    Filing seam. Finally, only that filing's embeddings are indexed on a fresh
-    session; it becomes searchable after all target chunks are ready.
+    client: SecClient
+    cik: str | int
+    accession_number: str | None = None
 
-    ``session_factory`` is a zero-arg callable returning an ``AsyncSession`` usable
-    as an async context manager (e.g. ``get_async_session``); two scopes are
-    opened -- one for the atomic write, one for self-committing scoped indexing.
+    async def fetch(self) -> NormalizedFiling:
+        """Return a complete snapshot without opening a database session."""
+        cik10 = format_cik(self.cik)
+        company_match = await self.client.resolve_company_by_cik(self.cik)
+        filings = await self.client.list_filings(
+            self.cik, filing_types=[_FORM_10K]
+        )
+        target = select_target_filing(filings, self.accession_number)
 
-    Returns a :class:`SecIngestResult` (ids + written counts). Re-running with the
-    same arguments is idempotent: the company/filing ids and row counts are
-    unchanged (natural-key upserts + delete-then-insert chunks).
-    """
-    cik10 = format_cik(cik)
+        document = await self.client.fetch_document(
+            self.cik, target.accession_number, target.primary_document
+        )
+        sections = extract_10k_prose(document.raw_bytes)
+        chunks = chunk_document(sections, rcept_no=None)
 
-    # -- 1. fetch + parse everything first (network only; DB untouched) ------
-    company_match = await sec_client.resolve_company_by_cik(cik)
-    filings = await sec_client.list_filings(cik, filing_types=[_FORM_10K])
-    target = select_target_filing(filings, accession_number)
-
-    document = await sec_client.fetch_document(
-        cik, target.accession_number, target.primary_document
-    )
-    # Fail-loud: SecDocumentParseError raises here, before any session opens.
-    sections = extract_10k_prose(document.raw_bytes)
-    chunks = chunk_document(sections, rcept_no=None)  # SEC has no rcept_no
-
-    facts = await sec_client.fetch_company_facts(cik)
-    own_facts = [f for f in facts if f.accession_number == target.accession_number]
-    fiscal_year = _filing_fiscal_year(target, own_facts)
-
-    # -- 2. one atomic authoritative snapshot replacement -------------------
-    normalized = build_sec_normalized_filing(
-        company_match=company_match,
-        cik10=cik10,
-        filing=target,
-        fiscal_year=fiscal_year,
-        document_url=document.url,
-        financial_items=own_facts,
-        chunks=chunks,
-    )
-    async with session_factory() as session:
-        persisted = await persist_normalized_filing(session, normalized)
-    company_id = persisted.company_id
-    filing_id = persisted.filing_id
-    fin_rows = normalized.financial_facts
-    c_rows = normalized.filing_chunks
-
-    # -- 3. index this filing on a fresh session (self-committing per batch) --
-    async with session_factory() as session:
-        embeddings_backfilled = await index_filing_embeddings(session, filing_id)
-
-    logger.info(
-        "ingest_sec_filing: cik=%s accession=%s -> company=%s filing=%s "
-        "financials=%d chunks=%d embeddings=%d (fiscal_year=%d)",
-        cik10,
-        target.accession_number,
-        company_id,
-        filing_id,
-        len(fin_rows),
-        len(c_rows),
-        embeddings_backfilled,
-        fiscal_year,
-    )
-    return SecIngestResult(
-        company_id=company_id,
-        filing_id=filing_id,
-        accession_number=target.accession_number,
-        financials_written=len(fin_rows),
-        chunks_written=len(c_rows),
-        embeddings_backfilled=embeddings_backfilled,
-    )
+        facts = await self.client.fetch_company_facts(self.cik)
+        own_facts = [
+            fact
+            for fact in facts
+            if fact.accession_number == target.accession_number
+        ]
+        fiscal_year = _filing_fiscal_year(target, own_facts)
+        normalized = build_sec_normalized_filing(
+            company_match=company_match,
+            cik10=cik10,
+            filing=target,
+            fiscal_year=fiscal_year,
+            document_url=document.url,
+            financial_items=own_facts,
+            chunks=chunks,
+        )
+        logger.info(
+            "normalized SEC filing=%s financials=%d chunks=%d fiscal_year=%d",
+            target.accession_number,
+            len(normalized.financial_facts),
+            len(normalized.filing_chunks),
+            fiscal_year,
+        )
+        return normalized

@@ -1,21 +1,24 @@
-"""Offline tests for the public DART-to-Normalized-Filing adapter.
+"""Offline tests for the DART-to-Normalized-Filing adapter.
 
 These exercise source vocabulary and the complete adapter output with fixture
 objects only. Atomic database replacement is covered through the same public
 Normalized Filing seam in ``test_normalized_filing_persistence.py``.
 """
 
+import asyncio
 import datetime
 from decimal import Decimal
 
 import pytest
 
-from app.clients.dart import FilingItem, FinancialItem
+from app.clients.dart import DocumentPayload, FilingItem, FinancialItem, ProseSection
 from app.financials.vocabulary import PeriodKind, ReportedMetric
+from app.ingest import dart
 from app.ingest.chunking import Chunk
-from app.ingest.persist import (
+from app.ingest.dart import (
     UNIT_KRW,
     UNIT_KRW_PER_SHARE,
+    DartFilingAdapter,
     PeriodDescriptor,
     build_dart_normalized_filing,
     filing_type_for,
@@ -168,6 +171,54 @@ def test_unit_for_splits_eps_from_amounts() -> None:
 
 
 # -- public normalized adapter ------------------------------------------------
+
+
+def test_dart_filing_adapter_fetches_complete_snapshot_without_refetching_listing(
+    monkeypatch,
+) -> None:
+    class _FakeDartClient:
+        async def fetch_financials(self, corp_code, bsns_year, reprt_code, fs_div):
+            assert (corp_code, bsns_year, reprt_code, fs_div) == (
+                "00126380",
+                "2023",
+                "11011",
+                "CFS",
+            )
+            return [_fin_item("revenue", 1000)]
+
+        async def fetch_company_eng_name(self, corp_code):
+            assert corp_code == "00126380"
+            return "Samsung Electronics Co., Ltd."
+
+        async def fetch_document(self, rcept_no):
+            assert rcept_no == "20240312000736"
+            return DocumentPayload(
+                rcept_no=rcept_no,
+                filename=f"{rcept_no}.xml",
+                content=b"<DOCUMENT />",
+                member_names=(f"{rcept_no}.xml",),
+            )
+
+    monkeypatch.setattr(dart, "detect_document_format", lambda text: "dsd")
+    monkeypatch.setattr(
+        dart,
+        "extract_dsd_prose",
+        lambda text: [ProseSection("회사의 개요", "반도체를 생산한다.", 0)],
+    )
+
+    filing = asyncio.run(
+        DartFilingAdapter(
+            client=_FakeDartClient(),
+            corp_code="00126380",
+            filing_item=_filing_item(),
+            bsns_year="2023",
+            reprt_code="11011",
+        ).fetch()
+    )
+
+    assert filing.identity.stable_id == "dart:20240312000736"
+    assert len(filing.financial_facts) == 1
+    assert len(filing.filing_chunks) == 1
 
 
 def test_dart_adapter_maps_company_and_filing_metadata() -> None:

@@ -23,7 +23,7 @@ Design:
   current API.
 - Row -> :class:`SearchResult` assembly is a pure function
   (:func:`_row_to_result`), unit-tested without a DB (implement-step pattern:
-  persist.py, chunking.py, kure.py).
+  dart.py, chunking.py, kure.py).
 """
 
 import logging
