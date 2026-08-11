@@ -5,7 +5,6 @@ APIs (DART/SEC structured data); the LLM narrates only; every claim carries a
 citation.
 """
 
-import logging
 import uuid
 from decimal import Decimal
 from enum import StrEnum
@@ -17,8 +16,6 @@ from app import __version__
 from app.financials import DerivedMetric, PeriodKind, ReportedMetric
 from app.llm.answer import Answer
 from app.search.constants import DEFAULT_TOP_K, MAX_TOP_K
-
-logger = logging.getLogger(__name__)
 
 Source = Literal["dart", "sec"]
 Market = Literal["KOSPI", "KOSDAQ", "NYSE", "NASDAQ"]

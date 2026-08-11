@@ -94,6 +94,29 @@ struct AsyncStateTests {
         #expect(state.refreshError != nil)
     }
 
+    @Test("Answer state rejects narrative with unresolved evidence")
+    func answerInvalidEvidenceFailsClosed() async {
+        let companyID = UUID()
+        let invalidResponse = AnswerResponse(
+            answer: Answer(answerSegments: [
+                AnswerSegment(text: "Unsupported claim", citations: ["missing"]),
+            ]),
+            figures: [],
+            citations: [],
+            filingSources: [],
+            companyId: companyID,
+            narrativeStatus: .ok,
+            blockedReason: nil
+        )
+        let state = AnswerState(sendAnswer: { _, _, _ in invalidResponse })
+
+        await state.submit(query: "question", companyID: companyID)
+
+        #expect(state.response == nil)
+        #expect(state.evidenceIndex == nil)
+        #expect(state.blockingError != nil)
+    }
+
     private func digest(companyID: String) -> CompanyDigest {
         CompanyDigest(
             companyId: companyID,

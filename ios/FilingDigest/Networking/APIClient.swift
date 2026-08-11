@@ -168,15 +168,9 @@ struct APIClient {
 
     /// POST /answer — citation-bearing narrative plus authoritative figures.
     func sendAnswer(query: String, companyId: UUID, period: String? = nil) async throws -> AnswerResponse {
-        let response: AnswerResponse = try await send(
+        try await send(
             makeAnswerRequest(AnswerRequest(query: query, companyId: companyId, period: period))
         )
-        do {
-            _ = try response.makeEvidenceIndex()
-        } catch {
-            throw APIError.decoding(error)
-        }
-        return response
     }
 
     // MARK: Transport

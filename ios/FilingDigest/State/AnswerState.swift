@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 
-struct AnswerIntent: Equatable, Hashable, Sendable {
+struct AnswerIntent: Equatable, Sendable {
     let query: String
     let companyID: UUID
     let period: String?
@@ -38,11 +38,6 @@ final class AnswerState: ObservableObject {
             AnswerIntent(query: trimmed, companyID: companyID, period: period),
             force: true
         )
-    }
-
-    func refresh() async {
-        guard let currentIntent else { return }
-        await request(currentIntent, force: true)
     }
 
     /// Replays the exact failed intent, regardless of later draft-field edits.

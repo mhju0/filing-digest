@@ -14,7 +14,6 @@ Notes:
 
 import datetime
 import decimal
-import logging
 import uuid
 
 from pgvector.sqlalchemy import Vector
@@ -33,8 +32,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
-logger = logging.getLogger(__name__)
 
 # Matches vector(1024) in init.sql. [Verified] -- see module docstring.
 EMBEDDING_DIM = 1024
