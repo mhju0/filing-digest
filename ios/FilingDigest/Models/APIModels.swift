@@ -134,8 +134,17 @@ struct Company: Codable, Identifiable, Hashable, Sendable {
         case "MSFT": "마이크로소프트"
         case "NVDA": "엔비디아"
         case "TSLA": "테슬라"
+        case "035420": "네이버"
         default: name
         }
+    }
+
+    /// A stock identifier with the vocabulary a casual reader needs to
+    /// understand why an alphabetic US ticker and a six-digit Korean code
+    /// occupy the same role.
+    var koreanSecurityIdentifier: String? {
+        guard let ticker, !ticker.isEmpty else { return nil }
+        return source == .dart ? "종목코드 \(ticker)" : "티커 \(ticker)"
     }
 }
 

@@ -98,7 +98,7 @@ struct DigestView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center) {
                 Text(
-                    [company.ticker, company.market?.koreanDisplayName]
+                    [company.koreanSecurityIdentifier, company.market?.koreanDisplayName]
                         .compactMap(\.self)
                         .joined(separator: " / ")
                 )

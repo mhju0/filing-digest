@@ -324,7 +324,7 @@ private struct FeaturedCompanyRow: View {
                     .foregroundStyle(Theme.ink)
                 if company.ticker != nil || company.market != nil {
                     Text(
-                        [company.ticker, company.market?.koreanDisplayName]
+                        [company.koreanSecurityIdentifier, company.market?.koreanDisplayName]
                             .compactMap(\.self)
                             .joined(separator: " · ")
                     )
@@ -349,22 +349,26 @@ private struct CompactCompanyRow: View {
     let company: Company
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(company.koreanDisplayName)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.ink)
-                .multilineTextAlignment(.leading)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(company.koreanDisplayName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                    .multilineTextAlignment(.leading)
+                if let identifier = company.koreanSecurityIdentifier {
+                    Text(identifier)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Theme.inkMuted)
+                }
+            }
             Spacer(minLength: 8)
-            Text(company.ticker ?? "—")
-                .font(.caption.monospaced())
-                .foregroundStyle(Theme.inkMuted)
             SourceBadge(source: company.source)
             Image(systemName: "chevron.right")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(Theme.inkMuted)
         }
         .padding(.vertical, 12)
-        .frame(minHeight: 52)
+        .frame(minHeight: 60)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }

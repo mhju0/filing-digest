@@ -495,6 +495,18 @@ struct KoreanDisplayTests {
         )
 
         #expect(apple.koreanDisplayName == "애플")
+        #expect(apple.koreanSecurityIdentifier == "티커 AAPL")
+
+        let naver = Company(
+            id: "naver",
+            name: "NAVER",
+            nameEn: "NAVER Corporation",
+            ticker: "035420",
+            market: .kospi,
+            source: .dart
+        )
+        #expect(naver.koreanDisplayName == "네이버")
+        #expect(naver.koreanSecurityIdentifier == "종목코드 035420")
         #expect(Market.kospi.koreanDisplayName == "코스피")
         #expect(Market.nasdaq.koreanDisplayName == "나스닥")
         #expect(Market.nyse.koreanDisplayName == "뉴욕증권거래소")
@@ -512,6 +524,21 @@ struct KoreanDisplayTests {
         )
 
         #expect(company.koreanDisplayName == "Example Holdings")
+        #expect(company.koreanSecurityIdentifier == "티커 EXM")
+    }
+
+    @Test("Korean numeric stock codes are explicitly labeled")
+    func koreanStockCodeLabel() {
+        let samsung = Company(
+            id: UUID().uuidString,
+            name: "삼성전자",
+            nameEn: "Samsung Electronics",
+            ticker: "005930",
+            market: .kospi,
+            source: .dart
+        )
+
+        #expect(samsung.koreanSecurityIdentifier == "종목코드 005930")
     }
 }
 
