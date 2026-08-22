@@ -58,7 +58,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
-      - name: Build app and run unit tests
+      - name: Build app and run iOS tests
         run: >-
           xcodebuild test
           -project ios/FilingDigest.xcodeproj

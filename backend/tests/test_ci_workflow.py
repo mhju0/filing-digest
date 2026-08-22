@@ -5,6 +5,14 @@ from pathlib import Path
 import yaml
 
 WORKFLOW_PATH = Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml"
+IOS_SCHEME_PATH = (
+    Path(__file__).parents[2]
+    / "ios"
+    / "FilingDigest.xcodeproj"
+    / "xcshareddata"
+    / "xcschemes"
+    / "FilingDigest.xcscheme"
+)
 
 
 def _workflow() -> dict:
@@ -29,7 +37,7 @@ def test_backend_ci_exercises_postgresql_boundary() -> None:
     assert "tests/test_smoke.py" in commands
 
 
-def test_ios_ci_builds_app_and_runs_unit_tests() -> None:
+def test_ios_ci_builds_app_and_runs_all_tests() -> None:
     ios = _workflow()["jobs"]["ios"]
 
     assert ios["runs-on"] == "macos-15"
@@ -38,3 +46,10 @@ def test_ios_ci_builds_app_and_runs_unit_tests() -> None:
     assert "FilingDigest.xcodeproj" in commands
     assert "-scheme FilingDigest" in commands
     assert "platform=iOS Simulator" in commands
+
+
+def test_ios_scheme_includes_ui_flow_tests() -> None:
+    scheme = IOS_SCHEME_PATH.read_text()
+
+    assert 'BlueprintName = "FilingDigestUITests"' in scheme
+    assert 'BuildableName = "FilingDigestUITests.xctest"' in scheme

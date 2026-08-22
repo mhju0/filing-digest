@@ -64,6 +64,7 @@ struct DigestView: View {
             .readableWidth()
         }
         .paperBackground()
+        .accessibilityIdentifier("digest-screen")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -187,6 +188,7 @@ struct DigestView: View {
             .overlay(Rectangle().strokeBorder(Color.accentColor, lineWidth: 1))
         }
         .buttonStyle(.ledgerRow)
+        .accessibilityIdentifier("ask-company")
 
         if let summary = digest.summary(for: language) {
             VStack(alignment: .leading, spacing: 12) {

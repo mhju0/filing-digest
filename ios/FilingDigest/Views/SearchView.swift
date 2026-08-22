@@ -222,6 +222,7 @@ struct SearchView: View {
                             FeaturedCompanyRow(company: company, rank: index + 1)
                         }
                         .buttonStyle(.ledgerRow)
+                        .accessibilityIdentifier("company-\(company.ticker ?? company.id)")
                         rowDivider
                     }
                 }
@@ -234,6 +235,7 @@ struct SearchView: View {
                         CompactCompanyRow(company: company)
                     }
                     .buttonStyle(.ledgerRow)
+                    .accessibilityIdentifier("company-\(company.ticker ?? company.id)")
                     rowDivider
                 }
             }
@@ -245,6 +247,7 @@ struct SearchView: View {
                         FeaturedCompanyRow(company: company)
                     }
                     .buttonStyle(.ledgerRow)
+                    .accessibilityIdentifier("company-\(company.ticker ?? company.id)")
                     rowDivider
                 }
             }
