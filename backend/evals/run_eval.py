@@ -41,6 +41,8 @@ COMPANY_QUERY = {
 FILING_FY_MAP = {
     # Samsung Electronics (DART, rcept_no 20240312000736)
     "07b006e9-1405-4ed4-9231-580520897f91": "FY2023",
+    # Samsung Electronics (DART, rcept_no 20260310002820)
+    "2b1efc23-9bfd-4dff-9a97-27e3812379b7": "FY2025",
     # Microsoft (SEC 10-K)
     "5a87c459-d2c0-4639-a154-90512c1d5731": "FY2025",
     "4ab8ad13-de30-44d2-8498-9ceedde4bb3f": "FY2024",
@@ -53,7 +55,81 @@ FILING_FY_MAP = {
 
 
 def load_golden_set(path: Path) -> list[dict]:
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    cases = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(cases, list) or not cases:
+        raise ValueError("golden set must be a non-empty list of cases")
+
+    seen_ids: set[str] = set()
+    for case in cases:
+        if not isinstance(case, dict):
+            raise ValueError("each golden-set case must be a mapping")
+        missing = {"id", "query", "company_slug", "tier"} - case.keys()
+        if missing:
+            raise ValueError(f"golden-set case missing fields: {sorted(missing)}")
+        if case["id"] in seen_ids:
+            raise ValueError(f"duplicate golden-set case id: {case['id']!r}")
+        seen_ids.add(case["id"])
+
+        if case["tier"] == "full":
+            if "expected_states" in case:
+                raise ValueError(
+                    f"full case {case['id']!r} must declare one exact expected_state"
+                )
+            has_exact_state = "expected_state" in case
+            has_allowed_states = "allowed_states" in case
+            if has_exact_state == has_allowed_states:
+                raise ValueError(
+                    f"full case {case['id']!r} must declare expected_state or "
+                    "allowed_states, but not both"
+                )
+            if has_exact_state and case["expected_state"] not in {
+                "ok",
+                "blocked",
+                "no_results",
+            }:
+                raise ValueError(
+                    f"full case {case['id']!r} has invalid expected_state "
+                    f"{case['expected_state']!r}"
+                )
+            if has_allowed_states:
+                allowed_states = case["allowed_states"]
+                if (
+                    not isinstance(allowed_states, list)
+                    or not 1 <= len(allowed_states) <= 2
+                    or len(set(allowed_states)) != len(allowed_states)
+                    or not set(allowed_states) <= {"ok", "blocked", "no_results"}
+                ):
+                    raise ValueError(
+                        f"full case {case['id']!r} allowed_states must contain "
+                        "one or two distinct narrative states"
+                    )
+                if len(allowed_states) > 1 and not (
+                    case.get("expected_figure")
+                    or case.get("expected_absent_figure")
+                ):
+                    raise ValueError(
+                        f"full case {case['id']!r} with multiple allowed_states "
+                        "must declare a figure presence or absence contract"
+                    )
+        elif case["tier"] == "retrieval":
+            if "expected_filing_hint" not in case or "expected_max_rank" not in case:
+                raise ValueError(
+                    f"retrieval case {case['id']!r} must declare "
+                    "expected_filing_hint and expected_max_rank"
+                )
+            expected_max_rank = case["expected_max_rank"]
+            if (
+                not isinstance(expected_max_rank, int)
+                or isinstance(expected_max_rank, bool)
+                or not 1 <= expected_max_rank <= 10
+            ):
+                raise ValueError(
+                    f"retrieval case {case['id']!r} expected_max_rank must be 1..10"
+                )
+        else:
+            raise ValueError(f"case {case['id']!r} has invalid tier {case['tier']!r}")
+
+    return cases
 
 
 def resolve_company_ids(client: httpx.Client, base_url: str) -> dict[str, str]:
@@ -87,6 +163,10 @@ def run_retrieval_case(
             "status": "FAIL",
             "reason": f"company_id not resolved for company_slug={case['company_slug']!r}",
             "top1_score": None,
+            "expected_rank": None,
+            "hit_at_1": False,
+            "hit_at_3": False,
+            "reciprocal_rank": 0.0,
             "response": None,
         }
 
@@ -99,25 +179,36 @@ def run_retrieval_case(
     filing_ids = {item["filing_id"] for item in items}
     hints_seen = {FILING_FY_MAP[fid] for fid in filing_ids if fid in FILING_FY_MAP}
     unknown_filing_ids = filing_ids - FILING_FY_MAP.keys()
-    expected = case.get("expected_filing_hint")
+    expected = case["expected_filing_hint"]
     top1_score = items[0]["score"] if items else None
+    expected_rank = next(
+        (
+            rank
+            for rank, item in enumerate(items, start=1)
+            if FILING_FY_MAP.get(item["filing_id"]) == expected
+        ),
+        None,
+    )
+    hit_at_1 = expected_rank == 1
+    hit_at_3 = expected_rank is not None and expected_rank <= 3
+    reciprocal_rank = 1.0 / expected_rank if expected_rank is not None else 0.0
 
-    if expected is not None:
-        passed = expected in hints_seen
-        if not passed and unknown_filing_ids:
-            status = "UNKNOWN_FILING"
-            reason = (
-                f"expected_filing_hint={expected!r} not confirmed in observed="
-                f"{sorted(hints_seen)}; unmapped filing_id(s) {sorted(unknown_filing_ids)} "
-                "-- possible new ingest, update FILING_FY_MAP"
-            )
-        else:
-            status = "PASS" if passed else "FAIL"
-            reason = f"expected_filing_hint={expected!r} in observed={sorted(hints_seen)}"
+    expected_max_rank = case["expected_max_rank"]
+    passed = expected_rank is not None and expected_rank <= expected_max_rank
+    if expected_rank is None and unknown_filing_ids:
+        status = "UNKNOWN_FILING"
+        reason = (
+            f"expected_filing_hint={expected!r} not confirmed within rank "
+            f"{expected_max_rank}; observed="
+            f"{sorted(hints_seen)}; unmapped filing_id(s) {sorted(unknown_filing_ids)} "
+            "-- possible new ingest, update FILING_FY_MAP"
+        )
     else:
-        passed = len(items) > 0
         status = "PASS" if passed else "FAIL"
-        reason = f"no expected_filing_hint; top_k non-empty={passed} (top1_score={top1_score})"
+        reason = (
+            f"expected_filing_hint={expected!r}; rank={expected_rank}; "
+            f"expected_max_rank={expected_max_rank}"
+        )
 
     return {
         "id": case["id"],
@@ -126,6 +217,10 @@ def run_retrieval_case(
         "status": status,
         "reason": reason,
         "top1_score": top1_score,
+        "expected_rank": expected_rank,
+        "hit_at_1": hit_at_1,
+        "hit_at_3": hit_at_3,
+        "reciprocal_rank": reciprocal_rank,
         "response": data,
     }
 
@@ -149,19 +244,65 @@ def run_full_case(
     data = resp.json()
 
     actual_state = data["narrative_status"]
-    expected_states = case["expected_states"]
-    passed = actual_state in expected_states
-    reason = f"state={actual_state!r} in [{','.join(expected_states)}]"
+    if "expected_state" in case:
+        expected_state = case["expected_state"]
+        passed = actual_state == expected_state
+        reason = f"state={actual_state!r}; expected_state={expected_state!r}"
+    else:
+        allowed_states = case["allowed_states"]
+        passed = actual_state in allowed_states
+        reason = f"state={actual_state!r}; allowed_states={allowed_states!r}"
 
     if actual_state == "ok":
         segments = (data.get("answer") or {}).get("answer_segments", [])
         narrative_text = "".join(seg["text"] for seg in segments).strip()
-        citations_count = len(data.get("citations", []))
-        if not narrative_text or citations_count < 1:
+        citations = data.get("citations", [])
+        citations_by_id = {citation["id"]: citation for citation in citations}
+        cited_ids = {
+            citation_id
+            for segment in segments
+            for citation_id in segment.get("citations", [])
+        }
+        missing_citation_ids = cited_ids - citations_by_id.keys()
+        used_source_ids = {
+            citations_by_id[citation_id]["filing_source_id"]
+            for citation_id in cited_ids
+            if citation_id in citations_by_id
+        }
+        sources_by_id = {source["id"]: source for source in data.get("filing_sources", [])}
+        missing_source_ids = used_source_ids - sources_by_id.keys()
+        if (
+            not narrative_text
+            or not cited_ids
+            or missing_citation_ids
+            or missing_source_ids
+        ):
             passed = False
             reason += (
                 f"; groundedness check failed "
-                f"(narrative_len={len(narrative_text)}, citations={citations_count})"
+                f"(narrative_len={len(narrative_text)}, cited_ids={len(cited_ids)}, "
+                f"missing_citations={sorted(missing_citation_ids)}, "
+                f"missing_sources={sorted(missing_source_ids)})"
+            )
+
+        expected_source = case.get("expected_source")
+        expected_source_filing_id = case.get("expected_source_filing_id")
+        if expected_source is not None or expected_source_filing_id is not None:
+            source_found = any(
+                (expected_source is None or source.get("source") == expected_source)
+                and (
+                    expected_source_filing_id is None
+                    or source.get("source_filing_id") == expected_source_filing_id
+                )
+                for source_id, source in sources_by_id.items()
+                if source_id in used_source_ids
+            )
+            if not source_found:
+                passed = False
+            reason += (
+                f"; expected citation source "
+                f"{expected_source}/{expected_source_filing_id}: "
+                f"{'FOUND' if source_found else 'NOT FOUND'}"
             )
 
     expected_figure = case.get("expected_figure")
@@ -179,6 +320,21 @@ def run_full_case(
             f"{'FOUND' if found else 'NOT FOUND'}"
         )
 
+    expected_absent_figure = case.get("expected_absent_figure")
+    if expected_absent_figure is not None:
+        figures = data.get("figures", [])
+        found = any(
+            f["metric"] == expected_absent_figure["metric"]
+            and f["period"] == expected_absent_figure["period"]
+            for f in figures
+        )
+        if found:
+            passed = False
+        reason += (
+            f"; absent figure {expected_absent_figure['metric']}/"
+            f"{expected_absent_figure['period']}: {'FOUND' if found else 'NOT FOUND'}"
+        )
+
     return {
         "id": case["id"],
         "tier": "full",
@@ -186,6 +342,22 @@ def run_full_case(
         "status": "PASS" if passed else "FAIL",
         "reason": reason,
         "response": data,
+    }
+
+
+def summarize_retrieval(results: list[dict]) -> dict[str, int | float]:
+    retrieval_results = [result for result in results if result["tier"] == "retrieval"]
+    case_count = len(retrieval_results)
+    if case_count == 0:
+        return {"case_count": 0, "hit_at_1": 0.0, "hit_at_3": 0.0, "mrr": 0.0}
+    return {
+        "case_count": case_count,
+        "hit_at_1": sum(result["hit_at_1"] for result in retrieval_results)
+        / case_count,
+        "hit_at_3": sum(result["hit_at_3"] for result in retrieval_results)
+        / case_count,
+        "mrr": sum(result["reciprocal_rank"] for result in retrieval_results)
+        / case_count,
     }
 
 
@@ -239,6 +411,15 @@ def main() -> int:
             results.append(result)
 
     print_summary_table(results)
+    retrieval_summary = summarize_retrieval(results)
+    if retrieval_summary["case_count"]:
+        print(
+            "\nRetrieval metrics: "
+            f"Hit@1={retrieval_summary['hit_at_1']:.3f}, "
+            f"Hit@3={retrieval_summary['hit_at_3']:.3f}, "
+            f"MRR={retrieval_summary['mrr']:.3f} "
+            f"({retrieval_summary['case_count']} cases)"
+        )
 
     REPORTS_DIR.mkdir(exist_ok=True)
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -249,6 +430,7 @@ def main() -> int:
                 "base_url": args.base_url,
                 "generated_at": timestamp,
                 "company_ids": company_ids,
+                "retrieval_metrics": retrieval_summary,
                 "results": results,
             },
             indent=2,
@@ -258,14 +440,14 @@ def main() -> int:
     )
     print(f"\nFull report written to {report_path}")
 
-    failures = [r for r in results if r["status"] == "FAIL"]
+    failures = [r for r in results if r["status"] != "PASS"]
     unknown_filings = [r for r in results if r["status"] == "UNKNOWN_FILING"]
     passed_count = len([r for r in results if r["status"] == "PASS"])
     print(f"\n{passed_count}/{len(results)} passed")
     if unknown_filings:
         print(
             f"{len(unknown_filings)} case(s) flagged UNKNOWN_FILING "
-            "(unmapped filing_id -- FILING_FY_MAP may need updating; not counted as failures)"
+            "(unmapped filing_id -- FILING_FY_MAP must be updated before this eval can pass)"
         )
     return 1 if failures else 0
 

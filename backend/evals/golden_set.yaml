@@ -1,129 +1,178 @@
 # Manual live-evaluation cases. `company_slug` is resolved through /companies at
-# runtime. Full cases accept a bounded set of narrative states because generated
-# wording is nondeterministic; expected_figure is the deterministic numeric check.
+# runtime. Qualitative full cases declare one exact narrative state. Numeric full
+# cases may allow `ok` or `blocked`, but only with a required figure contract.
+# Retrieval cases declare the latest acceptable rank for the expected filing.
 
 - id: ok-apple-revenue-fy2025-en
   query: "What was Apple's total revenue in fiscal year 2025?"
   company_slug: apple
   tier: full
-  expected_states: [ok, blocked, no_results]
+  allowed_states: [ok, blocked]
   expected_figure: {metric: revenue, period: "2025-annual"}
 
 - id: ok-apple-business-en
   query: "What does Apple's business primarily consist of?"
   company_slug: apple
   tier: full
-  expected_states: [ok]
+  expected_state: ok
+  expected_source: sec
+  expected_source_filing_id: "0000320193-25-000079"
 
 - id: ok-msft-revenue-fy2024-en
   query: "What was Microsoft's revenue for fiscal year 2024?"
   company_slug: msft
   tier: full
-  expected_states: [ok, blocked, no_results]
+  allowed_states: [ok, blocked]
   expected_figure: {metric: revenue, period: "2024-annual"}
 
 - id: ok-msft-operating-income-fy2023-en
   query: "What was Microsoft's operating income in fiscal year 2023?"
   company_slug: msft
   tier: full
-  expected_states: [ok, blocked, no_results]
+  allowed_states: [ok, blocked]
   expected_figure: {metric: operating_income, period: "2023-annual"}
 
 - id: ok-samsung-revenue-ko
   query: "삼성전자의 2023년 매출액은 얼마인가요?"
   company_slug: 삼성전자
   tier: full
-  expected_states: [ok, blocked, no_results]
+  allowed_states: [ok, blocked]
   expected_figure: {metric: revenue, period: "2023-annual"}
 
 - id: ok-samsung-business-ko
   query: "삼성전자의 주요 사업 내용을 설명해주세요."
   company_slug: 삼성전자
   tier: full
-  expected_states: [ok]
+  expected_state: ok
+  expected_source: dart
+  expected_source_filing_id: "20260310002820"
 
-- id: ok-apple-netincome-ko
-  query: "애플의 최근 순이익은 어느 정도였나요?"
+- id: ok-apple-netincome-fy2025-ko
+  query: "애플의 2025 회계연도 순이익은 어느 정도였나요?"
   company_slug: apple
   tier: full
-  expected_states: [ok, blocked, no_results]
+  allowed_states: [ok, blocked]
   expected_figure: {metric: net_income, period: "2025-annual"}
 
 - id: ok-msft-eps-fy2025-en
   query: "What was Microsoft's earnings per share (EPS) in fiscal year 2025?"
   company_slug: msft
   tier: full
-  expected_states: [ok, blocked, no_results]
+  allowed_states: [ok, blocked]
   expected_figure: {metric: eps, period: "2025-annual"}
+  expected_source: sec
+  expected_source_filing_id: "0000950170-25-100235"
 
-- id: no-results-apple-fy2019-en
+- id: wrong-year-apple-fy2019-en
   query: "What was Apple's revenue in fiscal year 2019?"
   company_slug: apple
   tier: full
-  expected_states: [no_results, blocked, ok]
+  allowed_states: [ok, blocked]
+  expected_absent_figure: {metric: revenue, period: "2019-annual"}
 
-- id: no-results-msft-fy2020-en
+- id: wrong-year-msft-fy2020-en
   query: "What was Microsoft's operating income in fiscal year 2020?"
   company_slug: msft
   tier: full
-  expected_states: [no_results, blocked, ok]
+  allowed_states: [ok, blocked]
+  expected_absent_figure: {metric: operating_income, period: "2020-annual"}
 
-- id: no-results-samsung-2019-ko
+- id: wrong-year-samsung-2019-ko
   query: "삼성전자의 2019년 매출액은 얼마였나요?"
   company_slug: 삼성전자
   tier: full
-  expected_states: [no_results, blocked, ok]
+  allowed_states: [ok, blocked]
+  expected_absent_figure: {metric: revenue, period: "2019-annual"}
 
-- id: blocked-msft-opex-en
+- id: unsupported-msft-opex-en
   query: "Tell me about Microsoft's operating expenses and cost structure."
   company_slug: msft
   tier: full
-  expected_states: [blocked, ok]
+  allowed_states: [ok, blocked]
+  expected_absent_figure: {metric: operating_expenses, period: "2025-annual"}
 
-- id: blocked-apple-rnd-ko
+- id: unsupported-apple-rnd-ko
   query: "애플의 연구개발비(R&D 비용)에 대해 설명해줘."
   company_slug: apple
   tier: full
-  expected_states: [blocked, ok]
+  allowed_states: [ok, blocked]
+  expected_absent_figure: {metric: research_and_development, period: "2025-annual"}
+  expected_source: sec
+  expected_source_filing_id: "0000320193-25-000079"
 
-- id: blocked-samsung-debt-ratio-ko
+- id: unsupported-samsung-debt-ratio-ko
   query: "삼성전자의 부채비율은 어떻게 되나요?"
   company_slug: 삼성전자
   tier: full
-  expected_states: [blocked, ok]
+  allowed_states: [ok, blocked]
+  expected_absent_figure: {metric: debt_ratio, period: "2025-annual"}
 
 - id: overlap-apple-galaxy-ko
   query: "갤럭시와 경쟁하는 프리미엄 스마트폰 사업에서 애플의 2024회계연도 매출은 얼마인가요?"
   company_slug: apple
   tier: retrieval
   expected_filing_hint: "FY2024"
+  expected_max_rank: 3
 
 - id: overlap-msft-iphone-ko
   query: "아이폰과 유사한 프리미엄 생태계 전략 관점에서, Microsoft의 2024회계연도 클라우드 매출은 얼마인가요?"
   company_slug: msft
   tier: retrieval
   expected_filing_hint: "FY2024"
+  expected_max_rank: 3
 
 - id: overlap-samsung-azure-ko
   query: "Azure 클라우드 사업과 유사한 방식으로, 삼성전자의 반도체 부문 매출을 설명해주세요."
   company_slug: 삼성전자
   tier: retrieval
-  expected_filing_hint: "FY2023"
+  expected_filing_hint: "FY2025"
+  expected_max_rank: 1
 
 - id: overlap-apple-azure-en
   query: "In the style of Azure's cloud services growth, what was Apple's fiscal year 2023 revenue?"
   company_slug: apple
   tier: retrieval
   expected_filing_hint: "FY2023"
+  expected_max_rank: 3
 
 - id: retrieval-apple-baseline-en
   query: "Apple revenue trends across recent fiscal years"
   company_slug: apple
   tier: retrieval
   expected_filing_hint: "FY2025"
+  expected_max_rank: 1
 
 - id: retrieval-samsung-baseline-ko
   query: "삼성전자 반도체 사업부의 매출 현황"
   company_slug: 삼성전자
   tier: retrieval
-  expected_filing_hint: "FY2023"
+  expected_filing_hint: "FY2025"
+  expected_max_rank: 1
+
+- id: retrieval-apple-billions-unit-en
+  query: "Apple fiscal year 2025 revenue in billions of dollars"
+  company_slug: apple
+  tier: retrieval
+  expected_filing_hint: "FY2025"
+  expected_max_rank: 3
+
+- id: retrieval-samsung-eok-unit-ko
+  query: "삼성전자 최근 연간 매출을 억원 단위로"
+  company_slug: 삼성전자
+  tier: retrieval
+  expected_filing_hint: "FY2025"
+  expected_max_rank: 1
+
+- id: retrieval-msft-spelled-number-en
+  query: "Microsoft revenue was more than two hundred billion dollars"
+  company_slug: msft
+  tier: retrieval
+  expected_filing_hint: "FY2025"
+  expected_max_rank: 3
+
+- id: retrieval-samsung-spelled-number-ko
+  query: "삼성전자 매출이 이백조 원을 넘었는지 설명"
+  company_slug: 삼성전자
+  tier: retrieval
+  expected_filing_hint: "FY2025"
+  expected_max_rank: 1
