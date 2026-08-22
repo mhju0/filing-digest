@@ -123,6 +123,7 @@ class SearchHit(BaseModel):
 
     chunk_id: uuid.UUID
     filing_id: uuid.UUID
+    filing_period: str | None
     text: str
     score: float
     rcept_no: str | None = None

@@ -111,68 +111,68 @@
   query: "갤럭시와 경쟁하는 프리미엄 스마트폰 사업에서 애플의 2024회계연도 매출은 얼마인가요?"
   company_slug: apple
   tier: retrieval
-  expected_filing_hint: "FY2024"
+  expected_filing_period: "2024-annual"
   expected_max_rank: 3
 
 - id: overlap-msft-iphone-ko
   query: "아이폰과 유사한 프리미엄 생태계 전략 관점에서, Microsoft의 2024회계연도 클라우드 매출은 얼마인가요?"
   company_slug: msft
   tier: retrieval
-  expected_filing_hint: "FY2024"
+  expected_filing_period: "2024-annual"
   expected_max_rank: 3
 
 - id: overlap-samsung-azure-ko
   query: "Azure 클라우드 사업과 유사한 방식으로, 삼성전자의 반도체 부문 매출을 설명해주세요."
   company_slug: 삼성전자
   tier: retrieval
-  expected_filing_hint: "FY2025"
+  expected_filing_period: "2025-annual"
   expected_max_rank: 1
 
 - id: overlap-apple-azure-en
   query: "In the style of Azure's cloud services growth, what was Apple's fiscal year 2023 revenue?"
   company_slug: apple
   tier: retrieval
-  expected_filing_hint: "FY2023"
+  expected_filing_period: "2023-annual"
   expected_max_rank: 3
 
 - id: retrieval-apple-baseline-en
   query: "Apple revenue trends across recent fiscal years"
   company_slug: apple
   tier: retrieval
-  expected_filing_hint: "FY2025"
+  expected_filing_period: "2025-annual"
   expected_max_rank: 1
 
 - id: retrieval-samsung-baseline-ko
   query: "삼성전자 반도체 사업부의 매출 현황"
   company_slug: 삼성전자
   tier: retrieval
-  expected_filing_hint: "FY2025"
+  expected_filing_period: "2025-annual"
   expected_max_rank: 1
 
 - id: retrieval-apple-billions-unit-en
   query: "Apple fiscal year 2025 revenue in billions of dollars"
   company_slug: apple
   tier: retrieval
-  expected_filing_hint: "FY2025"
+  expected_filing_period: "2025-annual"
   expected_max_rank: 3
 
 - id: retrieval-samsung-eok-unit-ko
   query: "삼성전자 최근 연간 매출을 억원 단위로"
   company_slug: 삼성전자
   tier: retrieval
-  expected_filing_hint: "FY2025"
+  expected_filing_period: "2025-annual"
   expected_max_rank: 1
 
 - id: retrieval-msft-spelled-number-en
   query: "Microsoft revenue was more than two hundred billion dollars"
   company_slug: msft
   tier: retrieval
-  expected_filing_hint: "FY2025"
+  expected_filing_period: "2025-annual"
   expected_max_rank: 3
 
 - id: retrieval-samsung-spelled-number-ko
   query: "삼성전자 매출이 이백조 원을 넘었는지 설명"
   company_slug: 삼성전자
   tier: retrieval
-  expected_filing_hint: "FY2025"
+  expected_filing_period: "2025-annual"
   expected_max_rank: 1

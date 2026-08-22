@@ -51,9 +51,10 @@ prose.
 ### Search and answers
 
 `POST /search` embeds a bounded query with the same model and retrieves at most
-50 HNSW-ranked chunks by cosine distance. Optional company scoping joins through
-`filings`, and retrieval excludes filings whose current snapshot is not fully
-indexed.
+50 HNSW-ranked chunks by cosine distance. Each hit includes its owning filing's
+canonical period so evaluation and source tracing do not depend on generated
+UUIDs. Optional company scoping joins through `filings`, and retrieval excludes
+filings whose current snapshot is not fully indexed.
 
 `POST /answer` keeps generated prose and financial values on separate tracks:
 

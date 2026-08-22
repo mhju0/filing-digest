@@ -59,17 +59,19 @@ def test_retrieval_case_reports_rank_aware_metrics() -> None:
         "tier": "retrieval",
         "company_slug": "apple",
         "query": "Apple fiscal year 2024 revenue",
-        "expected_filing_hint": "FY2024",
+        "expected_filing_period": "2024-annual",
         "expected_max_rank": 3,
     }
     payload = {
         "items": [
             {
-                "filing_id": "b74ffd49-c05b-4bbc-a629-8784ea8fa490",
+                "filing_id": "11111111-1111-1111-1111-111111111111",
+                "filing_period": "2025-annual",
                 "score": 0.71,
             },
             {
-                "filing_id": "d5fe2fb7-6189-4d33-b31d-2d096ee80377",
+                "filing_id": "22222222-2222-2222-2222-222222222222",
+                "filing_period": "2024-annual",
                 "score": 0.68,
             },
         ]
@@ -118,7 +120,7 @@ def test_full_case_rejects_wrong_citation_source() -> None:
     assert "expected citation source sec/0000320193-25-000079: NOT FOUND" in result["reason"]
 
 
-def test_cli_exits_nonzero_for_unknown_filing(
+def test_cli_exits_nonzero_for_missing_filing_period(
     tmp_path, monkeypatch
 ) -> None:
     class Handler(BaseHTTPRequestHandler):
@@ -157,7 +159,7 @@ def test_cli_exits_nonzero_for_unknown_filing(
   query: Apple revenue
   company_slug: apple
   tier: retrieval
-  expected_filing_hint: FY2025
+  expected_filing_period: 2025-annual
   expected_max_rank: 1
 """,
         encoding="utf-8",
@@ -270,21 +272,37 @@ def test_full_case_accepts_bounded_safe_states_with_a_figure_contract() -> None:
     assert "allowed_states=['ok', 'blocked']" in result["reason"]
 
 
-def test_retrieval_rank_miss_is_not_mislabeled_as_unknown_filing() -> None:
+def test_retrieval_rank_miss_is_not_mislabeled_as_missing_period() -> None:
     case = {
         "id": "rank-miss-with-unrelated-unknown",
         "tier": "retrieval",
         "company_slug": "apple",
         "query": "Apple fiscal year 2025 revenue",
-        "expected_filing_hint": "FY2025",
+        "expected_filing_period": "2025-annual",
         "expected_max_rank": 3,
     }
     payload = {
         "items": [
-            {"filing_id": "00000000-0000-0000-0000-000000000000", "score": 0.75},
-            {"filing_id": "d5fe2fb7-6189-4d33-b31d-2d096ee80377", "score": 0.70},
-            {"filing_id": "a764e853-7275-4d90-bd00-9c50271c5f1a", "score": 0.68},
-            {"filing_id": "b74ffd49-c05b-4bbc-a629-8784ea8fa490", "score": 0.65},
+            {
+                "filing_id": "11111111-1111-1111-1111-111111111111",
+                "filing_period": "2024-annual",
+                "score": 0.75,
+            },
+            {
+                "filing_id": "22222222-2222-2222-2222-222222222222",
+                "filing_period": "2023-annual",
+                "score": 0.70,
+            },
+            {
+                "filing_id": "33333333-3333-3333-3333-333333333333",
+                "filing_period": "2024-annual",
+                "score": 0.68,
+            },
+            {
+                "filing_id": "44444444-4444-4444-4444-444444444444",
+                "filing_period": "2025-annual",
+                "score": 0.65,
+            },
         ]
     }
 

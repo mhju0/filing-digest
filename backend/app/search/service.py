@@ -56,6 +56,7 @@ class SearchResult:
 
     chunk_id: uuid.UUID
     filing_id: uuid.UUID
+    filing_period: str | None
     text: str
     score: float
     rcept_no: str | None
@@ -93,6 +94,7 @@ class SearchResultRow(Protocol):
 
     id: uuid.UUID
     filing_id: uuid.UUID
+    filing_period: str | None
     content: str
     chunk_index: int
     meta: Mapping[str, object] | None
@@ -113,6 +115,7 @@ def _row_to_result(row: SearchResultRow) -> SearchResult:
     return SearchResult(
         chunk_id=row.id,
         filing_id=row.filing_id,
+        filing_period=row.filing_period,
         text=row.content,
         score=_distance_to_similarity(row.distance),
         rcept_no=meta.get("rcept_no"),
@@ -158,6 +161,7 @@ async def search_chunks(
         select(
             FilingChunk.id,
             FilingChunk.filing_id,
+            Filing.period.label("filing_period"),
             FilingChunk.content,
             FilingChunk.chunk_index,
             FilingChunk.meta,
