@@ -185,6 +185,12 @@ xcodebuild -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
   -destination 'generic/platform=iOS Simulator' build
 ```
 
+GitHub Actions applies `backend/db/init.sql` to a fresh pgvector/PostgreSQL 16
+service, runs both the offline and DB-backed Python suites, then builds the app
+and runs `FilingDigestTests` on a macOS iOS Simulator. The live evaluation
+harness remains manual because it requires an ingested corpus and a configured
+Solar account; see [`backend/evals/README.md`](backend/evals/README.md).
+
 ### Run on a device
 
 The Simulator shares the host's network stack, so a fresh checkout needs no
