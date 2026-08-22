@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A read-only product walkthrough of Filing Digest, a citation-grounded iOS reader for DART and SEC filings.">
+  <meta name="theme-color" content="#f7f4ee">
+  <meta property="og:title" content="Filing Digest — Every claim carries a citation">
+  <meta property="og:description" content="A read-only portfolio demo of the Filing Digest iOS app and its evidence-first architecture.">
+  <meta property="og:image" content="https://mhju0.github.io/filing-digest/social-preview.png">
+  <title>Filing Digest — Portfolio Demo</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="demo.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to product demo</a>
+
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Filing Digest home">
+      <img src="design/logos/mark_light.png" width="488" height="346" alt="" aria-hidden="true">
+      <span>FILING DIGEST</span>
+    </a>
+    <nav aria-label="Primary navigation">
+      <a href="#walkthrough">Walkthrough</a>
+      <a href="#evidence">Evidence model</a>
+      <a href="https://github.com/mhju0/filing-digest">Source</a>
+    </nav>
+  </header>
+
+  <main id="main-content">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">READ-ONLY PORTFOLIO DEMO</p>
+        <h1 id="hero-title">Every claim carries a citation.</h1>
+        <p class="lede">
+          Filing Digest turns Korean DART and US SEC filings into bilingual,
+          source-linked iOS reading flows—without letting generated prose invent
+          the numbers.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#walkthrough">Watch the product flow</a>
+          <a class="button button-secondary" href="https://github.com/mhju0/filing-digest">Inspect the repository</a>
+        </div>
+        <p class="demo-disclosure">
+          This is a read-only portfolio demo built from captured app sessions.
+          No live API calls, credentials, analytics, or user data are involved.
+        </p>
+      </div>
+
+      <figure class="hero-device">
+        <div class="device-frame">
+          <img
+            src="screenshots/walkthrough_poster.png"
+            width="282"
+            height="584"
+            alt="Recorded Filing Digest flow: browse companies, filter, open a digest, ask a question, and inspect a cited answer"
+          >
+        </div>
+        <figcaption>Captured from the implemented SwiftUI app</figcaption>
+      </figure>
+    </section>
+
+    <section class="facts" aria-label="Product scope">
+      <div><strong>DART + SEC</strong><span>Two filing systems</span></div>
+      <div><strong>KO + EN</strong><span>Bilingual digests</span></div>
+      <div><strong>Claim-level</strong><span>Bounded citations</span></div>
+      <div><strong>Structured</strong><span>Authoritative figures</span></div>
+    </section>
+
+    <section class="section" id="walkthrough" aria-labelledby="walkthrough-title">
+      <div class="section-heading">
+        <p class="eyebrow">01 / PRODUCT WALKTHROUGH</p>
+        <h2 id="walkthrough-title">From company list to filing proof.</h2>
+        <p>
+          The captured flow below exercises the product’s central promise:
+          browse a bounded corpus, read structured facts, ask a question, and
+          follow each claim back to its filing evidence.
+        </p>
+      </div>
+
+      <div class="walkthrough-grid">
+        <figure class="demo-card">
+          <div class="device-frame">
+            <img
+              src="screenshots/walkthrough_poster.png"
+              width="282"
+              height="584"
+              loading="lazy"
+              alt="Recorded core product walkthrough from company browsing through a cited answer"
+            >
+          </div>
+          <button
+            class="motion-control"
+            type="button"
+            data-demo-image
+            data-animated-src="screenshots/walkthrough.gif"
+            data-static-src="screenshots/walkthrough_poster.png"
+            aria-pressed="false"
+          >Play core walkthrough</button>
+          <figcaption>
+            <span>CORE FLOW</span>
+            Browse → digest → ask → verify
+          </figcaption>
+        </figure>
+
+        <figure class="demo-card">
+          <div class="device-frame">
+            <img
+              src="screenshots/answer_states_poster.png"
+              width="282"
+              height="584"
+              loading="lazy"
+              alt="Recorded answer states showing cited narrative, guarded figures, and no-results handling"
+            >
+          </div>
+          <button
+            class="motion-control"
+            type="button"
+            data-demo-image
+            data-animated-src="screenshots/answer_states.gif"
+            data-static-src="screenshots/answer_states_poster.png"
+            aria-pressed="false"
+          >Play answer states</button>
+          <figcaption>
+            <span>FAIL-CLOSED STATES</span>
+            Cited → blocked → no results
+          </figcaption>
+        </figure>
+
+        <ol class="flow-notes">
+          <li>
+            <span>01</span>
+            <div><strong>Browse the corpus</strong><p>Company coverage is visible before a question is asked.</p></div>
+          </li>
+          <li>
+            <span>02</span>
+            <div><strong>Read the digest</strong><p>Every metric links to the regulator filing that reported it.</p></div>
+          </li>
+          <li>
+            <span>03</span>
+            <div><strong>Ask across languages</strong><p>Korean questions can retrieve evidence from US filings.</p></div>
+          </li>
+          <li>
+            <span>04</span>
+            <div><strong>Inspect the proof</strong><p>Claim markers resolve to bounded excerpts and openable filing sources.</p></div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="screens" aria-labelledby="screens-title">
+      <div class="section-heading compact">
+        <p class="eyebrow">IMPLEMENTED SURFACES</p>
+        <h2 id="screens-title">The app, not a concept render.</h2>
+      </div>
+      <figure>
+        <img
+          src="screenshots/strip_core.png"
+          width="1280"
+          height="683"
+          loading="lazy"
+          alt="Implemented browse, digest, cited answer, and guarded figures screens"
+        >
+      </figure>
+      <figure>
+        <img
+          src="screenshots/strip_more.png"
+          width="1280"
+          height="683"
+          loading="lazy"
+          alt="Implemented SEC digest, cross-lingual answer, no-results, and dark-mode screens"
+        >
+      </figure>
+    </section>
+
+    <section class="section evidence" id="evidence" aria-labelledby="evidence-title">
+      <div class="section-heading">
+        <p class="eyebrow">02 / EVIDENCE MODEL</p>
+        <h2 id="evidence-title">Two tracks. One hard boundary.</h2>
+        <p>
+          Financial facts and generated narrative travel separately, then meet
+          in the client only after deterministic checks have run.
+        </p>
+      </div>
+
+      <div class="track-grid">
+        <article>
+          <p class="track-label">AUTHORITATIVE TRACK</p>
+          <h3>Structured figures</h3>
+          <p>DART and SEC facts remain exact, source-bearing values. They never pass through the language model.</p>
+          <ul>
+            <li>Exact decimal storage</li>
+            <li>Reporting-period scope</li>
+            <li>Openable filing source</li>
+          </ul>
+        </article>
+        <article>
+          <p class="track-label">NARRATIVE TRACK</p>
+          <h3>Citation-bearing prose</h3>
+          <p>Retrieved filing chunks constrain generation. Missing or invalid evidence causes the prose to fail closed.</p>
+          <ul>
+            <li>Bounded filing excerpts</li>
+            <li>Claim-level citations</li>
+            <li>Number and integrity guards</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="architecture" aria-label="System architecture">
+        <span>SwiftUI</span><i aria-hidden="true"></i>
+        <span>FastAPI</span><i aria-hidden="true"></i>
+        <span>PostgreSQL + pgvector</span><i aria-hidden="true"></i>
+        <span>DART / SEC / KURE / Solar</span>
+      </div>
+    </section>
+
+    <section class="closing" aria-labelledby="closing-title">
+      <p class="eyebrow">REPOSITORY EVIDENCE</p>
+      <h2 id="closing-title">The implementation is open for inspection.</h2>
+      <p>Architecture decisions, evaluation harnesses, tests, and the full SwiftUI/FastAPI source live beside this demo.</p>
+      <div class="hero-actions">
+        <a class="button button-primary" href="https://github.com/mhju0/filing-digest">View source and README</a>
+        <a class="button button-secondary" href="https://github.com/mhju0/filing-digest/blob/main/docs/ARCHITECTURE.md">Read the architecture</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>FILING DIGEST / v0.5.0</span>
+    <span>Read-only portfolio walkthrough</span>
+  </footer>
+</body>
+</html>
