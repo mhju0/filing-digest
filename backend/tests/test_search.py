@@ -32,6 +32,7 @@ def _row(**over) -> SimpleNamespace:
     base = dict(
         id=_CHUNK_ID,
         filing_id=_FILING_ID,
+        filing_period="2025-annual",
         content="배당 정책에 관한 내용",
         chunk_index=3,
         meta={
@@ -82,6 +83,7 @@ def test_row_to_result_maps_citation_anchor_and_score() -> None:
     assert result == SearchResult(
         chunk_id=_CHUNK_ID,
         filing_id=_FILING_ID,
+        filing_period="2025-annual",
         text="배당 정책에 관한 내용",
         score=pytest.approx(0.8),
         rcept_no="20240312000736",
@@ -158,3 +160,4 @@ def test_search_only_reads_fully_indexed_filings(monkeypatch) -> None:
     sql = session.stmt.compile().string
     assert "JOIN filings ON filings.id = filing_chunks.filing_id" in sql
     assert "filings.indexed_at IS NOT NULL" in sql
+    assert "filings.period AS filing_period" in sql

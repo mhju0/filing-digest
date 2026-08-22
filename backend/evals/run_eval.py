@@ -36,24 +36,6 @@ COMPANY_QUERY = {
     "msft": "Microsoft",
 }
 
-# Static filing_id -> fiscal-year hints for the reference local corpus. A fresh
-# database may generate different UUIDs; see evals/README.md for refresh guidance.
-FILING_FY_MAP = {
-    # Samsung Electronics (DART, rcept_no 20240312000736)
-    "07b006e9-1405-4ed4-9231-580520897f91": "FY2023",
-    # Samsung Electronics (DART, rcept_no 20260310002820)
-    "2b1efc23-9bfd-4dff-9a97-27e3812379b7": "FY2025",
-    # Microsoft (SEC 10-K)
-    "5a87c459-d2c0-4639-a154-90512c1d5731": "FY2025",
-    "4ab8ad13-de30-44d2-8498-9ceedde4bb3f": "FY2024",
-    "2371f4c6-b101-4ba3-a191-6a0da371cd75": "FY2023",
-    # Apple (SEC 10-K, verified 2026-07-09 via filings table sec_accession_no)
-    "b74ffd49-c05b-4bbc-a629-8784ea8fa490": "FY2025",  # accession 0000320193-25-000079
-    "d5fe2fb7-6189-4d33-b31d-2d096ee80377": "FY2024",  # accession 0000320193-24-000123
-    "a764e853-7275-4d90-bd00-9c50271c5f1a": "FY2023",  # accession 0000320193-23-000106
-}
-
-
 def load_golden_set(path: Path) -> list[dict]:
     cases = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(cases, list) or not cases:
@@ -112,10 +94,10 @@ def load_golden_set(path: Path) -> list[dict]:
                         "must declare a figure presence or absence contract"
                     )
         elif case["tier"] == "retrieval":
-            if "expected_filing_hint" not in case or "expected_max_rank" not in case:
+            if "expected_filing_period" not in case or "expected_max_rank" not in case:
                 raise ValueError(
                     f"retrieval case {case['id']!r} must declare "
-                    "expected_filing_hint and expected_max_rank"
+                    "expected_filing_period and expected_max_rank"
                 )
             expected_max_rank = case["expected_max_rank"]
             if (
@@ -176,16 +158,19 @@ def run_retrieval_case(
     data = resp.json()
     items = data["items"]
 
-    filing_ids = {item["filing_id"] for item in items}
-    hints_seen = {FILING_FY_MAP[fid] for fid in filing_ids if fid in FILING_FY_MAP}
-    unknown_filing_ids = filing_ids - FILING_FY_MAP.keys()
-    expected = case["expected_filing_hint"]
+    periods_seen = {
+        item["filing_period"] for item in items if item.get("filing_period") is not None
+    }
+    missing_period_ids = {
+        item["filing_id"] for item in items if item.get("filing_period") is None
+    }
+    expected = case["expected_filing_period"]
     top1_score = items[0]["score"] if items else None
     expected_rank = next(
         (
             rank
             for rank, item in enumerate(items, start=1)
-            if FILING_FY_MAP.get(item["filing_id"]) == expected
+            if item.get("filing_period") == expected
         ),
         None,
     )
@@ -195,18 +180,17 @@ def run_retrieval_case(
 
     expected_max_rank = case["expected_max_rank"]
     passed = expected_rank is not None and expected_rank <= expected_max_rank
-    if expected_rank is None and unknown_filing_ids:
-        status = "UNKNOWN_FILING"
+    if expected_rank is None and missing_period_ids:
+        status = "MISSING_FILING_PERIOD"
         reason = (
-            f"expected_filing_hint={expected!r} not confirmed within rank "
-            f"{expected_max_rank}; observed="
-            f"{sorted(hints_seen)}; unmapped filing_id(s) {sorted(unknown_filing_ids)} "
-            "-- possible new ingest, update FILING_FY_MAP"
+            f"expected_filing_period={expected!r} not confirmed within rank "
+            f"{expected_max_rank}; observed={sorted(periods_seen)}; "
+            f"missing filing_period for filing_id(s) {sorted(missing_period_ids)}"
         )
     else:
         status = "PASS" if passed else "FAIL"
         reason = (
-            f"expected_filing_hint={expected!r}; rank={expected_rank}; "
+            f"expected_filing_period={expected!r}; rank={expected_rank}; "
             f"expected_max_rank={expected_max_rank}"
         )
 
@@ -441,13 +425,13 @@ def main() -> int:
     print(f"\nFull report written to {report_path}")
 
     failures = [r for r in results if r["status"] != "PASS"]
-    unknown_filings = [r for r in results if r["status"] == "UNKNOWN_FILING"]
+    missing_periods = [r for r in results if r["status"] == "MISSING_FILING_PERIOD"]
     passed_count = len([r for r in results if r["status"] == "PASS"])
     print(f"\n{passed_count}/{len(results)} passed")
-    if unknown_filings:
+    if missing_periods:
         print(
-            f"{len(unknown_filings)} case(s) flagged UNKNOWN_FILING "
-            "(unmapped filing_id -- FILING_FY_MAP must be updated before this eval can pass)"
+            f"{len(missing_periods)} case(s) flagged MISSING_FILING_PERIOD "
+            "(search result omitted the filing period required for evaluation)"
         )
     return 1 if failures else 0
 
