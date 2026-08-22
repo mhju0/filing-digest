@@ -81,6 +81,7 @@ struct AnswerView: View {
             .onSubmit {
                 Task { await ask(query) }
             }
+            .accessibilityIdentifier("answer-question")
 
             Button {
                 Task { await ask(query) }
@@ -100,6 +101,7 @@ struct AnswerView: View {
             }
             .disabled(!canAsk)
             .accessibilityLabel("질문 전송")
+            .accessibilityIdentifier("answer-submit")
         }
         .readableWidth()
         .padding(.horizontal, Theme.pageInset)
@@ -136,6 +138,7 @@ struct AnswerView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 8)
                 .readableWidth()
+                .accessibilityIdentifier("answer-result")
             }
         } else if state.isLoading {
             pendingAnswer

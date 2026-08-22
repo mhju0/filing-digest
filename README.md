@@ -19,8 +19,10 @@ citation-grounded FastAPI retrieval pipeline.
 </div>
 
 > **Status:** v0.5.0, feature-complete portfolio project in maintenance mode.
-> There is no hosted public demo; run it locally with your own DART and Upstage
-> credentials. No production data or API keys are included.
+> [Open the read-only hosted walkthrough](https://mhju0.github.io/filing-digest/).
+> It uses captured app sessions and makes no live API calls. Run the project
+> locally with your own DART and Upstage credentials for the live experience.
+> No production data or API keys are included.
 
 Filing Digest separates financial figures from generated prose. Structured
 DART/SEC endpoints supply every displayed number. KURE-v1 retrieval selects
@@ -187,7 +189,7 @@ xcodebuild -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
 
 GitHub Actions applies `backend/db/init.sql` to a fresh pgvector/PostgreSQL 16
 service, runs both the offline and DB-backed Python suites, then builds the app
-and runs `FilingDigestTests` on a macOS iOS Simulator. The live evaluation
+and runs unit tests plus the core XCUITest flow on a macOS iOS Simulator. The live evaluation
 harness remains manual because it requires an ingested corpus and a configured
 Solar account. Retrieval cases compare canonical filing periods returned by the
 API, so regenerated database UUIDs do not require an eval-map update; see

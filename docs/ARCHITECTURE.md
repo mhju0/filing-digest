@@ -155,6 +155,8 @@ when the regulator provides honest dates.
   the client build surface small.
 - **Local demo security scope:** the API has no authentication, authorization,
   rate limiting, or tenant isolation and is not intended for public exposure.
+- **Hosted walkthrough boundary:** GitHub Pages serves captured product screens
+  only. It has no backend connection, model call, credentials, or user input.
 
 ## Known constraints
 

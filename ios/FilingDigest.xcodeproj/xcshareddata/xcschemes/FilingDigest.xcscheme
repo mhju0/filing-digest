@@ -21,6 +21,20 @@
                ReferencedContainer = "container:FilingDigest.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A20000000000000000000005"
+               BuildableName = "FilingDigestUITests.xctest"
+               BlueprintName = "FilingDigestUITests"
+               ReferencedContainer = "container:FilingDigest.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -37,6 +51,16 @@
                BlueprintIdentifier = "A10000000000000000000003"
                BuildableName = "FilingDigestTests.xctest"
                BlueprintName = "FilingDigestTests"
+               ReferencedContainer = "container:FilingDigest.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A20000000000000000000005"
+               BuildableName = "FilingDigestUITests.xctest"
+               BlueprintName = "FilingDigestUITests"
                ReferencedContainer = "container:FilingDigest.xcodeproj">
             </BuildableReference>
          </TestableReference>
