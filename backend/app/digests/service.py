@@ -1,9 +1,7 @@
 """Build a company digest from authoritative facts and guarded prose."""
 
 import logging
-import re
 import uuid
-from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 
 import httpx
@@ -15,7 +13,7 @@ from app.db.models import Filing as FilingModel
 from app.digest_narrative import DigestNarrativeError, build_company_summary
 from app.evidence import EvidenceIntegrityError, filing_source_from_filing
 from app.figures.service import fetch_financials
-from app.financials.calculations import compute_yoy_deltas
+from app.financials.calculations import compute_yoy_deltas, select_reporting_periods
 from app.financials.presentation import DIGEST_METRICS
 from app.llm.base import LLMClient
 from app.llm.solar import SolarApiError, SolarClientError
@@ -26,36 +24,6 @@ logger = logging.getLogger(__name__)
 
 class CompanyNotFoundError(LookupError):
     """The requested Regulated Company is not present in the corpus."""
-
-
-def select_target_period(periods: Iterable[str]) -> str:
-    """Deterministically select the latest canonical reporting-period label."""
-    return max(periods, default="")
-
-
-def select_previous_period(periods: Iterable[str], target_period: str) -> str | None:
-    """Select the same reporting scope from exactly one fiscal year earlier."""
-    match = re.fullmatch(
-        r"(?P<year>\d{4})(?P<separator>-?)(?P<scope>annual|Q[1-4]|H1)",
-        target_period,
-    )
-    if match is None:
-        return None
-    previous_label = (
-        f"{int(match.group('year')) - 1}"
-        f"{match.group('separator')}{match.group('scope')}"
-    )
-    return previous_label if previous_label in set(periods) else None
-
-
-def select_latest_filing_id(
-    filing_ids: set[uuid.UUID], filings: Sequence[FilingModel]
-) -> uuid.UUID:
-    """Select the latest filing when a period unexpectedly spans several."""
-    if len(filing_ids) == 1:
-        return next(iter(filing_ids))
-    dated = [filing for filing in filings if filing.filed_at is not None]
-    return (max(dated, key=lambda filing: filing.filed_at) if dated else filings[0]).id
 
 
 async def build_company_digest(
@@ -73,22 +41,24 @@ async def build_company_digest(
         raise CompanyNotFoundError(str(company_id))
 
     rows = await fetch_financials(session, company_id=company_id)
-    target_period = select_target_period(row.period for row in rows)
-    previous_period = select_previous_period(
-        (row.period for row in rows), target_period
-    )
+    target_period, previous_period = select_reporting_periods(rows)
     yoy_deltas = compute_yoy_deltas(rows, target_period, previous_period)
     period_rows = [row for row in rows if row.period == target_period]
     by_metric = {row.metric: row for row in period_rows}
 
     filing_ids = {row.filing_id for row in period_rows if row.filing_id is not None}
-    filings: Sequence[FilingModel] = []
+    filings: list[FilingModel] = []
     filing_sources_by_filing_id: dict[uuid.UUID, FilingSource] = {}
     latest_filing_id: uuid.UUID | None = None
     if filing_ids:
         filings = (
             await session.execute(
                 select(FilingModel).where(FilingModel.id.in_(filing_ids))
+                .order_by(
+                    FilingModel.filed_at.desc().nullslast(),
+                    FilingModel.created_at.desc(),
+                    FilingModel.id.desc(),
+                )
             )
         ).scalars().all()
         for filing in filings:
@@ -98,9 +68,8 @@ async def build_company_digest(
                 )
             except EvidenceIntegrityError as exc:
                 logger.warning("digest omitted invalid Filing Source: %s", exc)
-        resolved_filing_ids = {filing.id for filing in filings}
-        if resolved_filing_ids:
-            latest_filing_id = select_latest_filing_id(resolved_filing_ids, filings)
+        if filings:
+            latest_filing_id = filings[0].id
         if len(filing_ids) > 1:
             logger.warning(
                 "digest: target_period=%s for company_id=%s spans multiple "

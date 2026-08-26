@@ -15,22 +15,11 @@ from pydantic import ValidationError
 
 from app.api.routes import escape_ilike_literal
 from app.db.session import get_db_session
-from app.digests import (
-    select_latest_filing_id,
-    select_previous_period,
-    select_target_period,
-)
-from app.digests import (
-    service as digests,
-)
-from app.financials.calculations import compute_yoy_deltas
+from app.digests import service as digests
+from app.financials.calculations import compute_yoy_deltas, select_reporting_periods
 from app.llm.deps import get_llm_client
 from app.main import app
 from app.schemas import AnswerRequest, SearchRequest
-
-_FID_2023 = uuid.UUID("11111111-1111-1111-1111-111111111111")
-_FID_2024 = uuid.UUID("22222222-2222-2222-2222-222222222222")
-_FID_2025 = uuid.UUID("33333333-3333-3333-3333-333333333333")
 
 
 def test_escape_ilike_literal_treats_wildcards_as_text() -> None:
@@ -50,78 +39,43 @@ def test_answer_request_rejects_oversized_query_and_period() -> None:
         AnswerRequest(query="valid", company_id=company_id, period="x" * 33)
 
 
-def _filing(fid: uuid.UUID, filed_at: datetime.date | None) -> SimpleNamespace:
-    return SimpleNamespace(id=fid, filed_at=filed_at)
-
-
-# -- select_target_period ------------------------------------------------------
-
-
-def test_select_target_period_picks_lexicographic_max_year() -> None:
-    # Apple's 3 ingested fiscal years, in arbitrary (non-sorted) input order.
-    periods = ["2024-annual", "2023-annual", "2025-annual"]
-    assert select_target_period(periods) == "2025-annual"
-
-
-def test_select_target_period_single_period_is_a_noop() -> None:
-    # Samsung: one DART filing, one period.
-    assert select_target_period(["2023-annual"]) == "2023-annual"
-
-
-def test_select_target_period_empty_yields_empty_string() -> None:
-    assert select_target_period([]) == ""
-
-
-def test_select_target_period_dart_and_sec_suffixes_still_sort_by_year() -> None:
-    # Cross-source rows for the same company would still share the "YYYY-"
-    # prefix, which dominates lexicographic comparison.
-    periods = ["2022-annual", "2023-annual"]
-    assert select_target_period(periods) == "2023-annual"
-
-
-# -- select_latest_filing_id ----------------------------------------------------
-
-
-def test_select_latest_filing_id_single_filing_returns_it_directly() -> None:
-    filings = [_filing(_FID_2025, datetime.date(2025, 10, 31))]
-    assert select_latest_filing_id({_FID_2025}, filings) == _FID_2025
-
-
-def test_select_latest_filing_id_multiple_picks_latest_filed_at() -> None:
-    # Unexpected case: the target period's own rows disagree on their filing.
-    filings = [
-        _filing(_FID_2023, datetime.date(2023, 11, 3)),
-        _filing(_FID_2024, datetime.date(2024, 11, 1)),
-    ]
-    assert (
-        select_latest_filing_id({_FID_2023, _FID_2024}, filings) == _FID_2024
+def _period_row(
+    period: str,
+    fiscal_year: int,
+    fiscal_quarter: int | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        period=period,
+        fiscal_year=fiscal_year,
+        fiscal_quarter=fiscal_quarter,
+        period_kind="duration",
+        period_start=None,
+        period_end=None,
     )
 
 
-def test_select_latest_filing_id_falls_back_when_no_filed_at() -> None:
-    # No parseable dates at all: falls back to the first filing rather than
-    # raising -- deterministic given the same input list order.
-    filings = [_filing(_FID_2023, None), _filing(_FID_2024, None)]
-    assert select_latest_filing_id({_FID_2023, _FID_2024}, filings) == _FID_2023
+def test_select_reporting_periods_uses_temporal_fields_not_label_order() -> None:
+    rows = [_period_row("z-older", 2024), _period_row("a-newer", 2025)]
+    assert select_reporting_periods(rows) == ("a-newer", "z-older")
 
 
-# -- select_previous_period ------------------------------------------------------
+def test_select_reporting_periods_prefers_later_scope_within_a_year() -> None:
+    rows = [_period_row("2025-Q3", 2025, 3), _period_row("2025-annual", 2025)]
+    assert select_reporting_periods(rows) == ("2025-annual", None)
 
 
-def test_select_previous_period_picks_next_highest_year() -> None:
-    periods = ["2024-annual", "2023-annual", "2025-annual"]
-    assert select_previous_period(periods, "2025-annual") == "2024-annual"
+def test_select_reporting_periods_requires_adjacent_matching_scope() -> None:
+    rows = [
+        _period_row("2025-Q1", 2025, 1),
+        _period_row("2024-annual", 2024),
+        _period_row("2024-Q1", 2024, 1),
+        _period_row("2023-Q1", 2023, 1),
+    ]
+    assert select_reporting_periods(rows) == ("2025-Q1", "2024-Q1")
 
 
-def test_select_previous_period_none_when_only_target_period_exists() -> None:
-    # Samsung: one DART filing, one period -- nothing to compare against.
-    assert select_previous_period(["2023-annual"], "2023-annual") is None
-
-
-def test_select_previous_period_requires_adjacent_year_and_matching_scope() -> None:
-    periods = ["2025-Q1", "2024-annual", "2024-Q1", "2023-Q1"]
-    assert select_previous_period(periods, "2025-Q1") == "2024-Q1"
-    assert select_previous_period(["2025-annual", "2023-annual"], "2025-annual") is None
+def test_select_reporting_periods_handles_an_empty_corpus() -> None:
+    assert select_reporting_periods([]) == ("", None)
 
 
 # -- compute_yoy_deltas ----------------------------------------------------------
@@ -328,16 +282,25 @@ def test_digest_metrics_reference_explicit_filing_sources(monkeypatch) -> None:
         metric="revenue",
         value=decimal.Decimal("1000"),
         unit="KRW",
+        currency="KRW",
+        scale=1,
         source="dart",
         filing_id=filing_id,
+        fiscal_year=2023,
+        fiscal_quarter=None,
+        period_kind="duration",
+        period_start=None,
+        period_end=None,
     )
 
     class _DigestSession:
         def __init__(self) -> None:
             self.calls = 0
+            self.statements = []
 
-        async def execute(self, *args, **kwargs):
+        async def execute(self, statement, *args, **kwargs):
             self.calls += 1
+            self.statements.append(statement)
             if self.calls == 1:
                 return SimpleNamespace(scalar_one_or_none=lambda: company)
             return SimpleNamespace(
@@ -350,7 +313,8 @@ def test_digest_metrics_reference_explicit_filing_sources(monkeypatch) -> None:
     async def _summary(*args, **kwargs):
         return (None, None)
 
-    app.dependency_overrides[get_db_session] = _DigestSession
+    digest_session = _DigestSession()
+    app.dependency_overrides[get_db_session] = lambda: digest_session
     app.dependency_overrides[get_llm_client] = lambda: object()
     monkeypatch.setattr(digests, "fetch_financials", _financials)
     monkeypatch.setattr(digests, "build_company_summary", _summary)
@@ -375,6 +339,10 @@ def test_digest_metrics_reference_explicit_filing_sources(monkeypatch) -> None:
         }
     ]
     assert "citations" not in body
+    filing_sql = digest_session.statements[1].compile().string
+    assert "ORDER BY filings.filed_at DESC NULLS LAST" in filing_sql
+    assert "filings.created_at DESC" in filing_sql
+    assert "filings.id DESC" in filing_sql
 
 
 def test_digest_omits_a_metric_without_an_openable_filing_source(monkeypatch) -> None:
@@ -395,8 +363,15 @@ def test_digest_omits_a_metric_without_an_openable_filing_source(monkeypatch) ->
         metric="revenue",
         value=decimal.Decimal("1000"),
         unit="USD",
+        currency="USD",
+        scale=1,
         source="sec",
         filing_id=filing_id,
+        fiscal_year=2024,
+        fiscal_quarter=None,
+        period_kind="duration",
+        period_start=None,
+        period_end=None,
     )
 
     class _DigestSession:

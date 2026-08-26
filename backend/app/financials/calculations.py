@@ -1,7 +1,7 @@
 """Compatibility-guarded calculations over canonical Financial Facts."""
 
 import datetime
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
@@ -72,7 +72,17 @@ class FinancialFactRow(Protocol):
     scale: int
 
 
-def _periods_are_compatible(
+def _period_order_key(row: FinancialFactRow) -> tuple:
+    scope_order = row.fiscal_quarter if row.fiscal_quarter is not None else 4
+    return (
+        row.fiscal_year,
+        scope_order,
+        row.period_end or datetime.date.min,
+        row.period,
+    )
+
+
+def _reporting_scopes_are_comparable(
     current: FinancialFactRow, previous: FinancialFactRow
 ) -> bool:
     try:
@@ -86,12 +96,6 @@ def _periods_are_compatible(
     if previous.fiscal_year != current.fiscal_year - 1:
         return False
     if current.fiscal_quarter != previous.fiscal_quarter:
-        return False
-    if current.currency != previous.currency:
-        return False
-    if current.unit != previous.unit:
-        return False
-    if current.scale != previous.scale:
         return False
 
     current_dates_known = current.period_end is not None
@@ -115,8 +119,6 @@ def _periods_are_compatible(
     if current_range_known != previous_range_known:
         return False
     if not current_range_known:
-        # Older DART rows honestly lack exact source dates. Matching unknown
-        # ranges remain comparable when every other reporting dimension agrees.
         return True
 
     assert current.period_start is not None and current.period_end is not None
@@ -129,6 +131,44 @@ def _periods_are_compatible(
         abs(current_days - previous_days)
         <= MAX_COMPARABLE_DURATION_DIFFERENCE_DAYS
     )
+
+
+def select_reporting_periods(
+    rows: Iterable[FinancialFactRow],
+) -> tuple[str, str | None]:
+    """Select the latest Reporting Period and a comparable prior-year period."""
+    periods: dict[str, FinancialFactRow] = {}
+    for row in rows:
+        periods.setdefault(row.period, row)
+    if not periods:
+        return "", None
+
+    target = max(periods.values(), key=_period_order_key)
+    previous = max(
+        (
+            period
+            for period in periods.values()
+            if _reporting_scopes_are_comparable(target, period)
+        ),
+        key=_period_order_key,
+        default=None,
+    )
+    return target.period, previous.period if previous is not None else None
+
+
+def _periods_are_compatible(
+    current: FinancialFactRow, previous: FinancialFactRow
+) -> bool:
+    if not _reporting_scopes_are_comparable(current, previous):
+        return False
+    if current.currency != previous.currency:
+        return False
+    if current.unit != previous.unit:
+        return False
+    if current.scale != previous.scale:
+        return False
+
+    return True
 
 
 def compute_yoy_deltas(
