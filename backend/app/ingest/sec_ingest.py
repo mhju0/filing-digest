@@ -14,10 +14,9 @@ Design (mirrors the DART adapter; the differences are all SEC-specific):
    adapter translates ``SecFinancialItem.value`` directly into canonical
    :class:`~app.financials.model.FinancialFact` objects.
 
-3. **Filing identity stays filing-owned.** SEC filings have no DART receipt
-   number, so ``chunk_document`` is called with ``rcept_no=None``; provenance
-   resolves through the Corporate Filing's SEC accession while Filing Chunks
-   carry only their within-filing locations.
+3. **Filing identity stays filing-owned.** SEC provenance resolves through the
+   Corporate Filing's accession while Filing Chunks carry only their
+   within-filing locations.
 
 The :class:`SecFilingAdapter` interface returns a complete snapshot; database
 row construction belongs solely to :mod:`app.filings.persistence`.
@@ -239,7 +238,7 @@ class SecFilingAdapter:
             self.cik, target.accession_number, target.primary_document
         )
         sections = extract_10k_prose(document.raw_bytes)
-        chunks = chunk_document(sections, rcept_no=None)
+        chunks = chunk_document(sections)
 
         facts = await self.client.fetch_company_facts(self.cik)
         own_facts = [

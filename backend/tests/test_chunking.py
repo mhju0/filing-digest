@@ -141,14 +141,13 @@ def test_chunk_document_indices_are_contiguous_and_anchored() -> None:
         _section("\n".join(["가" * 400] * 5), title="회사의 개요", order=0),
         _section("짧은 섹션.", title="사업의 내용", order=1),
     ]
-    chunks = chunk_document(sections, rcept_no="20240312000736")
+    chunks = chunk_document(sections)
 
     assert len(chunks) >= 3
     # chunk_index is a gap-free 0..N-1 run across the whole document.
     assert [c.chunk_index for c in chunks] == list(range(len(chunks)))
-    # Every chunk carries its citation anchor.
+    # Every chunk carries its within-filing location.
     for c in chunks:
-        assert c.rcept_no == "20240312000736"
         assert c.section_title in {"회사의 개요", "사업의 내용"}
         assert len(c.content) <= MAX_CHARS
 
@@ -160,7 +159,7 @@ def test_chunk_document_part_index_restarts_per_section() -> None:
         _section("\n".join(["가" * 400] * 5), title="A", order=0),
         _section("나" * 100, title="B", order=1),
     ]
-    chunks = chunk_document(sections, rcept_no="R")
+    chunks = chunk_document(sections)
 
     by_section: dict[int, list[Chunk]] = {}
     for c in chunks:
@@ -182,7 +181,7 @@ def test_chunk_document_skips_empty_sections() -> None:
         _section("", title="II. 사업의 내용", order=0),  # title-only -> skipped
         _section("실제 본문입니다.", title="1. 개요", order=1),
     ]
-    chunks = chunk_document(sections, rcept_no="R")
+    chunks = chunk_document(sections)
     assert len(chunks) == 1
     assert chunks[0].section_order == 1
     assert chunks[0].section_title == "1. 개요"
@@ -190,7 +189,7 @@ def test_chunk_document_skips_empty_sections() -> None:
 
 def test_chunk_document_all_empty_returns_nothing() -> None:
     sections = [_section("", title="T", order=0), _section("  ", title=None, order=1)]
-    assert chunk_document(sections, rcept_no="R") == []
+    assert chunk_document(sections) == []
 
 
 # -- live (skipped unless DART_API_KEY is set) --------------------------------
@@ -216,12 +215,11 @@ def test_chunk_document_live_samsung_pipeline() -> None:
 
     raw = asyncio.run(_fetch())
     sections = extract_dsd_prose(decode_dart_bytes(raw))
-    chunks = chunk_document(sections, rcept_no=rcept_no)
+    chunks = chunk_document(sections)
 
     assert len(chunks) >= 1
     assert [c.chunk_index for c in chunks] == list(range(len(chunks)))
     for c in chunks:
-        assert c.rcept_no == rcept_no
         assert len(c.content) <= MAX_CHARS
         assert c.chunk_index >= 0
     # section_title anchor preserved on at least some chunks (TOC headers exist).

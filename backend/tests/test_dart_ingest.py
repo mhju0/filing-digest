@@ -79,7 +79,6 @@ def _chunk(
     return Chunk(
         content=f"본문 {idx}",
         chunk_index=idx,
-        rcept_no="20240312000736",
         section_title=title,
         section_order=section_order,
         part_index=part_index,

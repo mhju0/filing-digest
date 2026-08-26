@@ -148,7 +148,7 @@ def test_sec_adapter_maps_company_filing_and_chunk_metadata() -> None:
         fiscal_year=2023,
         document_url="https://www.sec.gov/Archives/aapl-20230930.htm",
         financial_items=[_FACTS[0]],
-        chunks=chunk_document(_SECTIONS, rcept_no=None),
+        chunks=chunk_document(_SECTIONS),
     )
 
     assert filing.identity.stable_id == f"sec:{_ACCN_2023}"

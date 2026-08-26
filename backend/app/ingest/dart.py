@@ -256,9 +256,7 @@ class DartFilingAdapter:
         document_format = detect_document_format(text)
         if document_format == "dsd":
             sections = extract_dsd_prose(text)
-            chunks = chunk_document(
-                sections, rcept_no=self.filing_item.rcept_no
-            )
+            chunks = chunk_document(sections)
         else:
             logger.warning(
                 "DART filing %s format=%s is not parseable; using zero chunks",

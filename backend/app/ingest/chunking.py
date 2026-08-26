@@ -6,9 +6,9 @@ embedding, ``filing_chunks`` writes, and the KURE-v1 vectors are all the NEXT
 step -- nothing here touches the network or the database.
 
 Core project rules honoured here:
-- **citation-grounded**: every :class:`Chunk` carries ``rcept_no`` (which filing),
+- **citation-grounded**: every :class:`Chunk` carries
   ``section_title``/``section_order`` (which section) and ``part_index`` (which
-  slice of that section), so any embedded text is always traceable to its source.
+  slice of that section); the enclosing Corporate Filing owns its identity.
 - **numbers come only from the financials API (§3)**: chunking operates on prose
   that already had every ``<TABLE>`` excluded upstream, so there is no numeric
   judgement here at all.
@@ -47,9 +47,9 @@ OVERLAP_CHARS = 100  # context overlap, used ONLY when force-splitting one long 
 class Chunk:
     """One search/embedding unit carved from a :class:`ProseSection` (docs §6).
 
-    The citation anchor travels with the text: ``rcept_no`` says which filing,
-    ``section_title``/``section_order`` which section, and ``part_index`` which
-    slice within that section. ``chunk_index`` is the document-wide running index
+    The within-filing location travels with the text: ``section_title``/
+    ``section_order`` identify the section and ``part_index`` identifies the slice
+    within it. ``chunk_index`` is the document-wide running index
     (0..N-1) that maps directly onto ``filing_chunks.chunk_index`` (which is
     unique per filing, see models.py).
 
@@ -59,10 +59,6 @@ class Chunk:
 
     content: str
     chunk_index: int  # running index across the whole document (0..N-1)
-    # DART receipt number (which filing). None for SEC filings, which have no
-    # rcept_no -- their provenance rides on filing_id -> filings.sec_accession_no,
-    # so the accession is never mislabeled into this DART-specific field.
-    rcept_no: str | None
     section_title: str | None
     section_order: int  # source ProseSection.order
     part_index: int  # 0-based slice number *within* this section
@@ -147,7 +143,7 @@ def split_section(section: ProseSection) -> list[str]:
     return chunks
 
 
-def chunk_document(sections: list[ProseSection], rcept_no: str | None) -> list[Chunk]:
+def chunk_document(sections: list[ProseSection]) -> list[Chunk]:
     """Turn a document's prose sections into ordered :class:`Chunk` records.
 
     Each section is split via :func:`split_section`; the document-wide
@@ -155,10 +151,6 @@ def chunk_document(sections: list[ProseSection], rcept_no: str | None) -> list[C
     at 0 within each section. Empty-content sections (e.g. a title-only TOC header,
     or a shell whose prose lives in nested sub-sections) are skipped and logged --
     there is nothing to embed and we never invent content.
-
-    ``rcept_no`` is the DART receipt number; SEC callers pass ``None`` (SEC filings
-    have no rcept_no -- see :class:`Chunk`), and it flows through to the chunk's
-    citation anchor unchanged.
 
     Returns chunks ready for the NEXT step (embedding + ``filing_chunks`` load,
     docs §6); no embedding, DB write, or network call happens here. Pure ->
@@ -180,14 +172,13 @@ def chunk_document(sections: list[ProseSection], rcept_no: str | None) -> list[C
                 Chunk(
                     content=piece,
                     chunk_index=len(chunks),  # running document-wide index
-                    rcept_no=rcept_no,
                     section_title=section.section_title,
                     section_order=section.order,
                     part_index=part_index,
                 )
             )
 
-    _log_distribution(sections, chunks, skipped, rcept_no)
+    _log_distribution(sections, chunks, skipped)
     return chunks
 
 
@@ -195,7 +186,6 @@ def _log_distribution(
     sections: list[ProseSection],
     chunks: list[Chunk],
     skipped: int,
-    rcept_no: str | None,
 ) -> None:
     """INFO-log the chunk-length distribution so a human can eyeball the split.
 
@@ -205,9 +195,8 @@ def _log_distribution(
     """
     if not chunks:
         logger.info(
-            "chunk_document: rcept_no=%s -> 0 chunks from %d section(s) "
+            "chunk_document: 0 chunks from %d section(s) "
             "(%d empty section(s) skipped)",
-            rcept_no,
             len(sections),
             skipped,
         )
@@ -215,9 +204,8 @@ def _log_distribution(
     lengths = [len(c.content) for c in chunks]
     over_target = sum(1 for n in lengths if n > TARGET_CHARS)
     logger.info(
-        "chunk_document: rcept_no=%s -> %d chunk(s) from %d section(s) "
+        "chunk_document: %d chunk(s) from %d section(s) "
         "(%d empty skipped); length min/median/max=%d/%d/%d, %d over target(%d)",
-        rcept_no,
         len(chunks),
         len(sections),
         skipped,

@@ -50,9 +50,9 @@ class SearchResult:
     ``score`` is cosine SIMILARITY (``1 - cosine_distance``), range
     ``[-1, 1]`` in general and effectively ``[0, 1]`` here since both query and
     chunk vectors are unit-normalized (see ``app.embeddings.kure``); higher is
-    more similar. The remaining fields mirror ``app.ingest.chunking.Chunk`` /
-    ``filing_chunks.meta`` exactly, so a hit is always traceable to its
-    source filing/section/paragraph.
+    more similar. The result combines joined Corporate Filing identity with the
+    typed Filing Chunk location, so a hit is always traceable to its source
+    filing/section/paragraph.
     """
 
     chunk_id: uuid.UUID
@@ -118,10 +118,10 @@ def _row_to_result(row: SearchResultRow) -> SearchResult:
     :class:`SearchResult` (pure).
 
     ``row.meta`` is the ``filing_chunks.meta`` JSONB written from a normalized
-    Filing Chunk: ``{rcept_no, section_title, section_order, part_index}``.
-    Missing keys degrade to ``None`` rather than
-    raising, since ``meta`` is caller-controlled JSON, not a schema-enforced
-    column.
+    Filing Chunk: ``{section_title, section_order, part_index}``. Filing identity
+    comes from the joined ``filings`` row. Missing keys degrade to ``None``
+    rather than raising, since ``meta`` is caller-controlled JSON, not a
+    schema-enforced column.
     """
     meta = row.meta or {}
     return SearchResult(

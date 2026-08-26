@@ -519,11 +519,11 @@ _DOUBLED_ATTR_QUOTE_RE = re.compile(r'=""([^"<>=]+)"')
 class ProseSection:
     """One narrative section extracted from a DSD document (docs §4).
 
-    The raw-ish source object the downstream chunking step maps onto the
-    ``filing_chunks`` table:
-        filing_chunks.content     <- content      (prose only; tables excluded)
-        filing_chunks.meta        <- {rcept_no, section_title}   (citation anchor)
-        filing_chunks.chunk_index <- order  (section order within the document)
+    The raw-ish source object the downstream chunking step maps into bounded
+    chunks:
+        Chunk.content       <- content  (prose only; tables excluded)
+        Chunk.section_title <- section_title
+        Chunk.section_order <- order
     ``section_title`` is the ``<TITLE>`` text (a natural chunk header) or ``None``
     when a section carries no title. No number ever appears here: numeric tables
     (``<TABLE>``) are dropped so figures come only from the financials API (§3).
@@ -720,8 +720,8 @@ def extract_dsd_prose(text: str) -> list[ProseSection]:
     holding only nested sub-sections whose content is emitted separately) -- are
     omitted; a title-only section is kept (it is a meaningful TOC header).
 
-    ProseSection -> filing_chunks mapping (the NEXT step wires this to the DB):
-        content <- content, meta <- {rcept_no, section_title}, chunk_index <- order.
+    ProseSection -> Chunk mapping (the next step remains database-independent):
+        content <- content, location.section_title <- section_title.
 
     Whole-string parse for correctness on the reference 사업보고서. Pure (no
     network) -> unit-tested.
