@@ -195,8 +195,6 @@ struct FilingSource: Codable, Identifiable, Hashable, Sendable {
 /// One metric tile in the digest grid. `value == nil` renders as a dash.
 struct MetricCard: Codable, Hashable, Identifiable, Sendable {
     let key: FinancialMetric
-    let labelKo: String
-    let labelEn: String
     let value: Double?
     let unit: String
     let yoyDeltaPct: Double?
@@ -206,11 +204,6 @@ struct MetricCard: Codable, Hashable, Identifiable, Sendable {
     /// Stable identity for SwiftUI lists; the contract guarantees at most one
     /// card per metric key in a digest.
     var id: String { key.rawValue }
-
-    /// Localized label following the KO/EN toggle.
-    func label(for language: Language) -> String {
-        language == .ko ? labelKo : labelEn
-    }
 }
 
 /// GET /companies/{company_id}/digest response.

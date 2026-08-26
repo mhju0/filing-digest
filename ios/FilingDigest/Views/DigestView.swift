@@ -8,9 +8,9 @@
 //  Metric values are structured-API numbers only; every card links to a
 //  openable Filing Source via filingSourceId. value == nil renders as a dash.
 //
-//  The digest payload always contains both label_ko/label_en, so metric labels
-//  switch locally without refetching. summary_ko/summary_en may be nil (no
-//  narrative generated yet); the summary section is hidden in that case.
+//  Metric labels are presentation-only and switch locally without refetching.
+//  summary_ko/summary_en may be nil (no narrative generated yet); the summary
+//  section is hidden in that case.
 //
 
 import SwiftUI
@@ -338,7 +338,7 @@ private struct HeroMetricView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(metric.label(for: language))
+                Text(FigureDisplay.metricName(metric.key, language: language))
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkMuted)
                 Spacer(minLength: 8)
@@ -401,7 +401,7 @@ private struct SupportingMetricView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(metric.label(for: language))
+                Text(FigureDisplay.metricName(metric.key, language: language))
                     .font(.caption)
                     .foregroundStyle(Theme.inkMuted)
                     .lineLimit(2)

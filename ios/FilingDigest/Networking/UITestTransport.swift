@@ -71,8 +71,6 @@ private final class UITestURLProtocol: URLProtocol {
       "period": "FY2025",
       "metrics": [{
         "key": "revenue",
-        "label_ko": "매출액",
-        "label_en": "Revenue",
         "value": 300.9,
         "unit": "조원",
         "yoy_delta_pct": 3.2,

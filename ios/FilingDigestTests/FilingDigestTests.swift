@@ -21,8 +21,6 @@ private let companyDigestJSON = """
   "metrics": [
     {
       "key": "revenue",
-      "label_ko": "매출액",
-      "label_en": "Revenue",
       "value": 79.1,
       "unit": "조원",
       "yoy_delta_pct": 11.2,
@@ -31,8 +29,6 @@ private let companyDigestJSON = """
     },
     {
       "key": "operating_margin",
-      "label_ko": "영업이익률",
-      "label_en": "Operating margin",
       "value": null,
       "unit": "%",
       "yoy_delta_pct": null,
@@ -192,8 +188,6 @@ struct APIModelDecodingTests {
 
         let revenue = try #require(digest.metrics.first)
         #expect(revenue.key == .revenue)
-        #expect(revenue.labelKo == "매출액")
-        #expect(revenue.labelEn == "Revenue")
         #expect(revenue.value == 79.1)
         #expect(revenue.yoyDeltaPct == 11.2)
         #expect(revenue.source == .dart)
@@ -309,6 +303,20 @@ struct FigureDisplayTests {
         (ReportedMetric.epsDiluted, "희석주당순이익", "Diluted EPS"),
     ])
     func mapsKnownMetrics(metric: ReportedMetric, ko: String, en: String) {
+        #expect(FigureDisplay.metricName(metric, language: .ko) == ko)
+        #expect(FigureDisplay.metricName(metric, language: .en) == en)
+    }
+
+    @Test("digest metric keys map to compact KO and EN names", arguments: [
+        (FinancialMetric.revenue, "매출액", "Revenue"),
+        (FinancialMetric.operatingIncome, "영업이익", "Operating Income"),
+        (FinancialMetric.netIncome, "당기순이익", "Net Income"),
+        (FinancialMetric.netIncomeAttributable, "지배기업 소유주지분 순이익", "Net Income (Attributable)"),
+        (FinancialMetric.eps, "주당순이익", "EPS"),
+        (FinancialMetric.epsDiluted, "희석주당순이익", "Diluted EPS"),
+        (FinancialMetric.operatingMargin, "영업이익률", "Operating Margin"),
+    ])
+    func mapsDigestMetrics(metric: FinancialMetric, ko: String, en: String) {
         #expect(FigureDisplay.metricName(metric, language: .ko) == ko)
         #expect(FigureDisplay.metricName(metric, language: .en) == en)
     }
@@ -547,10 +555,10 @@ struct DigestMetricHierarchyTests {
     @Test("Revenue leads the folio regardless of API order")
     func revenueIsHeroMetric() {
         let metrics = [
-            metric(.eps, label: "주당순이익"),
-            metric(.netIncome, label: "당기순이익"),
-            metric(.revenue, label: "매출액"),
-            metric(.operatingIncome, label: "영업이익"),
+            metric(.eps),
+            metric(.netIncome),
+            metric(.revenue),
+            metric(.operatingIncome),
         ]
 
         #expect(DigestView.orderedMetrics(metrics).map(\.key) == [
@@ -561,8 +569,8 @@ struct DigestMetricHierarchyTests {
     @Test("Unknown future ordering preserves API order after known metrics")
     func stableKnownMetricOrder() {
         let metrics = [
-            metric(.operatingMargin, label: "영업이익률"),
-            metric(.epsDiluted, label: "희석주당순이익"),
+            metric(.operatingMargin),
+            metric(.epsDiluted),
         ]
 
         #expect(DigestView.orderedMetrics(metrics).map(\.key) == [
@@ -570,11 +578,9 @@ struct DigestMetricHierarchyTests {
         ])
     }
 
-    private func metric(_ key: FinancialMetric, label: String) -> MetricCard {
+    private func metric(_ key: FinancialMetric) -> MetricCard {
         MetricCard(
             key: key,
-            labelKo: label,
-            labelEn: label,
             value: 1,
             unit: "KRW",
             yoyDeltaPct: nil,

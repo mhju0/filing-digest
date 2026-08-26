@@ -11,10 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Company as CompanyModel
 from app.db.models import Filing as FilingModel
 from app.digest_narrative import DigestNarrativeError, build_company_summary
+from app.digests.metrics import DIGEST_METRICS
 from app.evidence import EvidenceIntegrityError, filing_source_from_filing
 from app.figures.service import fetch_financials
 from app.financials.calculations import compute_yoy_deltas, select_reporting_periods
-from app.financials.presentation import DIGEST_METRICS
 from app.llm.base import LLMClient
 from app.llm.solar import SolarApiError, SolarClientError
 from app.schemas import CompanyDigest, FilingSource, MetricCard
@@ -83,8 +83,7 @@ async def build_company_digest(
     metrics: list[MetricCard] = []
     filing_sources: list[FilingSource] = []
     seen_source_ids: set[str] = set()
-    for presentation in DIGEST_METRICS:
-        key = presentation.metric
+    for key in DIGEST_METRICS:
         row = by_metric.get(key.value)
         if row is None:
             continue
@@ -99,8 +98,6 @@ async def build_company_digest(
         metrics.append(
             MetricCard(
                 key=key,
-                label_ko=presentation.label_ko,
-                label_en=presentation.label_en,
                 value=float(row.value),
                 unit=row.unit,
                 yoy_delta_pct=yoy_deltas.get(key.value),

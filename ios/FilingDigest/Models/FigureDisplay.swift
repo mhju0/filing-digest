@@ -9,10 +9,9 @@
 //  affects decoding. ReportedMetric is exhaustive; unknown unit keys still fall
 //  back to the raw string verbatim.
 //
-//  Bilingual by the same idiom the rest of the app uses (MetricCard.label(for:)):
-//  a pure function parameterized by `Language`. Every call site passes an
-//  explicit language — the /answer screen is Korean-first (always `.ko`),
-//  DigestView drives it from its KO/EN toggle.
+//  Bilingual through pure functions parameterized by `Language`. Every call
+//  site passes an explicit language — the /answer screen is Korean-first
+//  (always `.ko`), DigestView drives it from its KO/EN toggle.
 //
 
 import Foundation
@@ -52,6 +51,21 @@ enum FigureDisplay {
             ("지배기업 소유주지분 순이익", "Net Income (Attributable)")
         case .eps: ("주당순이익(EPS)", "EPS")
         case .epsDiluted: ("희석주당순이익", "Diluted EPS")
+        }
+        return language == .ko ? pair.ko : pair.en
+    }
+
+    /// Compact digest-card name for every transported financial metric.
+    static func metricName(_ metric: FinancialMetric, language: Language) -> String {
+        let pair: (ko: String, en: String) = switch metric {
+        case .reported(.revenue): ("매출액", "Revenue")
+        case .reported(.operatingIncome): ("영업이익", "Operating Income")
+        case .reported(.netIncome): ("당기순이익", "Net Income")
+        case .reported(.netIncomeAttributable):
+            ("지배기업 소유주지분 순이익", "Net Income (Attributable)")
+        case .reported(.eps): ("주당순이익", "EPS")
+        case .reported(.epsDiluted): ("희석주당순이익", "Diluted EPS")
+        case .derived(.operatingMargin): ("영업이익률", "Operating Margin")
         }
         return language == .ko ? pair.ko : pair.en
     }

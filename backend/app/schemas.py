@@ -78,8 +78,6 @@ class FilingSource(BaseModel):
 
 class MetricCard(BaseModel):
     key: MetricKey
-    label_ko: str
-    label_en: str
     value: float | None = None
     unit: str
     yoy_delta_pct: float | None = None

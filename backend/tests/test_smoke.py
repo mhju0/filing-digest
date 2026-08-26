@@ -122,8 +122,6 @@ def test_digest_ok(monkeypatch) -> None:
     for metric in body["metrics"]:
         assert set(metric) == {
             "key",
-            "label_ko",
-            "label_en",
             "value",
             "unit",
             "yoy_delta_pct",
