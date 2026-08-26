@@ -73,7 +73,7 @@ class FinancialFactRow(Protocol):
 
 
 def _period_order_key(row: FinancialFactRow) -> tuple:
-    scope_order = row.fiscal_quarter if row.fiscal_quarter is not None else 4
+    scope_order = row.fiscal_quarter if row.fiscal_quarter is not None else 5
     return (
         row.fiscal_year,
         scope_order,

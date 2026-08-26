@@ -64,6 +64,11 @@ def test_select_reporting_periods_prefers_later_scope_within_a_year() -> None:
     assert select_reporting_periods(rows) == ("2025-annual", None)
 
 
+def test_select_reporting_periods_prefers_annual_over_q4_without_label_order() -> None:
+    rows = [_period_row("z-quarter", 2025, 4), _period_row("a-annual", 2025)]
+    assert select_reporting_periods(rows) == ("a-annual", None)
+
+
 def test_select_reporting_periods_requires_adjacent_matching_scope() -> None:
     rows = [
         _period_row("2025-Q1", 2025, 1),
