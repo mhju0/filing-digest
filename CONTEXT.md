@@ -24,6 +24,10 @@ _Avoid_: Database ID, URL, title
 A specific excerpt from a Corporate Filing that can serve as evidence for a claim.
 _Avoid_: Citation, source
 
+**Filing Chunk Location**:
+The regulator-provided section and part coordinates that locate a Filing Chunk within its Corporate Filing. A location may be incomplete when the regulator does not expose every coordinate.
+_Avoid_: Filing identity, citation label
+
 **Citation**:
 A reference from a specific answer claim to the Filing Chunk that supports it, including a bounded evidence excerpt and its available location anchor. Multiple Citations may resolve to the same Filing Source.
 _Avoid_: Filing, source, document

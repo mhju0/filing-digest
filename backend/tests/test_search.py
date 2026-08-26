@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import pytest
 
 import app.search.service as search_service
+from app.filings import FilingChunkLocation
 from app.search.constants import MAX_TOP_K
 from app.search.service import (
     SearchResult,
@@ -33,10 +34,10 @@ def _row(**over) -> SimpleNamespace:
         id=_CHUNK_ID,
         filing_id=_FILING_ID,
         filing_period="2025-annual",
+        rcept_no="20240312000736",
         content="배당 정책에 관한 내용",
         chunk_index=3,
         meta={
-            "rcept_no": "20240312000736",
             "section_title": "6. 배당에 관한 사항",
             "section_order": 6,
             "part_index": 0,
@@ -87,15 +88,17 @@ def test_row_to_result_maps_citation_anchor_and_score() -> None:
         text="배당 정책에 관한 내용",
         score=pytest.approx(0.8),
         rcept_no="20240312000736",
-        section_title="6. 배당에 관한 사항",
-        section_order=6,
-        part_index=0,
+        location=FilingChunkLocation(
+            section_title="6. 배당에 관한 사항",
+            section_order=6,
+            part_index=0,
+        ),
         chunk_index=3,
     )
 
 
 def test_row_to_result_tolerates_missing_meta_keys() -> None:
-    result = _row_to_result(_row(meta={}))
+    result = _row_to_result(_row(meta={}, rcept_no=None))
     assert result.rcept_no is None
     assert result.section_title is None
     assert result.section_order is None
@@ -106,7 +109,7 @@ def test_row_to_result_tolerates_missing_meta_keys() -> None:
 
 
 def test_row_to_result_tolerates_none_meta() -> None:
-    result = _row_to_result(_row(meta=None))
+    result = _row_to_result(_row(meta=None, rcept_no=None))
     assert result.rcept_no is None
 
 
@@ -161,3 +164,4 @@ def test_search_only_reads_fully_indexed_filings(monkeypatch) -> None:
     assert "JOIN filings ON filings.id = filing_chunks.filing_id" in sql
     assert "filings.indexed_at IS NOT NULL" in sql
     assert "filings.period AS filing_period" in sql
+    assert "filings.rcept_no" in sql

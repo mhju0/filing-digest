@@ -3,6 +3,7 @@
 from app.filings.model import (
     CompanyIdentity,
     FilingChunk,
+    FilingChunkLocation,
     FilingIdentity,
     NormalizedFiling,
     RegulatedCompany,
@@ -17,6 +18,7 @@ from app.filings.persistence import (
 __all__ = [
     "CompanyIdentity",
     "FilingChunk",
+    "FilingChunkLocation",
     "FilingIdentity",
     "NormalizedFiling",
     "RegulatedCompany",

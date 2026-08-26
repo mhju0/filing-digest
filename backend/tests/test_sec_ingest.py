@@ -164,9 +164,8 @@ def test_sec_adapter_maps_company_filing_and_chunk_metadata() -> None:
     assert filing.filed_at == datetime.date(2023, 11, 3)
     assert filing.url == "https://www.sec.gov/Archives/aapl-20230930.htm"
     assert [fact.metric.value for fact in filing.financial_facts] == ["revenue"]
-    assert filing.filing_chunks[0].metadata["rcept_no"] is None
-    assert filing.filing_chunks[0].metadata["section_title"] == "Item 1. Business"
-    assert filing.filing_chunks[0].metadata["section_order"] == 0
+    assert filing.filing_chunks[0].location.section_title == "Item 1. Business"
+    assert filing.filing_chunks[0].location.section_order == 0
 
 
 def test_sec_adapter_uses_deterministic_company_fallback() -> None:

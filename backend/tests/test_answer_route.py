@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 
 from app.answers import service as answers
 from app.db.session import get_db_session
+from app.filings import FilingChunkLocation
 from app.llm.answer import Answer
 from app.llm.base import LLMResult
 from app.llm.citation_guard import CitationError, CitationViolation
@@ -201,9 +202,11 @@ def test_answer_with_chunks_narrates_and_serializes(api_client, monkeypatch):
                 filing_id=_FILING_ID,
                 text="Revenue grew on demand.",
                 score=0.9,
-                section_title="Business overview",
-                section_order=2,
-                part_index=1,
+                location=FilingChunkLocation(
+                    section_title="Business overview",
+                    section_order=2,
+                    part_index=1,
+                ),
                 chunk_index=9,
             )
         ]
@@ -267,9 +270,11 @@ def test_answer_unopenable_filing_source_blocks_narrative(api_client, monkeypatc
                 filing_id=_FILING_ID,
                 text="Revenue grew on demand.",
                 score=0.9,
-                section_title="Business overview",
-                section_order=2,
-                part_index=1,
+                location=FilingChunkLocation(
+                    section_title="Business overview",
+                    section_order=2,
+                    part_index=1,
+                ),
                 chunk_index=9,
             )
         ]

@@ -310,10 +310,7 @@ def test_dart_adapter_maps_filing_chunk_citation_anchors() -> None:
 
     assert [chunk.content for chunk in filing.filing_chunks] == ["본문 0", "본문 1"]
     assert [chunk.chunk_index for chunk in filing.filing_chunks] == [0, 1]
-    assert filing.filing_chunks[0].metadata == {
-        "rcept_no": "20240312000736",
-        "section_title": "회사의 개요",
-        "section_order": 0,
-        "part_index": 0,
-    }
-    assert filing.filing_chunks[1].metadata["part_index"] == 1
+    assert filing.filing_chunks[0].location.section_title == "회사의 개요"
+    assert filing.filing_chunks[0].location.section_order == 0
+    assert filing.filing_chunks[0].location.part_index == 0
+    assert filing.filing_chunks[1].location.part_index == 1

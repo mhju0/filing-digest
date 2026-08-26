@@ -17,6 +17,7 @@ from app.embeddings.backfill import index_filing_embeddings
 from app.filings.model import (
     CompanyIdentity,
     FilingChunk,
+    FilingChunkLocation,
     FilingIdentity,
     NormalizedFiling,
     RegulatedCompany,
@@ -64,9 +65,21 @@ def _snapshot(*, include_eps: bool, include_second_chunk: bool) -> NormalizedFil
                 currency="KRW",
             )
         )
-    chunks = [FilingChunk(0, "Current evidence", {"section_title": "Business"})]
+    chunks = [
+        FilingChunk(
+            0,
+            "Current evidence",
+            FilingChunkLocation(section_title="Business"),
+        )
+    ]
     if include_second_chunk:
-        chunks.append(FilingChunk(1, "Stale evidence", {"section_title": "Risk"}))
+        chunks.append(
+            FilingChunk(
+                1,
+                "Stale evidence",
+                FilingChunkLocation(section_title="Risk"),
+            )
+        )
     return NormalizedFiling(
         company=RegulatedCompany(
             identity=CompanyIdentity(RegulatorySource.dart, "00126380"),
@@ -152,7 +165,7 @@ def test_indexing_one_filing_never_exposes_an_unfinished_filing(monkeypatch) -> 
                 title="Business Report (2026.12)",
                 reporting_period=ReportingPeriod("2026-annual", PeriodKind.duration),
                 financial_facts=(),
-                filing_chunks=(FilingChunk(0, "Still pending", {}),),
+                filing_chunks=(FilingChunk(0, "Still pending"),),
             )
 
             async with factory() as session:
@@ -219,7 +232,7 @@ def test_failed_replacement_rolls_back_to_the_previous_complete_snapshot() -> No
             invalid_replacement = replace(
                 baseline,
                 financial_facts=(oversized_fact,),
-                filing_chunks=(FilingChunk(0, "Would replace evidence", {}),),
+                filing_chunks=(FilingChunk(0, "Would replace evidence"),),
             )
 
             async with factory() as session:
@@ -259,7 +272,7 @@ def test_two_filings_can_report_the_same_period_without_reassigning_provenance()
                 identity=FilingIdentity(RegulatorySource.dart, "20260401000001"),
                 title="Corrected Business Report (2025.12)",
                 financial_facts=(replace(first.financial_facts[0], value=Decimal("2000000")),),
-                filing_chunks=(FilingChunk(0, "Corrected evidence", {}),),
+                filing_chunks=(FilingChunk(0, "Corrected evidence"),),
             )
 
             async with factory() as session:

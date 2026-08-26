@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlsplit
 
-from app.filings import FilingIdentity, RegulatorySource
+from app.filings import FilingChunkLocation, FilingIdentity, RegulatorySource
 from app.llm.answer import Answer
 from app.schemas import (
     MAX_CITATION_EXCERPT_CHARS,
@@ -45,10 +45,8 @@ class EvidenceChunk(Protocol):
     chunk_id: uuid.UUID
     filing_id: uuid.UUID
     text: str
-    section_title: str | None
-    section_order: int | None
-    part_index: int | None
     chunk_index: int
+    location: FilingChunkLocation
 
 
 def _filing_identity(filing: EvidenceFiling) -> FilingIdentity:
@@ -146,9 +144,9 @@ def resolve_evidence(
                 filing_source_id=filing_source.id,
                 excerpt=_bounded_excerpt(chunk.text),
                 anchor=CitationAnchor(
-                    section_title=chunk.section_title,
-                    section_order=chunk.section_order,
-                    part_index=chunk.part_index,
+                    section_title=chunk.location.section_title,
+                    section_order=chunk.location.section_order,
+                    part_index=chunk.location.part_index,
                     chunk_index=chunk.chunk_index,
                 ),
             )

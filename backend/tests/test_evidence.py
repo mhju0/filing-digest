@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.evidence import EvidenceIntegrityError, resolve_evidence
+from app.filings import FilingChunkLocation
 from app.llm.answer import Answer, AnswerSegment
 
 _FILING_DART = uuid.UUID("11111111-1111-1111-1111-111111111111")
@@ -29,9 +30,11 @@ def _chunk(
         chunk_id=chunk_id,
         filing_id=filing_id,
         text=text,
-        section_title=section_title,
-        section_order=section_order,
-        part_index=part_index,
+        location=FilingChunkLocation(
+            section_title=section_title,
+            section_order=section_order,
+            part_index=part_index,
+        ),
         chunk_index=chunk_index,
     )
 

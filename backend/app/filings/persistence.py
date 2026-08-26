@@ -2,6 +2,7 @@
 
 import re
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from sqlalchemy import delete, func, insert, select
@@ -13,6 +14,7 @@ from app.db.models import FilingChunk as FilingChunkRow
 from app.filings.model import (
     CompanyIdentity,
     FilingChunk,
+    FilingChunkLocation,
     FilingIdentity,
     NormalizedFiling,
     RegulatedCompany,
@@ -166,10 +168,23 @@ def _chunk_rows(filing: NormalizedFiling, filing_id: uuid.UUID) -> list[dict]:
             "chunk_index": chunk.chunk_index,
             "content": chunk.content,
             "embedding": None,
-            "meta": dict(chunk.metadata),
+            "meta": {
+                "section_title": chunk.location.section_title,
+                "section_order": chunk.location.section_order,
+                "part_index": chunk.location.part_index,
+            },
         }
         for chunk in filing.filing_chunks
     ]
+
+
+def _chunk_location(metadata: Mapping[str, object] | None) -> FilingChunkLocation:
+    stored = metadata or {}
+    return FilingChunkLocation(
+        section_title=stored.get("section_title"),
+        section_order=stored.get("section_order"),
+        part_index=stored.get("part_index"),
+    )
 
 
 async def persist_normalized_filing(
@@ -246,7 +261,7 @@ async def load_normalized_filing(
         FilingChunk(
             chunk_index=row.chunk_index,
             content=row.content,
-            metadata=row.meta,
+            location=_chunk_location(row.meta),
         )
         for row in (
             (

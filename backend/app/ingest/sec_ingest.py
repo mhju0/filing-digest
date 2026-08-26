@@ -14,11 +14,10 @@ Design (mirrors the DART adapter; the differences are all SEC-specific):
    adapter translates ``SecFinancialItem.value`` directly into canonical
    :class:`~app.financials.model.FinancialFact` objects.
 
-3. **Chunks carry no rcept_no.** SEC filings have no DART receipt number, so
-   ``chunk_document`` is called with ``rcept_no=None``; the citation anchor's
-   provenance rides on ``filing_id -> filings.sec_accession_no`` instead (the
-   accession is never stuffed into the DART-specific ``meta.rcept_no`` field --
-   see :mod:`app.ingest.chunking`).
+3. **Filing identity stays filing-owned.** SEC filings have no DART receipt
+   number, so ``chunk_document`` is called with ``rcept_no=None``; provenance
+   resolves through the Corporate Filing's SEC accession while Filing Chunks
+   carry only their within-filing locations.
 
 The :class:`SecFilingAdapter` interface returns a complete snapshot; database
 row construction belongs solely to :mod:`app.filings.persistence`.
@@ -39,6 +38,7 @@ from app.clients.sec_document import extract_10k_prose
 from app.filings.model import (
     CompanyIdentity,
     FilingChunk,
+    FilingChunkLocation,
     FilingIdentity,
     NormalizedFiling,
     RegulatedCompany,
@@ -152,12 +152,11 @@ def build_sec_normalized_filing(
             FilingChunk(
                 chunk_index=chunk.chunk_index,
                 content=chunk.content,
-                metadata={
-                    "rcept_no": chunk.rcept_no,
-                    "section_title": chunk.section_title,
-                    "section_order": chunk.section_order,
-                    "part_index": chunk.part_index,
-                },
+                location=FilingChunkLocation(
+                    section_title=chunk.section_title,
+                    section_order=chunk.section_order,
+                    part_index=chunk.part_index,
+                ),
             )
             for chunk in chunks
         ),

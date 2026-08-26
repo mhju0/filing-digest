@@ -24,6 +24,7 @@ from app.clients.dart import (
 )
 from app.filings.model import (
     CompanyIdentity,
+    FilingChunkLocation,
     FilingIdentity,
     NormalizedFiling,
     RegulatedCompany,
@@ -201,12 +202,11 @@ def build_dart_normalized_filing(
             NormalizedChunk(
                 chunk_index=chunk.chunk_index,
                 content=chunk.content,
-                metadata={
-                    "rcept_no": chunk.rcept_no,
-                    "section_title": chunk.section_title,
-                    "section_order": chunk.section_order,
-                    "part_index": chunk.part_index,
-                },
+                location=FilingChunkLocation(
+                    section_title=chunk.section_title,
+                    section_order=chunk.section_order,
+                    part_index=chunk.part_index,
+                ),
             )
             for chunk in chunks
         ),

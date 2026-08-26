@@ -8,6 +8,7 @@ import pytest
 from app.filings.model import (
     CompanyIdentity,
     FilingChunk,
+    FilingChunkLocation,
     FilingIdentity,
     FinancialFact,
     NormalizedFiling,
@@ -68,7 +69,7 @@ def test_normalized_filing_rejects_duplicate_reported_fact_identity() -> None:
 
 
 def test_normalized_filing_rejects_duplicate_chunk_index() -> None:
-    chunk = FilingChunk(chunk_index=0, content="Evidence paragraph", metadata={})
+    chunk = FilingChunk(chunk_index=0, content="Evidence paragraph")
 
     with pytest.raises(ValueError, match="duplicate Filing Chunk"):
         NormalizedFiling(
@@ -82,3 +83,11 @@ def test_normalized_filing_rejects_duplicate_chunk_index() -> None:
             reporting_period=ReportingPeriod("2025-annual", PeriodKind.duration),
             filing_chunks=(chunk, chunk),
         )
+
+
+def test_filing_chunk_location_rejects_negative_coordinates() -> None:
+    with pytest.raises(ValueError, match="section order"):
+        FilingChunkLocation(section_order=-1)
+
+    with pytest.raises(ValueError, match="part index"):
+        FilingChunkLocation(part_index=-1)

@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Filing, FilingChunk
 from app.embeddings.kure import embed_texts
+from app.filings import FilingChunkLocation
 from app.search.constants import DEFAULT_TOP_K, MAX_TOP_K
 
 logger = logging.getLogger(__name__)
@@ -60,10 +61,20 @@ class SearchResult:
     text: str
     score: float
     rcept_no: str | None
-    section_title: str | None
-    section_order: int | None
-    part_index: int | None
+    location: FilingChunkLocation
     chunk_index: int
+
+    @property
+    def section_title(self) -> str | None:
+        return self.location.section_title
+
+    @property
+    def section_order(self) -> int | None:
+        return self.location.section_order
+
+    @property
+    def part_index(self) -> int | None:
+        return self.location.part_index
 
 
 def clamp_top_k(top_k: int) -> int:
@@ -95,6 +106,7 @@ class SearchResultRow(Protocol):
     id: uuid.UUID
     filing_id: uuid.UUID
     filing_period: str | None
+    rcept_no: str | None
     content: str
     chunk_index: int
     meta: Mapping[str, object] | None
@@ -118,10 +130,12 @@ def _row_to_result(row: SearchResultRow) -> SearchResult:
         filing_period=row.filing_period,
         text=row.content,
         score=_distance_to_similarity(row.distance),
-        rcept_no=meta.get("rcept_no"),
-        section_title=meta.get("section_title"),
-        section_order=meta.get("section_order"),
-        part_index=meta.get("part_index"),
+        rcept_no=row.rcept_no,
+        location=FilingChunkLocation(
+            section_title=meta.get("section_title"),
+            section_order=meta.get("section_order"),
+            part_index=meta.get("part_index"),
+        ),
         chunk_index=row.chunk_index,
     )
 
@@ -162,6 +176,7 @@ async def search_chunks(
             FilingChunk.id,
             FilingChunk.filing_id,
             Filing.period.label("filing_period"),
+            Filing.rcept_no,
             FilingChunk.content,
             FilingChunk.chunk_index,
             FilingChunk.meta,

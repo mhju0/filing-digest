@@ -1,7 +1,6 @@
 """Source-independent value objects for a complete Normalized Filing."""
 
 import datetime
-from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -60,18 +59,35 @@ class RegulatedCompany:
 
 
 @dataclass(frozen=True)
+class FilingChunkLocation:
+    """Available section coordinates for one Filing Chunk."""
+
+    section_title: str | None = None
+    section_order: int | None = None
+    part_index: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.section_order is not None and self.section_order < 0:
+            raise ValueError("Filing Chunk section order must not be negative")
+        if self.part_index is not None and self.part_index < 0:
+            raise ValueError("Filing Chunk part index must not be negative")
+
+
+@dataclass(frozen=True)
 class FilingChunk:
-    """A bounded prose excerpt that may support a Citation."""
+    """A bounded prose excerpt and its available location."""
 
     chunk_index: int
     content: str
-    metadata: Mapping[str, object]
+    location: FilingChunkLocation = FilingChunkLocation()
 
     def __post_init__(self) -> None:
         if self.chunk_index < 0:
             raise ValueError("Filing Chunk index must not be negative")
         if not self.content.strip():
             raise ValueError("Filing Chunk content must not be blank")
+        if not isinstance(self.location, FilingChunkLocation):
+            raise TypeError("Filing Chunk location must be a FilingChunkLocation")
 
 
 @dataclass(frozen=True)

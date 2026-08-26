@@ -15,13 +15,13 @@ Core project rules honoured here:
 - **when ambiguous, skip + log -- never invent**: an empty-content section
   produces no chunk and is logged, rather than being padded or guessed at.
 
-Chunk -> ``filing_chunks`` mapping (the NEXT step wires this to the DB, docs §6):
-    filing_chunks.content     <- Chunk.content
-    filing_chunks.chunk_index <- Chunk.chunk_index
-    filing_chunks.meta        <- {rcept_no, section_title, section_order,
-                                  part_index}   (citation anchor)
+Chunk -> Normalized Filing mapping (the regulatory adapter owns this next step):
+    FilingChunk.content     <- Chunk.content
+    FilingChunk.chunk_index <- Chunk.chunk_index
+    FilingChunk.location    <- {section_title, section_order, part_index}
 
-The chunking rules and citation metadata mapping below are the source of truth.
+The Corporate Filing identity owns regulator-specific filing identifiers; the
+Filing Chunk carries only its within-filing location.
 """
 
 import logging
@@ -53,10 +53,8 @@ class Chunk:
     (0..N-1) that maps directly onto ``filing_chunks.chunk_index`` (which is
     unique per filing, see models.py).
 
-    Chunk -> ``filing_chunks`` mapping (docs §6):
-        content     <- content
-        chunk_index <- chunk_index
-        meta        <- {rcept_no, section_title, section_order, part_index}
+    Regulatory adapters translate these fields into the Normalized Filing's
+    typed Filing Chunk location before persistence.
     """
 
     content: str
