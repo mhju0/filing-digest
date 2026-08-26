@@ -57,17 +57,14 @@ enum FigureDisplay {
 
     /// Compact digest-card name for every transported financial metric.
     static func metricName(_ metric: FinancialMetric, language: Language) -> String {
-        let pair: (ko: String, en: String) = switch metric {
-        case .reported(.revenue): ("매출액", "Revenue")
-        case .reported(.operatingIncome): ("영업이익", "Operating Income")
-        case .reported(.netIncome): ("당기순이익", "Net Income")
-        case .reported(.netIncomeAttributable):
-            ("지배기업 소유주지분 순이익", "Net Income (Attributable)")
-        case .reported(.eps): ("주당순이익", "EPS")
-        case .reported(.epsDiluted): ("희석주당순이익", "Diluted EPS")
-        case .derived(.operatingMargin): ("영업이익률", "Operating Margin")
+        switch metric {
+        case .reported(.eps):
+            return language == .ko ? "주당순이익" : "EPS"
+        case .reported(let metric):
+            return metricName(metric, language: language)
+        case .derived(.operatingMargin):
+            return language == .ko ? "영업이익률" : "Operating Margin"
         }
-        return language == .ko ? pair.ko : pair.en
     }
 
     /// Humanized unit name, or the raw key verbatim when unknown.
