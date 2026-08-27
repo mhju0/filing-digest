@@ -1,6 +1,6 @@
 # Filing Digest Architecture
 
-This document describes the v0.5.0 portfolio architecture. The API contract is
+This document describes the v0.5.1 portfolio architecture. The API contract is
 v0.4 and the database schema remains at v0.3. The current architecture includes
 the Ledger client, deep domain/service ownership, strict live evaluation
 contracts, and PostgreSQL plus iOS CI gates.
@@ -132,6 +132,12 @@ search query 500 characters, answer query 1,000 characters, and period 32
 characters. UUID fields are validated by Pydantic.
 
 Ingestion is CLI-only. There is no remote write endpoint.
+
+**This contract is frozen.** Filing Digest is in maintenance mode, and a
+separate repository, `filing-agent`, calls these five endpoints as tools. Their
+paths, request limits, and response fields therefore stay as documented above,
+and no endpoint is added. A change to any of them would be a new contract
+version, which this project does not plan to publish.
 
 ## Database
 

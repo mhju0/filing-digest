@@ -18,12 +18,17 @@ citation-grounded FastAPI retrieval pipeline.
 
 </div>
 
-> **Status:** v0.5.0, feature-complete portfolio project in maintenance mode.
+> **Status:** v0.5.1, feature-complete portfolio project in maintenance mode.
 > The current API contract is v0.4; the database schema remains v0.3.
 > [Open the read-only hosted walkthrough](https://mhju0.github.io/filing-digest/).
 > It uses captured app sessions and makes no live API calls. Run the project
 > locally with your own DART and Upstage credentials for the live experience.
 > No production data or API keys are included.
+>
+> Maintenance is a narrow set of changes: security patches, dependency
+> vulnerability fixes, corrections to documentation errors, and repairs to dead
+> links. New features, database schema changes, API contract changes, and
+> refactors are out of scope.
 
 Filing Digest separates financial figures from generated prose. Structured
 DART/SEC endpoints supply every displayed number. KURE-v1 retrieval selects
@@ -197,13 +202,14 @@ xcodebuild -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
   -destination 'generic/platform=iOS Simulator' build
 ```
 
-GitHub Actions applies `backend/db/init.sql` to a fresh pgvector/PostgreSQL 16
+GitHub Actions lints with Ruff, validates the Compose file, applies
+`backend/db/init.sql` and the smoke-test seed to a fresh pgvector/PostgreSQL 16
 service, runs both the offline and DB-backed Python suites, then builds the app
-and runs unit tests plus the core XCUITest flow on a macOS iOS Simulator. The live evaluation
-harness remains manual because it requires an ingested corpus and a configured
-Solar account. Retrieval cases compare canonical filing periods returned by the
-API, so regenerated database UUIDs do not require an eval-map update; see
-[`backend/evals/README.md`](backend/evals/README.md).
+and runs unit tests plus the core XCUITest flow on a macOS iOS Simulator. The
+live evaluation harness remains manual because it requires an ingested corpus
+and a configured Solar account. Retrieval cases compare canonical filing periods
+returned by the API, so regenerated database UUIDs do not require an eval-map
+update; see [`backend/evals/README.md`](backend/evals/README.md).
 
 ### Run on a device
 

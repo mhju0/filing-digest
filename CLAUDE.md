@@ -11,7 +11,7 @@ FastAPI + PostgreSQL(pgvector) 백엔드.
 
 ## 프로젝트 상태 / 디자인
 
-- 앱 릴리스 v0.5.0(API 계약 v0.4, DB 스키마 v0.3)으로 기능 완료된
+- 앱 릴리스 v0.5.1(API 계약 v0.4, DB 스키마 v0.3)으로 기능 완료된
   포트폴리오 프로젝트이며 유지보수 모드다. 새 기능은 명시적으로 요청된
   경우에만 추가한다.
 - iOS 디자인 정본은 **`docs/design/DESIGN.md`**와 `Theme.swift`의 "Ledger"

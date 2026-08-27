@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # SEC EDGAR -- requires a User-Agent with contact info (name + email).
     sec_base_url: str = "https://data.sec.gov"
-    sec_user_agent: str = "filing-digest/0.5.0 your-contact@example.com"
+    sec_user_agent: str = "filing-digest/0.5.1 your-contact@example.com"
 
     database_url: str = (
         "postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5433/filing_digest"

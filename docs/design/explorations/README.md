@@ -1,6 +1,6 @@
 # Filing Digest UI/UX Explorations
 
-This design lab compares four product directions before any production SwiftUI
+This design lab compares four product directions before any shipped SwiftUI
 is changed. Open `index.html` directly, or serve this directory with a local
 static server, to switch between the concepts and inspect all twelve screens.
 
