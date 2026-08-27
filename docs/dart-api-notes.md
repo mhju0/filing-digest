@@ -70,6 +70,7 @@ The endpoint returns a ZIP containing a body document and sometimes attachments.
 - `companies.dart_corp_code` is the company natural key.
 - `filings.rcept_no` is the filing natural key and citation URL input.
 - `financials` contains exact structured facts linked to a filing.
-- `filing_chunks` contains table-free prose plus receipt/section metadata.
+- `filing_chunks` contains table-free prose plus serialized section/part
+  location metadata. The DART receipt number remains on the owning filing.
 - Company, filing, financial, and chunk writes for one ingestion run share an
   explicit transaction; chunk replacement is delete-then-insert and idempotent.

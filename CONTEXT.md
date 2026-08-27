@@ -45,7 +45,7 @@ A reported financial value identified by a Reported Metric and reporting period,
 _Avoid_: Figure, number, metric
 
 **Reporting Period**:
-The temporal scope of a Financial Fact: either an instant at a specific date or a duration between a start and end date. Labels such as quarters and fiscal years are presentations of that scope, not its identity.
+The temporal scope of a Financial Fact: either an instant at a specific date or a duration between a start and end date. Fiscal year, fiscal scope, kind, and available source dates determine semantic ordering and comparability; labels are presentation, not identity.
 _Avoid_: Period label, quarter string
 
 **Reported Metric**:

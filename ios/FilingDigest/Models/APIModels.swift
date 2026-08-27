@@ -2,7 +2,7 @@
 //  APIModels.swift
 //  FilingDigest
 //
-//  Codable mirror of API CONTRACT v0.3.
+//  Codable mirror of API CONTRACT v0.4.
 //  JSON on the wire is snake_case; Swift properties are camelCase and rely on
 //  JSONDecoder.keyDecodingStrategy = .convertFromSnakeCase /
 //  JSONEncoder.keyEncodingStrategy = .convertToSnakeCase (see APIClient).

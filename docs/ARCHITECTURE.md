@@ -1,8 +1,9 @@
 # Filing Digest Architecture
 
-This document describes the v0.5.0 portfolio architecture. The API contract and
-database schema remain at v0.3; v0.5 adds the Ledger client, deeper service
-ownership, strict live evaluation contracts, and PostgreSQL plus iOS CI gates.
+This document describes the v0.5.0 portfolio architecture. The API contract is
+v0.4 and the database schema remains at v0.3. The current architecture includes
+the Ledger client, deep domain/service ownership, strict live evaluation
+contracts, and PostgreSQL plus iOS CI gates.
 
 ## System overview
 
@@ -36,9 +37,12 @@ under the `container` profile; native uvicorn is the normal development path.
 1. `python -m app.ingest` resolves a ticker through DART or SEC.
 2. The DART or SEC adapter fetches an annual filing and maps it into one
    source-independent `NormalizedFiling` snapshot.
-3. DART DSD or SEC HTML parsing removes tables before prose extraction.
+3. DART DSD or SEC HTML parsing removes tables before prose extraction. The
+   source-neutral chunking module returns content plus within-filing location;
+   regulator identity remains on the enclosing Corporate Filing.
 4. One persistence module atomically replaces the filing's Financial Facts and
-   Filing Chunks. A failed write leaves the previous complete snapshot intact.
+   Filing Chunks. It is the adapter that serializes typed Filing Chunk Locations
+   to JSONB. A failed write leaves the previous complete snapshot intact.
 5. KURE-v1 indexes the committed Filing Chunks in a separate, retryable step.
 6. A filing becomes searchable only after every chunk in that snapshot is
    indexed; partially indexed snapshots remain hidden from retrieval.
@@ -73,12 +77,27 @@ filings whose current snapshot is not fully indexed.
 The response state is `ok`, `blocked`, or `no_results`, with a block reason when
 applicable. Figures can still be returned when the narrative is withheld.
 
+### Digests
+
+`GET /companies/{id}/digest` selects the current Reporting Period by canonical
+fiscal year, scope, and available end date. A prior-year period is eligible only
+when its kind, fiscal scope, and available date range are comparable; annual
+reports rank after Q4 within the same fiscal year. Filing ties are resolved by
+`filed_at`, `created_at`, then UUID in descending order.
+
+The backend digest module owns the ordered set of eligible Reported Metrics and
+returns metric keys, authoritative values, units, deltas, sources, and Filing
+Source references. It does not own bilingual presentation labels. The iOS
+`FigureDisplay` module maps the exhaustive transport vocabulary to compact KO/EN
+labels locally.
+
 ## Module seams
 
 | Area | Primary modules |
 |---|---|
 | HTTP transport and contracts | `backend/app/api/routes.py`, `backend/app/schemas.py` |
-| Digest and answer orchestration | `backend/app/digests/`, `backend/app/answers/` |
+| Digest orchestration and metric eligibility | `backend/app/digests/` |
+| Answer orchestration | `backend/app/answers/` |
 | Filing domain and persistence | `backend/app/filings/` |
 | Regulatory adapters and ingest lifecycle | `backend/app/ingest/dart.py`, `backend/app/ingest/sec_ingest.py`, `backend/app/ingest/pipeline.py` |
 | Financial facts and vocabulary | `backend/app/financials/`, `contracts/financial-vocabulary.json` |
@@ -90,9 +109,9 @@ applicable. Figures can still be returned when the narrative is withheld.
 | Database | `backend/db/init.sql`, `backend/app/db/models.py` |
 | iOS transport/models | `ios/FilingDigest/Networking/`, `ios/FilingDigest/Models/` |
 | iOS screen state | `ios/FilingDigest/State/` |
-| iOS presentation | `ios/FilingDigest/Views/`, `ios/FilingDigest/Theme.swift` |
+| iOS presentation | `ios/FilingDigest/Views/`, `ios/FilingDigest/Models/FigureDisplay.swift`, `ios/FilingDigest/Theme.swift` |
 
-## API contract v0.3
+## API contract v0.4
 
 All JSON fields are snake_case.
 
@@ -103,6 +122,10 @@ All JSON fields are snake_case.
 | `GET` | `/companies/{id}/digest?lang=ko\|en` | Metrics, bilingual summaries, Filing Sources |
 | `POST` | `/search` | Up to 50 citation-bearing search hits |
 | `POST` | `/answer` | Guarded narrative, structured figures, Citations, and Filing Sources |
+
+Digest `MetricCard` objects contain `key`, `value`, `unit`, `yoy_delta_pct`,
+`source`, and `filing_source_id`. KO/EN labels are an iOS presentation concern
+and are not transported.
 
 Request limits protect model and embedding work: company query 100 characters,
 search query 500 characters, answer query 1,000 characters, and period 32
@@ -118,7 +141,7 @@ Ingestion is CLI-only. There is no remote write endpoint.
 - `companies`: source identity and optional DART/SEC natural keys.
 - `filings`: company-owned filing metadata; DART receipt and SEC accession
   numbers are unique, and indexing readiness belongs to the current snapshot.
-- `filing_chunks`: filing-owned prose, citation metadata, optional
+- `filing_chunks`: filing-owned prose, serialized location metadata, optional
   `vector(1024)`, unique `(filing_id, chunk_index)`, HNSW cosine index.
 - `financials`: filing-owned exact values, unique by Filing Identity, reporting
   period, and Reported Metric. Period kind, available source dates, currency,
@@ -144,9 +167,15 @@ when the regulator provides honest dates.
 - **Explicit evidence identity:** Citations identify Filing Chunks while Filing
   Sources identify openable Corporate Filings. Client metadata heuristics are
   not part of the evidence chain.
+- **Filing-owned regulator identity:** chunking and Filing Chunk Locations are
+  source-neutral. DART receipt numbers and SEC accession numbers stay on the
+  Corporate Filing and are joined when evidence needs filing identity.
+- **Semantic Reporting Period selection:** digest recency and YoY comparability
+  use canonical fiscal scope and dates; display labels are deterministic
+  fallbacks only after semantic fields agree.
 - **Canonical financial vocabulary:** the backend owns Reported Metrics,
-  Derived Metrics, and Reporting Period kinds; a checked manifest prevents iOS
-  vocabulary drift.
+  Derived Metrics, Reporting Period semantics, and digest eligibility. iOS owns
+  labels, and exhaustive contract tests prevent vocabulary drift.
 - **Table removal:** filing tables are excluded before embedding to avoid
   presenting prose retrieval as an authoritative numeric source.
 - **Async I/O:** external clients and SQLAlchemy request/ingest paths use async

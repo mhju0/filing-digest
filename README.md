@@ -19,6 +19,7 @@ citation-grounded FastAPI retrieval pipeline.
 </div>
 
 > **Status:** v0.5.0, feature-complete portfolio project in maintenance mode.
+> The current API contract is v0.4; the database schema remains v0.3.
 > [Open the read-only hosted walkthrough](https://mhju0.github.io/filing-digest/).
 > It uses captured app sessions and makes no live API calls. Run the project
 > locally with your own DART and Upstage credentials for the live experience.
@@ -63,7 +64,10 @@ SwiftUI (iOS 17) -> FastAPI (Python 3.11) -> PostgreSQL 16 + pgvector
 The ingestion path parses filing prose, removes tables, chunks text, embeds it
 with normalized 1024-dimensional KURE-v1 vectors, and writes an HNSW-indexed
 pgvector corpus. DART and SEC structured facts are stored separately in
-`financials` as `numeric(24,4)` values.
+`financials` as `numeric(24,4)` values. Filing identity stays on the enclosing
+Corporate Filing; source-neutral chunks carry only a typed Filing Chunk
+Location. The persistence adapter is the only layer that serializes that
+location to JSONB.
 
 The answer path has two independent tracks:
 
@@ -75,6 +79,12 @@ The answer path has two independent tracks:
    the client.
 3. Citations resolve to bounded Filing Chunk excerpts; deduplicated Filing
    Sources provide stable, openable regulator documents.
+
+The digest path selects its current Reporting Period from fiscal year, fiscal
+scope, and available end date rather than sorting display labels. Prior-year
+comparability additionally checks period kind and available source date ranges.
+The backend owns digest metric eligibility and authoritative values; iOS owns
+bilingual display labels and derives them from the transported metric key.
 
 | Document | Contents |
 |---|---|
@@ -138,8 +148,8 @@ docker compose --profile container up -d --build backend
 ### Upgrade an existing local database
 
 Fresh databases receive the v0.3 schema from `backend/db/init.sql`. Before
-running v0.3 code against an older persistent volume, back it up and apply the
-versioned migration from the repository root:
+running the current application against an older persistent volume, back it up
+and apply the versioned migration from the repository root:
 
 ```bash
 docker compose exec -T db sh -c \
@@ -239,6 +249,10 @@ hostnames only — not arbitrary internet loads.
 
 Ingestion is intentionally CLI-only. The application does not expose a remote
 write endpoint.
+
+Digest metric cards transport `key`, `value`, `unit`, `yoy_delta_pct`, `source`,
+and `filing_source_id`. Presentation labels are deliberately absent from the
+wire contract and are resolved by the iOS `FigureDisplay` module.
 
 ## Limitations and security scope
 

@@ -1,4 +1,4 @@
-"""Smoke tests for DB-backed endpoints (API CONTRACT v0.3).
+"""Smoke tests for DB-backed endpoints (API CONTRACT v0.4).
 
 Requires the local PostgreSQL database. The tests assert response shape rather
 than specific rows/counts because those depend on live DB content. DB-backed

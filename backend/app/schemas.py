@@ -1,4 +1,4 @@
-"""Pydantic v2 models for API CONTRACT v0.3.
+"""Pydantic v2 models for API CONTRACT v0.4.
 
 All JSON fields are snake_case. Principle: numbers come only from structured
 APIs (DART/SEC structured data); the LLM narrates only; every claim carries a

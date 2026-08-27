@@ -2,7 +2,7 @@
 //  APIClient.swift
 //  FilingDigest
 //
-//  Minimal URLSession-based client for API CONTRACT v0.3.
+//  Minimal URLSession-based client for API CONTRACT v0.4.
 //  - async/await only, no third-party dependencies.
 //  - snake_case JSON handled via key coding strategies, so the Codable models
 //    stay camelCase without hand-written CodingKeys.

@@ -11,7 +11,7 @@ import Foundation
 import Testing
 @testable import FilingDigest
 
-// MARK: - Sample payloads (snake_case, mirroring API CONTRACT v0.3)
+// MARK: - Sample payloads (snake_case, mirroring API CONTRACT v0.4)
 
 private let companyDigestJSON = """
 {

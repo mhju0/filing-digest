@@ -1,4 +1,4 @@
-"""API CONTRACT v0.3 endpoints, backed by the real database.
+"""API CONTRACT v0.4 endpoints, backed by the real database.
 
 Principle: numbers come only from structured APIs (DART/SEC structured data);
 the LLM narrates only; every claim carries a citation.

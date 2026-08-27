@@ -70,8 +70,9 @@ The app uses system fonts only:
 
 - Company browsing is the initial state; filtering happens locally after the
   bounded corpus is loaded.
-- Digest language changes locally because both summaries and metric labels are
-  included in the response.
+- Digest language changes locally because both summaries are included in the
+  response and `FigureDisplay` owns exhaustive KO/EN metric labels keyed by the
+  transported financial vocabulary.
 - Every metric card carries the Filing Source its value came from and opens it;
   an `arrow.up.forward` mark distinguishes an openable card from a bordered box
   that does nothing.
