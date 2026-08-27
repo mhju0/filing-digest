@@ -11,8 +11,9 @@ FastAPI + PostgreSQL(pgvector) 백엔드.
 
 ## 프로젝트 상태 / 디자인
 
-- 앱 릴리스 v0.5.0(API/DB 계약 v0.3)으로 기능 완료된 포트폴리오 프로젝트이며
-  유지보수 모드다. 새 기능은 명시적으로 요청된 경우에만 추가한다.
+- 앱 릴리스 v0.5.0(API 계약 v0.4, DB 스키마 v0.3)으로 기능 완료된
+  포트폴리오 프로젝트이며 유지보수 모드다. 새 기능은 명시적으로 요청된
+  경우에만 추가한다.
 - iOS 디자인 정본은 **`docs/design/DESIGN.md`**와 `Theme.swift`의 "Ledger"
   에디토리얼 시스템이다. UI 변경은 기존 토큰과 컴포넌트를 따른다.
 
@@ -100,7 +101,9 @@ FastAPI + PostgreSQL(pgvector) 백엔드.
 ## git 규칙
 
 - git diff / status / log 등 read-only git 명령은 자기 변경 검증에 사용 가능.
-- `.serena/`, `.claude/`, `CLAUDE.md`는 로컬 도구 설정이며 gitignored다.
+- `.serena/`, `.claude/`, `docs/agents/`는 로컬 도구 설정이며 gitignored다.
+  `CLAUDE.md`는 기존 tracked 파일이므로 변경 시 일반 tracked 문서처럼
+  명시적으로 stage한다.
 
 ## 검증 규칙
 
@@ -114,6 +117,21 @@ FastAPI + PostgreSQL(pgvector) 백엔드.
 
 파싱/매핑 로직은 네트워크·DB 없이 단위테스트 가능한 순수 함수로 만든다
 (기존 패턴: `dart.py`, `chunking.py`, `kure.py`).
+
+## Architecture ownership
+
+- Corporate Filing이 규제기관 Filing Identity를 소유한다. Chunking은
+  source-neutral `Chunk`만 만들고, Normalized Filing의 `FilingChunkLocation`은
+  section title/order와 part index만 가진다. JSONB 변환은
+  `backend/app/filings/persistence.py` 경계에서만 한다.
+- Digest의 현재/이전 Reporting Period는 label 문자열이 아니라 fiscal year,
+  scope, kind, source date로 선택한다. 연간 보고서는 같은 fiscal year의
+  Q4보다 뒤에 온다.
+- Backend는 canonical metric vocabulary, digest eligibility, authoritative
+  values를 소유한다. iOS `FigureDisplay`가 KO/EN presentation label을 소유하며
+  digest wire contract에는 `label_ko`/`label_en`이 없다.
+- Ownership을 이동한 작업은 완료 전에 과거 symbol, import path, 설명을
+  코드와 Markdown 전체에서 검색해 stale reference가 0건인지 확인한다.
 
 ## 작업 후 보고 양식
 
@@ -130,12 +148,16 @@ FastAPI + PostgreSQL(pgvector) 백엔드.
 
 ### Issue tracker
 
-Issues and PRDs are tracked in GitHub Issues for `mhju0/filing-digest`. See `docs/agents/issue-tracker.md`.
+Issues and PRDs are tracked in GitHub Issues for `mhju0/filing-digest`. 로컬
+`docs/agents/issue-tracker.md`가 있으면 그 명령/wayfinding 규칙을 따른다.
 
 ### Triage labels
 
-Use the five canonical triage labels defined for this repository. See `docs/agents/triage-labels.md`.
+Use the five canonical triage labels defined for this repository. 로컬
+`docs/agents/triage-labels.md`가 있으면 실제 label mapping을 읽는다.
 
 ### Domain docs
 
-This is a single-context repository using root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+This is a single-context repository. Domain 작업 전에 tracked root
+`CONTEXT.md`와 관련 `docs/adr/`를 읽고, 로컬 `docs/agents/domain.md`가 있으면
+추가 completion rule을 적용한다.
