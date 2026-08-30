@@ -1,5 +1,10 @@
 version: 2
 
+# The project is closed for maintenance, so routine version updates are off:
+# `open-pull-requests-limit: 0` disables them per ecosystem. Dependabot security
+# updates are configured separately in repository settings and still open pull
+# requests, because a vulnerability fix is inside the maintenance policy while a
+# routine bump is not.
 updates:
   - package-ecosystem: pip
     directory: /backend
@@ -8,7 +13,7 @@ updates:
       day: monday
       time: "09:00"
       timezone: Asia/Seoul
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
 
   - package-ecosystem: github-actions
     directory: /
@@ -17,4 +22,4 @@ updates:
       day: monday
       time: "09:00"
       timezone: Asia/Seoul
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
