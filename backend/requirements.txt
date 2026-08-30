@@ -17,4 +17,4 @@ pgvector>=0.2.5,<1.0
 sentence-transformers>=3.0,<6.0
 pytest>=9.0.3,<10.0
 # Direct dependency of the checked-in eval harness (do not rely on a transitive install).
-PyYAML>=6.0,<7.0
+PyYAML>=6.0.3,<7.0
