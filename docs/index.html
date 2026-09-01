@@ -31,7 +31,7 @@
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="hero-copy">
         <p class="eyebrow">READ-ONLY PORTFOLIO DEMO</p>
-        <h1 id="hero-title">Every claim carries a citation.</h1>
+        <h1 id="hero-title">Every claim carries a&nbsp;citation.</h1>
         <p class="lede">
           Filing Digest turns Korean DART and US SEC filings into bilingual,
           source-linked iOS reading flows—without letting generated prose invent
@@ -49,12 +49,14 @@
 
       <figure class="hero-device">
         <div class="device-frame">
-          <img
-            src="screenshots/walkthrough_poster.png"
-            width="282"
-            height="584"
-            alt="Recorded Filing Digest flow: browse companies, filter, open a digest, ask a question, and inspect a cited answer"
-          >
+          <div class="device-screen">
+            <img
+              src="screenshots/walkthrough_poster.png"
+              width="282"
+              height="584"
+              alt="Recorded Filing Digest flow: browse companies, filter, open a digest, ask a question, and inspect a cited answer"
+            >
+          </div>
         </div>
         <figcaption>Captured from the implemented SwiftUI app</figcaption>
       </figure>
@@ -81,13 +83,15 @@
       <div class="walkthrough-grid">
         <figure class="demo-card">
           <div class="device-frame">
-            <img
-              src="screenshots/walkthrough_poster.png"
-              width="282"
-              height="584"
-              loading="lazy"
-              alt="Recorded core product walkthrough from company browsing through a cited answer"
-            >
+            <div class="device-screen">
+              <img
+                src="screenshots/walkthrough_poster.png"
+                width="282"
+                height="584"
+                loading="lazy"
+                alt="Recorded core product walkthrough from company browsing through a cited answer"
+              >
+            </div>
           </div>
           <button
             class="motion-control"
@@ -105,13 +109,15 @@
 
         <figure class="demo-card">
           <div class="device-frame">
-            <img
-              src="screenshots/answer_states_poster.png"
-              width="282"
-              height="584"
-              loading="lazy"
-              alt="Recorded answer states showing cited narrative, guarded figures, and no-results handling"
-            >
+            <div class="device-screen">
+              <img
+                src="screenshots/answer_states_poster.png"
+                width="282"
+                height="584"
+                loading="lazy"
+                alt="Recorded answer states showing cited narrative, guarded figures, and no-results handling"
+              >
+            </div>
           </div>
           <button
             class="motion-control"
@@ -149,28 +155,133 @@
     </section>
 
     <section class="screens" aria-labelledby="screens-title">
-      <div class="section-heading compact">
-        <p class="eyebrow">IMPLEMENTED SURFACES</p>
-        <h2 id="screens-title">The app, not a concept render.</h2>
+      <div class="screens-inner">
+        <div class="section-heading compact">
+          <p class="eyebrow">IMPLEMENTED SURFACES</p>
+          <h2 id="screens-title">The app, not a concept render.</h2>
+        </div>
+        <div class="screen-grid">
+          <figure class="screen-card">
+            <div class="device-frame">
+              <div class="device-screen">
+                <img
+                  src="screenshots/screens/browse.png"
+                  width="258"
+                  height="564"
+                  loading="lazy"
+                  alt="Browse screen listing covered DART and SEC companies with filing-source badges"
+                >
+              </div>
+            </div>
+            <figcaption>Browse</figcaption>
+          </figure>
+
+          <figure class="screen-card">
+            <div class="device-frame">
+              <div class="device-screen">
+                <img
+                  src="screenshots/screens/digest.png"
+                  width="258"
+                  height="564"
+                  loading="lazy"
+                  alt="Digest screen for Hyundai Motor showing structured revenue and profit figures"
+                >
+              </div>
+            </div>
+            <figcaption>Digest</figcaption>
+          </figure>
+
+          <figure class="screen-card">
+            <div class="device-frame">
+              <div class="device-screen">
+                <img
+                  src="screenshots/screens/cited_answer.png"
+                  width="258"
+                  height="564"
+                  loading="lazy"
+                  alt="Korean risk-factor answer with numbered claim markers pointing at filing evidence"
+                >
+              </div>
+            </div>
+            <figcaption>Cited answer</figcaption>
+          </figure>
+
+          <figure class="screen-card">
+            <div class="device-frame">
+              <div class="device-screen">
+                <img
+                  src="screenshots/screens/guarded_figures.png"
+                  width="258"
+                  height="564"
+                  loading="lazy"
+                  alt="Authoritative filing values listed separately from generated prose"
+                >
+              </div>
+            </div>
+            <figcaption>Guarded figures</figcaption>
+          </figure>
+
+          <figure class="screen-card">
+            <div class="device-frame">
+              <div class="device-screen">
+                <img
+                  src="screenshots/screens/sec_digest.png"
+                  width="258"
+                  height="564"
+                  loading="lazy"
+                  alt="SEC digest screen for Apple Inc. with US-dollar figures"
+                >
+              </div>
+            </div>
+            <figcaption>SEC digest</figcaption>
+          </figure>
+
+          <figure class="screen-card">
+            <div class="device-frame">
+              <div class="device-screen">
+                <img
+                  src="screenshots/screens/cross_lingual.png"
+                  width="258"
+                  height="564"
+                  loading="lazy"
+                  alt="Korean question answered from an English 10-K with claim-level citations"
+                >
+              </div>
+            </div>
+            <figcaption>Cross-lingual</figcaption>
+          </figure>
+
+          <figure class="screen-card">
+            <div class="device-frame">
+              <div class="device-screen">
+                <img
+                  src="screenshots/screens/no_results.png"
+                  width="258"
+                  height="564"
+                  loading="lazy"
+                  alt="Fail-closed state shown when no filing evidence supports the question"
+                >
+              </div>
+            </div>
+            <figcaption>No results</figcaption>
+          </figure>
+
+          <figure class="screen-card">
+            <div class="device-frame">
+              <div class="device-screen device-screen-dark">
+                <img
+                  src="screenshots/screens/dark_mode.png"
+                  width="258"
+                  height="564"
+                  loading="lazy"
+                  alt="Dark mode cited answer screen"
+                >
+              </div>
+            </div>
+            <figcaption>Dark mode</figcaption>
+          </figure>
+        </div>
       </div>
-      <figure>
-        <img
-          src="screenshots/strip_core.png"
-          width="1280"
-          height="683"
-          loading="lazy"
-          alt="Implemented browse, digest, cited answer, and guarded figures screens"
-        >
-      </figure>
-      <figure>
-        <img
-          src="screenshots/strip_more.png"
-          width="1280"
-          height="683"
-          loading="lazy"
-          alt="Implemented SEC digest, cross-lingual answer, no-results, and dark-mode screens"
-        >
-      </figure>
     </section>
 
     <section class="section evidence" id="evidence" aria-labelledby="evidence-title">

@@ -1,6 +1,9 @@
 :root {
   --paper: #f7f4ee;
   --paper-raised: #fffdf8;
+  --paper-sunken: #ece7dd;
+  --chassis: #1c1b1f;
+  --chassis-edge: #4c493f;
   --ink: #1a1917;
   --ink-muted: #68655f;
   --accent: #1d5c45;
@@ -55,7 +58,7 @@ a:focus-visible {
 
 .site-header {
   width: var(--page);
-  min-height: 76px;
+  min-height: 54px;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -110,19 +113,20 @@ main {
   width: var(--page);
   min-height: 720px;
   margin: 0 auto;
-  padding: 88px 0 96px;
+  padding: 80px 0 96px;
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  grid-template-columns: minmax(0, 1.34fr) minmax(300px, 0.66fr);
   align-items: center;
-  gap: 80px;
+  gap: 56px;
 }
 
 .eyebrow,
 .track-label {
-  margin: 0 0 18px;
+  margin: 0 0 10px;
   color: var(--accent);
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 750;
+  line-height: 1.3;
   letter-spacing: 0.18em;
 }
 
@@ -138,27 +142,28 @@ h2,
 h3 {
   font-family: ui-serif, Georgia, "Times New Roman", serif;
   font-weight: 600;
-  line-height: 1.08;
+  line-height: 1.04;
   text-wrap: balance;
 }
 
 h1 {
-  max-width: 760px;
-  margin-bottom: 28px;
-  font-size: clamp(3.4rem, 7.5vw, 6.8rem);
+  max-width: 840px;
+  margin-bottom: 26px;
+  font-size: clamp(3.4rem, 8.4vw, 7.9rem);
   letter-spacing: -0.055em;
 }
 
 h2 {
-  margin-bottom: 22px;
-  font-size: clamp(2.35rem, 5vw, 4.6rem);
+  margin-bottom: 20px;
+  font-size: clamp(2.6rem, 5.6vw, 5.3rem);
   letter-spacing: -0.045em;
 }
 
 h3 {
-  margin-bottom: 18px;
-  font-size: 2rem;
-  letter-spacing: -0.025em;
+  margin-bottom: 16px;
+  font-size: 2.4rem;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
 }
 
 .lede {
@@ -172,17 +177,17 @@ h3 {
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
 }
 
 .button {
   min-height: 48px;
-  padding: 11px 18px;
+  padding: 12px 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--ink);
-  font-size: 0.86rem;
+  font-size: 0.92rem;
   font-weight: 700;
   text-decoration: none;
   transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
@@ -220,7 +225,7 @@ h3 {
 
 .hero-device,
 .demo-card,
-.screens figure {
+.screen-card {
   margin: 0;
 }
 
@@ -230,17 +235,101 @@ h3 {
 }
 
 .device-frame {
-  width: min-content;
-  padding: 10px;
-  background: var(--ink);
-  border: 1px solid var(--ink);
-  box-shadow: 18px 18px 0 rgba(29, 92, 69, 0.16);
+  --bezel: 10px;
+  --chassis-radius: 44px;
+  --screen-width: 282px;
+  width: fit-content;
+  padding: var(--bezel);
+  position: relative;
+  border-radius: var(--chassis-radius);
+  background: linear-gradient(
+    148deg,
+    var(--chassis-edge) 0%,
+    var(--chassis) 13%,
+    var(--chassis) 87%,
+    var(--chassis-edge) 100%
+  );
+  box-shadow:
+    0 1px 2px rgba(26, 25, 23, 0.2),
+    0 24px 44px -22px rgba(26, 25, 23, 0.55);
 }
 
-.device-frame img {
-  width: 282px;
-  height: 584px;
+/* Side buttons: volume pair on the left, side button on the right. */
+.device-frame::before,
+.device-frame::after {
+  content: "";
+  width: 3px;
+  position: absolute;
+  background: var(--chassis);
+}
+
+.device-frame::before {
+  height: 15.5%;
+  top: 22.5%;
+  left: -2px;
+  border-radius: 2px 0 0 2px;
+  background: linear-gradient(
+    to bottom,
+    var(--chassis) 0 40%,
+    transparent 40% 60%,
+    var(--chassis) 60% 100%
+  );
+}
+
+.device-frame::after {
+  height: 9.5%;
+  top: 27%;
+  right: -2px;
+  border-radius: 0 2px 2px 0;
+}
+
+.device-screen {
+  width: var(--screen-width);
+  position: relative;
+  overflow: hidden;
+  border-radius: calc(var(--chassis-radius) - var(--bezel));
+  background: var(--paper-raised);
+}
+
+.device-screen img {
+  width: 100%;
+  height: auto;
   display: block;
+}
+
+/* Screen edge, then the home indicator over the captured screen. */
+.device-screen::before,
+.device-screen::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.device-screen::before {
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(26, 25, 23, 0.12);
+}
+
+.device-screen::after {
+  width: 34%;
+  height: 4px;
+  bottom: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: rgba(26, 25, 23, 0.32);
+}
+
+.device-screen-dark::after {
+  background: rgba(247, 244, 238, 0.5);
+}
+
+.hero-device .device-frame {
+  box-shadow:
+    12px 12px 0 rgba(29, 92, 69, 0.11),
+    0 1px 2px rgba(26, 25, 23, 0.2),
+    0 24px 44px -22px rgba(26, 25, 23, 0.5);
 }
 
 .hero-device figcaption {
@@ -260,8 +349,8 @@ h3 {
 }
 
 .facts div {
-  min-height: 148px;
-  padding: 34px clamp(22px, 4vw, 54px);
+  min-height: 122px;
+  padding: 22px clamp(22px, 4vw, 54px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -274,20 +363,21 @@ h3 {
 
 .facts strong {
   font-family: ui-serif, Georgia, serif;
-  font-size: clamp(1.55rem, 2.5vw, 2.2rem);
+  font-size: clamp(1.95rem, 3.1vw, 2.8rem);
   font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
 }
 
 .facts span {
-  margin-top: 6px;
-  color: rgba(247, 244, 238, 0.68);
-  font-size: 0.8rem;
+  margin-top: 7px;
+  color: rgba(247, 244, 238, 0.7);
+  font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .section,
-.screens,
 .closing {
   width: var(--page);
   margin: 0 auto;
@@ -311,10 +401,6 @@ h3 {
   grid-template-columns: 302px 302px minmax(280px, 1fr);
   align-items: start;
   gap: clamp(28px, 4vw, 64px);
-}
-
-.demo-card .device-frame {
-  box-shadow: none;
 }
 
 .motion-control {
@@ -351,15 +437,16 @@ h3 {
   flex-direction: column;
   color: var(--ink-muted);
   font-family: ui-serif, Georgia, serif;
-  font-size: 1.12rem;
+  font-size: 1.24rem;
 }
 
 .demo-card figcaption span {
-  margin-bottom: 4px;
+  margin-bottom: 3px;
   color: var(--accent);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 750;
+  line-height: 1.3;
   letter-spacing: 0.16em;
 }
 
@@ -371,34 +458,50 @@ h3 {
 }
 
 .flow-notes li {
-  padding: 24px 0;
+  padding: 22px 0;
   display: grid;
-  grid-template-columns: 42px 1fr;
-  gap: 12px;
+  grid-template-columns: 30px 1fr;
+  align-items: baseline;
+  gap: 14px;
   border-bottom: 1px solid var(--hairline);
 }
 
+/* Sized so the digits stand exactly as tall as the title's lowercase. */
 .flow-notes > li > span {
   color: var(--accent);
-  font-size: 0.72rem;
+  font-size: 0.98rem;
   font-weight: 750;
-  letter-spacing: 0.1em;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: proportional-nums;
 }
 
 .flow-notes strong {
+  display: block;
   font-family: ui-serif, Georgia, serif;
-  font-size: 1.18rem;
+  font-size: 1.42rem;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
 }
 
 .flow-notes p {
-  margin: 5px 0 0;
+  margin: 3px 0 0;
   color: var(--ink-muted);
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .screens {
-  width: min(1440px, calc(100% - 40px));
+  width: 100%;
+  padding: 112px 0;
+  background: var(--paper-sunken);
   border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.screens-inner {
+  width: var(--page);
+  margin: 0 auto;
 }
 
 .section-heading.compact {
@@ -407,15 +510,33 @@ h3 {
   text-align: center;
 }
 
-.screens figure + figure {
-  margin-top: 36px;
+.screen-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 52px 40px;
 }
 
-.screens img {
+.screen-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  container-type: inline-size;
+}
+
+.screen-card .device-frame {
+  --bezel: 3.4cqw;
+  --chassis-radius: 15cqw;
+  --screen-width: 100%;
   width: 100%;
-  height: auto;
-  display: block;
-  border: 1px solid var(--hairline);
+}
+
+.screen-card figcaption {
+  margin-top: 20px;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .evidence {
@@ -476,7 +597,7 @@ h3 {
   justify-content: space-between;
   gap: 16px;
   border: 1px solid var(--border);
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-align: center;
@@ -549,6 +670,11 @@ footer {
     grid-column: 1 / -1;
   }
 
+  .screen-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 48px 36px;
+  }
+
   .architecture {
     align-items: stretch;
     flex-direction: column;
@@ -596,14 +722,16 @@ footer {
     justify-self: center;
   }
 
-  .device-frame {
-    max-width: calc(100vw - 44px);
-    box-shadow: 10px 10px 0 rgba(29, 92, 69, 0.16);
+  .hero-device .device-frame {
+    box-shadow:
+      10px 10px 0 rgba(29, 92, 69, 0.14),
+      0 1px 2px rgba(26, 25, 23, 0.2),
+      0 18px 32px -18px rgba(26, 25, 23, 0.5);
   }
 
-  .device-frame img {
-    max-width: 100%;
-    height: auto;
+  .hero-device .device-screen,
+  .demo-card .device-screen {
+    --screen-width: min(282px, calc(100vw - 64px));
   }
 
   .facts {
@@ -636,17 +764,13 @@ footer {
     grid-column: auto;
   }
 
-  .screens {
-    width: 100%;
+  .screen-grid {
+    gap: 40px 24px;
   }
 
-  .screens .section-heading {
-    width: var(--page);
-  }
-
-  .screens img {
-    border-left: 0;
-    border-right: 0;
+  .screen-card figcaption {
+    margin-top: 14px;
+    font-size: 0.66rem;
   }
 
   .closing {
