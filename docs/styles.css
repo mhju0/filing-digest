@@ -390,7 +390,7 @@ h3 {
 }
 
 .section-heading p:last-child,
-.closing > p {
+.closing > p:not(.eyebrow) {
   max-width: 680px;
   color: var(--ink-muted);
   font-size: 1.08rem;
@@ -689,11 +689,13 @@ footer {
 
 @media (max-width: 680px) {
   :root {
-    --page: min(100% - 32px, 1180px);
+    --gutter: 16px;
+    --page: min(100% - (var(--gutter) * 2), 1180px);
   }
 
+  /* Same as wide screens: the rule sits on the lettering, not a band below it. */
   .site-header {
-    padding: 14px 0;
+    padding: 4px 0;
   }
 
   nav a:not(:last-child) {
@@ -705,8 +707,18 @@ footer {
     padding: 64px 0 80px;
   }
 
+  /* Sized to keep the approved three-line break; the phrase "Every claim"
+     holds on one line with room to spare for iOS's serif. */
   h1 {
-    font-size: clamp(3.1rem, 15vw, 4.4rem);
+    font-size: clamp(3.1rem, 16vw, 4.1rem);
+  }
+
+  h2 {
+    font-size: clamp(2.35rem, 12vw, 3.05rem);
+  }
+
+  .section-heading {
+    margin-bottom: 40px;
   }
 
   .hero-actions {
@@ -734,21 +746,31 @@ footer {
     --screen-width: min(282px, calc(100vw - 64px));
   }
 
+  /* Stacked, so the band reads down the same column as everything above it. */
   .facts {
     grid-template-columns: 1fr;
   }
 
   .facts div {
-    min-height: 118px;
+    min-height: 96px;
+    padding: 18px var(--gutter);
     border-right: 0;
     border-bottom: 1px solid rgba(247, 244, 238, 0.2);
+  }
+
+  .facts strong {
+    font-size: 2.2rem;
+  }
+
+  .facts span {
+    margin-top: 5px;
   }
 
   .section,
   .screens,
   .closing {
-    padding-top: 88px;
-    padding-bottom: 88px;
+    padding-top: 72px;
+    padding-bottom: 72px;
   }
 
   .walkthrough-grid,
@@ -756,8 +778,14 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  /* Full width, so the play control and caption sit on the gutter; only the
+     chassis is centred. */
   .demo-card {
-    justify-self: center;
+    justify-self: stretch;
+  }
+
+  .demo-card .device-frame {
+    margin: 0 auto;
   }
 
   .flow-notes {
@@ -770,17 +798,34 @@ footer {
 
   .screen-card figcaption {
     margin-top: 14px;
-    font-size: 0.66rem;
+    font-size: 0.7rem;
   }
 
+  /* One inset for every bordered box. */
+  .track-grid article,
+  .architecture {
+    padding: 20px;
+  }
+
+  /* A bordered sign-off panel rather than a full section, so it takes the same
+     20px inset as the other boxed content and a tighter vertical rhythm. */
   .closing {
     width: calc(100% - 32px);
     margin-bottom: 64px;
+    padding: 48px 20px;
+  }
+
+  /* "implementation" is the longest word on the page. At the section h2 size it
+     is wider than this bordered box, so the sign-off heading steps down. */
+  .closing h2 {
+    font-size: clamp(1.7rem, 9vw, 2.35rem);
   }
 
   footer {
     align-items: flex-start;
     flex-direction: column;
+    padding-left: var(--gutter);
+    padding-right: var(--gutter);
   }
 }
 
