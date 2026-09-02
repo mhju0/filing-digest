@@ -2,7 +2,14 @@
   /* Every size below is one straight line between the two layouts that were
      signed off: the 402pt phone and the 1700px desktop. Both ends are clamped,
      so those two render exactly as approved and nothing in between jumps.
-     Breakpoints past this point change the arrangement only, never a size. */
+     Each line is `clamp(min, S * 1vw + I, max)` with the anchors folded in:
+     S = (max - min) / 1292 and I = min - 404 * S, i.e. the line passes through
+     min at 404px and max at 1696px, a hair inside the two approved widths so
+     both render at their clamped end. Retune an anchor by recomputing S and I.
+     Media queries further down mostly rearrange; where one also changes a
+     size (hero gap, device shadow), the block says so. */
+  --page-max: 1180px;
+  --box-inset: clamp(20px, 2.1672vw + 11.245px, 48px);
   --gutter: clamp(16px, 0.3096vw + 14.749px, 20px);
   --step-h1: clamp(4.02rem, 4.805vw + 2.80675rem, 7.9rem);
   --step-h2: clamp(3.015rem, 2.8297vw + 2.3005rem, 5.3rem);
@@ -21,7 +28,15 @@
   --accent-dark: #174a38;
   --border: #8f8b82;
   --hairline: rgba(26, 25, 23, 0.22);
-  --page: min(1180px, calc(100% - var(--gutter) * 2));
+  --page: min(var(--page-max), calc(100% - var(--gutter) * 2));
+}
+
+/* A vw gutter lands the page column, and every 1px border hung from it, on a
+   fractional pixel; snap it where the engine can. */
+@supports (width: round(1px, 1px)) {
+  :root {
+    --gutter: round(clamp(16px, 0.3096vw + 14.749px, 20px), 1px);
+  }
 }
 
 * {
@@ -132,13 +147,6 @@ main {
   gap: 56px;
 }
 
-/* A grid item is floored at its longest word unless told otherwise, and under
-   ~310px "source-linked" is wider than the whole column. */
-.hero-copy {
-  min-width: 0;
-  overflow-wrap: break-word;
-}
-
 .eyebrow,
 .track-label {
   margin: 0 0 10px;
@@ -168,13 +176,16 @@ h3 {
 h1 {
   max-width: 840px;
   margin-bottom: 26px;
-  font-size: var(--step-h1);
+  /* 16vw meets --step-h1's floor exactly at 402px, so phones narrower than the
+     anchor keep scaling down instead of gaining a line. */
+  font-size: min(16vw, var(--step-h1));
   letter-spacing: -0.055em;
 }
 
 h2 {
   margin-bottom: 20px;
-  font-size: var(--step-h2);
+  /* 12vw meets --step-h2's floor exactly at 402px. */
+  font-size: min(12vw, var(--step-h2));
   letter-spacing: -0.045em;
 }
 
@@ -369,8 +380,7 @@ h3 {
 
 .facts div {
   min-height: clamp(96px, 2.0124vw + 87.87px, 122px);
-  padding: clamp(18px, 0.3096vw + 16.749px, 22px)
-    clamp(16px, 2.9412vw + 4.118px, 54px);
+  padding: calc(var(--gutter) + 2px) clamp(16px, 2.9412vw + 4.118px, 54px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -401,6 +411,9 @@ h3 {
 .closing {
   width: var(--page);
   margin: 0 auto;
+}
+
+.section {
   padding: var(--space-section) 0;
 }
 
@@ -571,7 +584,7 @@ h3 {
 }
 
 .track-grid article {
-  padding: clamp(20px, 2.1672vw + 11.245px, 48px);
+  padding: var(--box-inset);
   border: 1px solid var(--border);
   background: var(--paper-raised);
 }
@@ -634,7 +647,6 @@ h3 {
 }
 
 .closing {
-  container-type: inline-size;
   margin-bottom: clamp(64px, 2.7864vw + 52.743px, 100px);
   padding: clamp(48px, 5.5728vw + 25.486px, 120px)
     clamp(20px, 4.644vw + 1.238px, 80px);
@@ -642,10 +654,12 @@ h3 {
 }
 
 /* "implementation" is the longest word on the page, and this box is inset from
-   the page column, so the sign-off heading rides its own slightly lower line. */
+   the page column, so the sign-off heading rides its own slightly lower line.
+   9vw meets the clamp floor exactly at 402px and keeps the word inside the
+   border on narrower phones. */
 .closing h2 {
   max-width: 820px;
-  font-size: min(clamp(2.26125rem, 3.7632vw + 1.31106rem, 5.3rem), 12.2cqi);
+  font-size: min(9vw, clamp(2.26125rem, 3.7632vw + 1.31106rem, 5.3rem));
 }
 
 .closing .hero-actions {
@@ -654,7 +668,7 @@ h3 {
 
 footer {
   min-height: 96px;
-  padding: 24px max(var(--gutter), calc((100% - 1180px) / 2));
+  padding: 24px max(var(--gutter), calc((100% - var(--page-max)) / 2));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -666,11 +680,12 @@ footer {
   text-transform: uppercase;
 }
 
-/* Arrangement only below this line: how many columns, stacked or side by side.
-   Sizes come from the fluid scale above, so nothing jumps across a breakpoint. */
+/* Below this line: how many columns, stacked or side by side. Sizes stay on
+   the fluid scale above unless a block says otherwise. */
 
-/* 302px + 302px + 280px of tracks plus two gaps stops fitting here. */
-@media (max-width: 1040px) {
+/* 302px + 302px + 280px of tracks plus two fluid gaps last fit inside --page
+   at 1010px. */
+@media (max-width: 1009px) {
   .walkthrough-grid {
     grid-template-columns: repeat(2, 302px);
   }
@@ -681,8 +696,9 @@ footer {
 }
 
 @media (max-width: 900px) {
+  /* The wider gap is deliberate: the device sits under the copy here. */
   .hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 64px;
   }
 
@@ -718,9 +734,36 @@ footer {
   }
 }
 
+/* Two 302px demo tracks plus the fluid gap leave ~6px inside --page at 681px,
+   which a classic scrollbar eats; stack a little earlier. */
+@media (max-width: 700px) {
+  .walkthrough-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Full width, so the play control and caption sit on the gutter; only the
+     chassis is centred. */
+  .demo-card {
+    justify-self: stretch;
+  }
+
+  .demo-card .device-frame {
+    margin: 0 auto;
+  }
+
+  .flow-notes {
+    grid-column: auto;
+  }
+}
+
 @media (max-width: 680px) {
   nav a:not(:last-child) {
     display: none;
+  }
+
+  /* Same as wide screens: the rule sits on the lettering, not a band below it. */
+  .site-header {
+    padding: 4px 0;
   }
 
   .hero {
@@ -752,32 +795,28 @@ footer {
     --screen-width: min(282px, calc(100vw - 64px));
   }
 
+  /* Stacked, so the band reads down the same column as everything above it. */
   .facts {
     grid-template-columns: 1fr;
   }
 
   .facts div {
+    padding-left: var(--gutter);
+    padding-right: var(--gutter);
     border-right: 0;
     border-bottom: 1px solid rgba(247, 244, 238, 0.2);
   }
 
-  .walkthrough-grid,
   .track-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Full width, so the play control and caption sit on the gutter; only the
-     chassis is centred. */
-  .demo-card {
-    justify-self: stretch;
-  }
-
-  .demo-card .device-frame {
-    margin: 0 auto;
-  }
-
-  .flow-notes {
-    grid-column: auto;
+  /* One inset for every bordered box while they stack above one another. */
+  .track-grid article,
+  .architecture,
+  .closing {
+    padding-left: var(--box-inset);
+    padding-right: var(--box-inset);
   }
 
   footer {
