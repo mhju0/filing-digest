@@ -43,12 +43,10 @@ FastAPI + PostgreSQL(pgvector) 백엔드.
 - 임베딩: `vector(1024)` — KURE-v1(nlpai-lab/KURE-v1). 저장 시
   `normalize_embeddings=True` 고정, 거리 함수는 cosine(`<=>`) —
   벡터 인덱스를 만들 때 반드시 `vector_cosine_ops` operator class를 쓸 것.
-- **로컬 DB는 Docker가 아니라 Homebrew `postgresql@16`(16.14, 포트 5432)**
-  이다. 2026-07-25에 docker 볼륨 `filing-digest_pgdata`에서 이관했다
-  (카운트 8/13/1191/86 일치 확인). 같은 클러스터에 mammacare의
-  `mammacare_db`가 함께 있지만 DB와 역할이 분리되어 있어 서로 간섭하지
-  않는다. `brew services`로 이미 상시 기동 중이라 **Docker Desktop을 켤
-  필요가 없다.**
+- **로컬 DB는 Docker가 아니라 Homebrew `postgresql@16`(포트 5432)**이다.
+  같은 클러스터에 mammacare의 `mammacare_db`가 함께 있지만 DB와 역할이
+  분리되어 있어 서로 간섭하지 않는다. `brew services`로 상시 기동 중이라
+  Docker Desktop을 켤 필요가 없다.
   - `backend/.env`의 `DATABASE_URL`은 `localhost:5432`.
   - 접속: `PGPASSWORD=filing_digest_dev
     /opt/homebrew/opt/postgresql@16/bin/psql -h localhost -p 5432
@@ -64,29 +62,23 @@ FastAPI + PostgreSQL(pgvector) 백엔드.
   - 다른 프로젝트(mammacare, 영수증)의 MySQL 데이터가 docker 볼륨에
     남아 있으므로 **Docker Desktop 자체를 삭제하면 안 된다.**
 - `embedding_offline_first`(기본 true): 모델이 로컬 캐시에 있으면 HF Hub
-  네트워크 체크를 건너뛴다(startup ~9s→~5s, HF 요청 33→0 실측). 캐시가
-  없는 클린 환경에서는 자동으로 온라인 경로를 탄다.
+  네트워크 체크를 건너뛴다. 캐시가 없는 클린 환경에서는 자동으로 온라인
+  경로를 탄다.
 - `embedding_warmup_enabled`(기본 true): startup 시 KURE-v1을 미리
-  로드한다. 테스트/CI에서 false로 두면 모델 로드 없이 앱이 기동된다
-  (startup 22ms 실측).
+  로드한다. 테스트/CI에서 false로 두면 모델 로드 없이 앱이 기동된다.
 
 ## 실행 / 포트
 
-- **API 포트 소유권**: host `8000`은 옆 프로젝트 mammacare 전용(native
-  uvicorn + Vite proxy target 고정, 이동 불가), host `8001`은
-  filing-digest 전용으로 영구 고정한다. 로컬 uvicorn은 `--port 8001`을
-  반드시 명시하고(`--port` 생략 시 기본 8000으로 떠서 mammacare와 충돌 →
-  `Address already in use`), `docker-compose.yml`은 `"8001:8000"`
-  (host만 8001, 컨테이너 내부는 8000 유지). `Dockerfile`의 EXPOSE/CMD
-  8000은 컨테이너 내부 포트라 건드리지 않는다. 포트 점유 확인은
-  `lsof -nP -iTCP:8001 -sTCP:LISTEN`.
-- **개발 정본 = host uvicorn 하나뿐. Docker는 쓰지 않는다.** DB는 이미
-  상시 기동 중인 Homebrew postgresql@16이므로 띄울 게 없다:
+- 개발 실행은 host uvicorn 하나다:
   `cd backend && ../.venv/bin/python -m uvicorn app.main:app --reload --port 8001`
-- `docker compose up`을 실행하면 baked-in backend 컨테이너가 host
-  uvicorn과 포트를 동시에 잡아 stale/warmup 실패 응답을 낸다(컨테이너엔
-  KURE-v1 캐시가 없어 `/health`가 빈 응답). `docker compose config -q`는
-  데몬 없이도 동작하므로 검증 목록은 그대로 쓸 수 있다.
+- host `8000`은 옆 프로젝트 mammacare가 쓰고(Vite proxy target 고정),
+  `8001`이 filing-digest 몫이다. `--port 8001`을 생략하면 8000으로 떠서
+  충돌한다. `docker-compose.yml`은 `"8001:8000"`이고 `Dockerfile`의
+  EXPOSE/CMD 8000은 컨테이너 내부 포트다. 점유 확인:
+  `lsof -nP -iTCP:8001 -sTCP:LISTEN`.
+- `docker compose up`은 쓰지 않는다. 컨테이너에는 KURE-v1 캐시가 없어
+  `/health`가 빈 응답을 내고, host uvicorn과 포트를 다툰다.
+  `docker compose config -q`는 데몬 없이 동작하므로 검증 목록에 남긴다.
 - 실기기(iPhone) 테스트 시에만 `--host 0.0.0.0`을 붙인다. 그 경우 같은
   Wi-Fi의 다른 기기도 인증 없이 API에 접근할 수 있고, macOS 방화벽이
   venv Python의 수신 연결을 기본 차단하므로 별도 허용이 필요하다.
@@ -107,8 +99,7 @@ FastAPI + PostgreSQL(pgvector) 백엔드.
 
 ## 검증 규칙
 
-- (global보다 엄격) global은 read-only 조사에만 `file:line` 근거를 요구하지만,
-  이 저장소에서는 코드 동작에 관한 **모든** 결론에 `file:line` 근거를 단다 —
+- 이 저장소에서는 코드 동작에 관한 모든 결론에 `file:line` 근거를 단다.
   구현·수정 작업의 결론도 예외 없다.
 - 테스트 PASSED만으로 실연동 스텝을 완료로 치지 않는다 — 라이브
   실측값을 사람이 확인한 뒤에 커밋한다.
