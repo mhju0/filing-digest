@@ -133,11 +133,11 @@ characters. UUID fields are validated by Pydantic.
 
 Ingestion is CLI-only. There is no remote write endpoint.
 
-**This contract is frozen.** Filing Digest is in maintenance mode, and a
-separate repository, `filing-agent`, calls these five endpoints as tools. Their
-paths, request limits, and response fields therefore stay as documented above,
-and no endpoint is added. A change to any of them would be a new contract
-version, which this project does not plan to publish.
+**This contract is frozen** under Filing Digest's maintenance policy. Endpoint
+paths, request limits, and response fields stay as documented above, and no
+endpoint is added. A change to any of them would be a new contract version,
+which this project does not plan to publish. `filing-agent` is a planned,
+deferred consumer; the contract freeze stands independently of whether it is built.
 
 ## Database
 

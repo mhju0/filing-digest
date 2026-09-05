@@ -244,29 +244,17 @@ def test_digest_schema_is_flat_no_refs() -> None:
     assert inner["properties"]["summary_en"] == {"type": "string"}
 
 
-def test_number_guard_applies_to_both_languages() -> None:
+def test_number_guard_accepts_qualitative_summaries() -> None:
     # Clean prose passes; a violation in EITHER segment trips the guard.
     _assert_summary_number_free(
         DigestSummary(summary_ko="반도체 사업을 한다.", summary_en="It makes chips.")
     )
-    # Layer 1 (financial, suffix-anchored): KO currency, EN percent.
+
+
+@pytest.mark.parametrize("numeric", ["２０２５", "²", "٥", "279조원", "$5 billion", "50%", "2x"])
+@pytest.mark.parametrize("language", ["summary_ko", "summary_en"])
+def test_digest_rejects_normalized_digits_in_either_language(numeric, language):
+    summaries = {"summary_ko": "회사 개요", "summary_en": "Company overview"}
+    summaries[language] = numeric
     with pytest.raises(NumberInNarrativeError):
-        _assert_summary_number_free(
-            DigestSummary(summary_ko="매출은 279조원이다.", summary_en="It is large.")
-        )
-    with pytest.raises(NumberInNarrativeError):
-        _assert_summary_number_free(
-            DigestSummary(summary_ko="성장했다.", summary_en="Margins are near 50%.")
-        )
-    # Layer 2 (bare-digit floor): a KO count and an English "$5 billion" that the
-    # suffix-anchored financial guard alone would miss.
-    with pytest.raises(NumberInNarrativeError):
-        _assert_summary_number_free(
-            DigestSummary(
-                summary_ko="232개의 종속기업이 있다.", summary_en="It is large."
-            )
-        )
-    with pytest.raises(NumberInNarrativeError):
-        _assert_summary_number_free(
-            DigestSummary(summary_ko="크다.", summary_en="Revenue was $5 billion.")
-        )
+        _assert_summary_number_free(DigestSummary(**summaries))

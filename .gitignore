@@ -49,7 +49,6 @@ scratchpad/
 
 # Local assistant and editor workspace config.
 CLAUDE.md
-AGENTS.md
 GEMINI.md
 docs/agents/
 .claude/
