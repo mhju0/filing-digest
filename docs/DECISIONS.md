@@ -325,7 +325,7 @@ schema stayed at v0.3, so existing local data remained compatible — that pairi
 appear in the docs. The **v0.5.0 GitHub release notes still say API v0.3**;
 they correctly describe that release's contract.
 
-### D40 · v0.5.1 is the final release; the contract is frozen — `ACTIVE`
+### D40 · v0.5.1 is the final release; the contract is frozen — `ACTIVE`, cleanup exception in D48
 `507692d`, tag `v0.5.1`, GitHub Release published 2026-08-27. The release note
 is unambiguous: *"the final release… no new features, database schema changes,
 API contract changes, or refactors."* The README now defines maintenance
@@ -374,9 +374,8 @@ conversation context and the local design file)**
 installed on either the GitHub runner image or this Mac; two dependency PRs were
 red for that reason alone, with nothing wrong in the code. CI now picks the
 first available iPhone simulator and passes its UDID.
-`backend/tests/test_ci_workflow.py:48` still requires the literal string
-`platform=iOS Simulator` in the workflow, so that fragment must stay in the
-destination even though the device is dynamic.
+The workflow originally had string-assertion tests; D48 replaces those checks
+with execution of the shared verification commands in CI.
 
 ---
 
@@ -418,6 +417,20 @@ This ledger records significant decisions and reversals; ROADMAP records materia
 roadmap changes; PROJECT_HANDOFF changes only with material high-level project
 state or architecture changes. Routine implementation details do not belong in
 these documents.
+
+### D48 · Bounded engineering cleanup — `ACTIVE`
+Owner-requested on 2026-09-05. This pass explicitly permits safe refactoring,
+performance improvements, deletion of unused implementations, and improvements
+to local/CI verification despite D40's earlier no-refactors rule. The API v0.4
+and schema v0.3 contracts, local-only deployment, and deferred feature scope
+remain unchanged. This does not reopen routine dependency updates or authorize
+new product features.
+
+Run persistence behavior tests against disposable databases in CI and locally,
+using the checked-in SQL schema. Prefer those checks over assertions about
+private helpers and workflow text. Retire the unused operating-margin calculator;
+keep its vocabulary value for wire compatibility. Financial numbers and source
+provenance retain their existing contracts.
 
 ---
 

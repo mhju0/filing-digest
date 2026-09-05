@@ -19,7 +19,6 @@ from app.filings import FilingChunkLocation
 from app.search.constants import MAX_TOP_K
 from app.search.service import (
     SearchResult,
-    _distance_to_similarity,
     _row_to_result,
     clamp_top_k,
     search_chunks,
@@ -46,15 +45,6 @@ def _row(**over) -> SimpleNamespace:
     )
     base.update(over)
     return SimpleNamespace(**base)
-
-
-# -- _distance_to_similarity ---------------------------------------------------
-
-
-def test_distance_to_similarity_inverts_cosine_distance() -> None:
-    assert _distance_to_similarity(0.0) == 1.0
-    assert _distance_to_similarity(1.0) == 0.0
-    assert _distance_to_similarity(0.25) == pytest.approx(0.75)
 
 
 # -- clamp_top_k ----------------------------------------------------------------
@@ -165,3 +155,34 @@ def test_search_only_reads_fully_indexed_filings(monkeypatch) -> None:
     assert "filings.indexed_at IS NOT NULL" in sql
     assert "filings.period AS filing_period" in sql
     assert "filings.rcept_no" in sql
+
+
+def test_search_keeps_health_responsive_during_inference(monkeypatch) -> None:
+    from threading import Event
+
+    from httpx import ASGITransport, AsyncClient
+
+    from app.main import app
+
+    started, release = Event(), Event()
+
+    def encode(texts):
+        started.set()
+        assert release.wait(2), "health request could not run during inference"
+        return [[1.0] + [0.0] * 1023]
+
+    monkeypatch.setattr(search_service, "embed_texts", encode)
+
+    async def run():
+        search = asyncio.create_task(search_chunks(_FakeSearchSession(), query="q"))
+        try:
+            assert await asyncio.to_thread(started.wait, 2)
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.get("/health")
+            assert response.status_code == 200
+            assert not search.done()
+        finally:
+            release.set()
+            await search
+
+    asyncio.run(run())

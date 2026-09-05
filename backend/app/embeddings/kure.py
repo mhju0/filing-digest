@@ -1,10 +1,10 @@
 """KURE-v1 (nlpai-lab/KURE-v1) loader + pure text-embedding interface.
 
 The one place the embedding *model* lives. Everything above it (the backfill
-orchestrator, any future query-time encoder) calls :func:`embed_texts` and never
+orchestrator and query-time encoder) calls :func:`embed_texts` and never
 touches sentence-transformers directly.
 
-Design (settled in the Step A smoke, do not relitigate):
+Model invariants:
 
 - **1024-dim, cross-lingual (KO/EN) space.** Matches ``vector(1024)`` in
   init.sql and ``EMBEDDING_DIM`` in app.db.models. A drift is a hard error
@@ -13,7 +13,7 @@ Design (settled in the Step A smoke, do not relitigate):
   the stored vectors must be unit-norm so a cosine (``<=>``) search over them is
   correct. (KURE-v1's default encode already normalizes; we pin it anyway.)
 - **device=cpu**: deployment-representative (the backfill runs in a Linux
-  container with no MPS/CUDA), and the 99-chunk workload is trivially fast there.
+  container with no MPS/CUDA).
 
 The model is heavy to load (torch graph + weights, several seconds cold), so it
 is lazy-loaded once and cached for the process lifetime -- never re-loaded per
@@ -27,6 +27,7 @@ import os
 from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 from typing import TYPE_CHECKING
 
 from app.config import get_settings
@@ -39,6 +40,10 @@ logger = logging.getLogger(__name__)
 
 # CPU is the deployment-representative device (see module docstring).
 _DEVICE = "cpu"
+
+# Inference runs in worker threads. Serialize access to the shared CPU model,
+# including the first load: lru_cache alone can compute concurrent misses twice.
+_MODEL_LOCK = Lock()
 
 # sentence-transformers / transformers / huggingface log verbosely at load time
 # (model-card banners, progress bars). Raise their threshold once, on import, so
@@ -164,10 +169,11 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     """
     if not texts:
         return []
-    model = _load_model()
-    vectors = model.encode(
-        texts,
-        normalize_embeddings=True,
-        convert_to_numpy=True,
-    )
+    with _MODEL_LOCK:
+        model = _load_model()
+        vectors = model.encode(
+            texts,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+        )
     return _finalize_vectors(vectors)

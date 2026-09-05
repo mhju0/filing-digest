@@ -2,58 +2,12 @@
 
 import datetime
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
 
-from app.financials.model import FinancialFact, ReportingPeriod
-from app.financials.vocabulary import DerivedMetric, PeriodKind, ReportedMetric
+from app.financials.vocabulary import PeriodKind
 
 MAX_COMPARABLE_DURATION_DIFFERENCE_DAYS = 7
-
-
-@dataclass(frozen=True)
-class DerivedFinancialFact:
-    """A calculated value with its reported inputs retained as evidence."""
-
-    metric: DerivedMetric
-    value: Decimal
-    unit: str
-    period: ReportingPeriod
-    inputs: tuple[FinancialFact, ...]
-
-
-def derive_operating_margin(
-    revenue: FinancialFact, operating_income: FinancialFact
-) -> DerivedFinancialFact:
-    """Calculate operating margin while preserving both reported inputs."""
-    if revenue.metric is not ReportedMetric.revenue:
-        raise ValueError("revenue input must use the revenue Reported Metric")
-    if operating_income.metric is not ReportedMetric.operating_income:
-        raise ValueError(
-            "operating_income input must use the operating_income Reported Metric"
-        )
-    if revenue.period != operating_income.period:
-        raise ValueError("operating margin inputs must use the same Reporting Period")
-    if (
-        revenue.currency is None
-        or operating_income.currency is None
-        or revenue.currency != operating_income.currency
-    ):
-        raise ValueError("operating margin inputs require the same known currency")
-    if revenue.unit != operating_income.unit:
-        raise ValueError("operating margin inputs must use the same unit")
-    if revenue.scale != operating_income.scale:
-        raise ValueError("operating margin inputs must use the same scale")
-    if revenue.value == 0:
-        raise ValueError("operating margin requires nonzero revenue")
-    return DerivedFinancialFact(
-        metric=DerivedMetric.operating_margin,
-        value=operating_income.value / revenue.value * 100,
-        unit="PERCENT",
-        period=revenue.period,
-        inputs=(revenue, operating_income),
-    )
 
 
 class FinancialFactRow(Protocol):
