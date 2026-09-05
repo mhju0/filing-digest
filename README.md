@@ -27,8 +27,9 @@ citation-grounded FastAPI retrieval pipeline.
 >
 > Maintenance is a narrow set of changes: security patches, dependency
 > vulnerability fixes, corrections to documentation errors, and repairs to dead
-> links. New features, database schema changes, API contract changes, and
-> refactors are out of scope.
+> links. The owner authorized a bounded cleanup, performance, and verification
+> audit on 2026-09-05 ([D48](docs/DECISIONS.md#d48--bounded-engineering-cleanup--active)).
+> New features, database schema changes, and API contract changes remain out of scope.
 
 Filing Digest separates financial figures from generated prose. Structured
 DART/SEC endpoints supply every displayed number. KURE-v1 retrieval selects
@@ -123,6 +124,11 @@ cd backend
 ../.venv/bin/python -m uvicorn app.main:app --reload --port 8001
 ```
 
+On Linux, preinstall the CPU build with
+`.venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu`
+before installing requirements, as CI and the Docker image do. This avoids
+unused CUDA libraries; see [PyTorch CPU installation](https://pytorch.org/get-started/locally/).
+
 Fill in `backend/.env` before using DART, SEC ingestion, or generated narrative.
 The file is ignored by Git. The embedding model is downloaded from Hugging Face
 on first use; set `EMBEDDING_WARMUP_ENABLED=false` when you only need lightweight
@@ -187,13 +193,28 @@ distributed with the repository; a fresh checkout starts empty.
 
 ### Validate
 
+From the repository root:
+
 ```bash
-cd backend
-../.venv/bin/ruff check .
-../.venv/bin/python -m pytest -q --ignore=tests/test_smoke.py
-../.venv/bin/python -m pytest -q  # includes DB-backed smoke tests
-docker compose config -q
+make check                                      # Ruff, offline tests, Compose
+make test TESTS='tests/test_search.py -k health'  # targeted test
+make test-db                                    # fresh database, smoke + persistence
 ```
+
+`make test-db` creates a unique temporary database on the server configured by
+`DATABASE_URL`, applies the checked-in schema and seed, runs the PostgreSQL
+suites, and removes that database even when a test fails. It never resets the
+application database. The PostgreSQL role needs `CREATEDB` and permission to
+install pgvector. When the application role lacks those privileges, supply a
+separate test connection; for local Homebrew PostgreSQL:
+
+```bash
+TEST_DATABASE_ADMIN_URL=postgresql:///postgres make test-db
+```
+
+`PYTHON` and `RUFF` can point to an existing environment when working in another
+checkout, for example `make check PYTHON=/path/to/.venv/bin/python
+RUFF=/path/to/.venv/bin/ruff`. No additional worktree configuration is required.
 
 Build the iOS client from the repository root:
 
@@ -204,8 +225,8 @@ xcodebuild -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
 
 GitHub Actions lints with Ruff, validates the Compose file, applies
 `backend/db/init.sql` and the smoke-test seed to a fresh pgvector/PostgreSQL 16
-service, runs both the offline and DB-backed Python suites, then builds the app
-and runs unit tests plus the core XCUITest flow on a macOS iOS Simulator. The
+service, runs offline, smoke, and persistence tests through the same Make targets,
+then builds the app and runs unit tests plus the core XCUITest flow on a macOS iOS Simulator. The
 live evaluation harness remains manual because it requires an ingested corpus
 and a configured Solar account. Retrieval cases compare canonical filing periods
 returned by the API, so regenerated database UUIDs do not require an eval-map

@@ -14,13 +14,16 @@ python3.11 -m venv .venv
 
 # Backend commands, from backend/
 ../.venv/bin/python -m uvicorn app.main:app --reload --port 8001
-../.venv/bin/ruff check .
-../.venv/bin/python -m pytest -q --ignore=tests/test_smoke.py
+
+# Verification from the repository root
+make check
+make test-db
 ```
 
-Keep `DART_API_KEY` and `TEST_DATABASE_URL` unset for the offline suite.
-Omit `--ignore` to include the read-only database smoke tests. Persistence tests
-activated by `TEST_DATABASE_URL` drop tables; use only an isolated `*_test` database.
+`make check` keeps live DART and database tests disabled. `make test-db` creates
+and removes a unique `*_test` database; its role needs `CREATEDB` and pgvector
+privileges. Set `TEST_DATABASE_ADMIN_URL` to a separate test connection when
+needed. Never point destructive persistence tests at the local corpus.
 
 From the repository root, validate Compose with
 `docker compose --profile container config -q`. The backend container is opt-in.

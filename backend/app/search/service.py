@@ -9,9 +9,8 @@ space and a plain nearest-neighbor search is meaningful.
 Design:
 
 - **pgvector ``<=>`` is cosine DISTANCE** (``1 - cosine_similarity``), not
-  similarity. :func:`_distance_to_similarity` converts explicitly so callers
-  never have to remember which one a raw DB number is; :class:`SearchResult`
-  docs the converted field.
+  similarity. Row conversion uses ``1 - distance``; :class:`SearchResult`
+  carries the resulting similarity.
 - **Only published indexes are visible.** SQL requires a non-NULL chunk vector
   and the owning filing's non-NULL ``indexed_at``. A partially indexed filing is
   therefore hidden as one unit rather than leaking whichever chunks ran first.
@@ -26,6 +25,7 @@ Design:
   dart.py, chunking.py, kure.py).
 """
 
+import asyncio
 import logging
 import uuid
 from collections.abc import Mapping
@@ -89,17 +89,6 @@ def clamp_top_k(top_k: int) -> int:
     return min(top_k, MAX_TOP_K)
 
 
-def _distance_to_similarity(distance: float) -> float:
-    """Convert pgvector cosine DISTANCE to cosine SIMILARITY (pure).
-
-    pgvector's ``<=>`` operator returns ``1 - cosine_similarity`` [Verified:
-    pgvector docs, "cosine distance" operator]; this is the one place that
-    inversion happens; everything above :func:`search_chunks` deals only in
-    similarity.
-    """
-    return 1.0 - distance
-
-
 class SearchResultRow(Protocol):
     """Database result shape required to build one semantic search hit."""
 
@@ -129,7 +118,7 @@ def _row_to_result(row: SearchResultRow) -> SearchResult:
         filing_id=row.filing_id,
         filing_period=row.filing_period,
         text=row.content,
-        score=_distance_to_similarity(row.distance),
+        score=1.0 - row.distance,
         rcept_no=row.rcept_no,
         location=FilingChunkLocation(
             section_title=meta.get("section_title"),
@@ -168,7 +157,7 @@ async def search_chunks(
     and ``filings.source`` are available if that scope is added later.
     """
     k = clamp_top_k(top_k)
-    [query_vector] = embed_texts([query])
+    [query_vector] = await asyncio.to_thread(embed_texts, [query])
     distance = FilingChunk.embedding.cosine_distance(query_vector)
 
     stmt = (

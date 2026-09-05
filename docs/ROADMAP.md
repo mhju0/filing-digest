@@ -1,18 +1,14 @@
 # Roadmap
 
-Status as of **2026-09-05**. Filing Digest reached its final release, **v0.5.1**
-(`507692d`, 2026-08-27), and is in maintenance mode. The release note is
-explicit: *"no new features, database schema changes, API contract changes, or
-refactors."*
-
-That makes this a short roadmap on purpose. Most sections below say what will
-**not** happen and why, which is the more useful information for anyone picking
-the project up. Ideas from earlier phases are recorded under **Considered but
-not committed** — being written down there does not make them planned work.
+Status as of **2026-09-05**. Filing Digest's latest release is **v0.5.1**
+(`507692d`, 2026-08-27). The owner authorized a bounded engineering cleanup
+(D48), making an exception to the original no-refactors maintenance policy.
+Features, API v0.4, and database schema v0.3 remain frozen.
 
 Definitions used here:
 - **Maintenance** — security patches, dependency vulnerability fixes,
-  documentation corrections, dead-link repairs. Nothing else.
+  documentation corrections, dead-link repairs. D48 additionally authorizes
+  the current cleanup and verification pass.
 - **Frozen contract** — the v0.4 API shape in
   [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) stays fixed under the maintenance
   policy, independently of the planned `filing-agent` consumer.
@@ -21,20 +17,19 @@ Definitions used here:
 
 ## NOW
 
-**Maintenance only; no implementation work is queued.** The clean-slate Codex
-takeover is complete (D47): `CLAUDE.md` and its redundant release-test assertion
-are retired, and the minimal root `AGENTS.md` is tracked. The Claude environment
-remains archived. Application behavior, API v0.4, and schema v0.3 are unchanged.
+**Engineering cleanup implemented; review and CI verification pending (D48).**
+The changes remove unused implementations, offload inference, batch vector writes,
+and add disposable PostgreSQL verification. See [the audit record](ENGINEERING_AUDIT.md).
+The clean-slate Codex takeover (D47) remains complete.
 
 ## NEXT
 
 **Nothing is scheduled.** `filing-agent` remains a planned, deferred project
 (D43); the architecture and v0.5.1 release note describe it accordingly.
 
-The owner approved deferring the paid live evaluation for this documentation
-takeover. Re-run it before a live demonstration or after relevant ingestion,
-retrieval, embedding, or generation changes. Existing unit and smoke tests do
-not establish current live-model quality.
+The cleanup audit passed all 24 live evaluation cases on 2026-09-05. Re-run
+before a live demonstration or after further ingestion, retrieval, embedding,
+or generation changes; deterministic CI does not establish live-model quality.
 
 ## LATER
 

@@ -15,7 +15,7 @@ guide and it does not tell you how to behave. Design rules live in
 The owner approved the clean-slate Codex takeover on 2026-09-05. Root
 [`AGENTS.md`](../AGENTS.md) contains the minimal project instructions;
 `CLAUDE.md` and its release-test dependency are retired (DECISIONS D47).
-Application behavior and architecture are unchanged. The Claude environment
+That takeover preserved application behavior and architecture. The Claude environment
 inventory remains an archive, with no harness configuration migrated.
 
 Claims about code behavior carry a `file:line` reference and a tag:
@@ -41,7 +41,8 @@ financial and narrative paths:
 This is a **portfolio project**, not a service. It is local, single-user, and
 has no authentication, authorization, rate limiting, or tenant isolation
 (`README.md:265-272`). It shipped **v0.5.1 as its final release** on
-2026-08-27 and is in maintenance mode.
+2026-08-27. A bounded cleanup and verification audit is now authorized (D48);
+features, API, and schema remain frozen.
 
 ---
 
@@ -276,15 +277,14 @@ xcodebuild test -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
 - `xcodebuild test` — **TEST SUCCEEDED**, 37 of 37 iOS tests passed, including
   the `FilingDigestUITests` flow using stubbed HTTP responses.
 
-The ten Python skips are six live DART tests and four persistence tests requiring
-an isolated `TEST_DATABASE_URL`. The latter drop tables and are also skipped by
-current CI. These results do not establish current regulator or Solar behavior.
+At takeover, ten Python tests were skipped: six live DART tests and four
+persistence tests. D48 adds `make test-db` to local and CI verification, running
+smoke and expanded persistence tests in a disposable database. Historical
+takeover test counts above are not current suite totals.
 
 Do not pin an iOS simulator by name. Runner images and this Mac carry different
 simulator inventories, and a missing name exits 70. `ci.yml` resolves a UDID at
-runtime as of `fdb728b`. `backend/tests/test_ci_workflow.py:48` [Verified]
-requires the string `platform=iOS Simulator` to remain in the workflow, so do
-not remove that part of the destination.
+runtime as of `fdb728b`.
 
 ---
 
@@ -449,9 +449,9 @@ it does not enforce every convention or guarantee live integration behavior.
 
 - `filing-agent` remains deferred by owner decision (DECISIONS D43). The API
   freeze and maintenance policy stand independently of its implementation.
-- Current live benchmark quality is unknown. The approved plan is to rerun
-  before a live demonstration or after relevant ingestion, retrieval, embedding,
-  or generation changes; see ROADMAP.
+- All 24 live evaluation cases passed during the 2026-09-05 cleanup audit.
+  Re-run before a live demonstration or after further ingestion, retrieval,
+  embedding, or generation changes; see ROADMAP.
 - A future KURE-v1 loader security upgrade needs model and corpus validation
   beyond the existing CI gates. No such upgrade is currently queued.
 
@@ -459,10 +459,7 @@ it does not enforce every convention or guarantee live integration behavior.
 
 ## 19. Current development focus
 
-**Maintenance only.** The README defines the entire allowed surface:
-security patches, dependency vulnerability fixes, documentation corrections, and
-dead-link repairs. New features, database schema changes, API contract changes,
-and refactors are out of scope.
-
-The clean-slate takeover is complete. There is no queued feature implementation;
-ROADMAP holds the current maintenance state and deferred work.
+**Bounded engineering cleanup (D48).** The owner authorized simplification,
+performance improvements, and stronger verification after the clean-slate
+takeover. API v0.4, schema v0.3, and feature scope remain unchanged; ROADMAP
+tracks the cleanup state and deferred work.

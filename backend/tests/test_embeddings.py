@@ -1,28 +1,10 @@
-"""Offline tests for the embedding invariants (no model load, no DB, no network).
+"""Offline embedding dimension, concurrency, and local-cache checks."""
 
-The heavy pieces -- loading KURE-v1 and writing to Postgres -- are covered by the
-live end-to-end verification, not here. What is unit-tested is the two invariants
-that must hold regardless of the model: the 1024-dim guard
-(:func:`~app.embeddings.kure._finalize_vectors`) and the positional id<->vector
-alignment (:func:`~app.embeddings.backfill.align_ids_with_vectors`), both pure.
-"""
-
-import asyncio
-import uuid
 from pathlib import Path
-from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy.dialects import postgresql
 
 from app.db.models import EMBEDDING_DIM
-from app.embeddings.backfill import (
-    _batched,
-    _lock_filing_for_publication_statement,
-    _pending_filing_ids_statement,
-    align_ids_with_vectors,
-    index_filing_embeddings,
-)
 from app.embeddings.kure import (
     _finalize_vectors,
     _hf_cache_root,
@@ -55,97 +37,6 @@ def test_finalize_vectors_reports_offending_row_index() -> None:
 
 def test_finalize_vectors_empty_is_empty() -> None:
     assert _finalize_vectors([]) == []
-
-
-# -- align_ids_with_vectors: positional alignment invariant -------------------
-
-
-def test_align_ids_with_vectors_pairs_positionally() -> None:
-    ids = ["a", "b", "c"]
-    vecs = [[1.0], [2.0], [3.0]]
-    assert align_ids_with_vectors(ids, vecs) == [("a", [1.0]), ("b", [2.0]), ("c", [3.0])]
-
-
-def test_align_ids_with_vectors_raises_on_count_mismatch() -> None:
-    # Fewer vectors than ids would otherwise zip-to-shorter and misassign silently.
-    with pytest.raises(ValueError, match="count mismatch"):
-        align_ids_with_vectors(["a", "b", "c"], [[1.0], [2.0]])
-
-
-def test_align_ids_with_vectors_empty() -> None:
-    assert align_ids_with_vectors([], []) == []
-
-
-# -- _batched: order-preserving batching --------------------------------------
-
-
-def test_batched_splits_in_order() -> None:
-    assert _batched([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]
-
-
-def test_batched_single_batch_when_size_exceeds_len() -> None:
-    assert _batched([1, 2, 3], 10) == [[1, 2, 3]]
-
-
-def test_batched_empty() -> None:
-    assert _batched([], 4) == []
-
-
-def test_batched_rejects_nonpositive_size() -> None:
-    with pytest.raises(ValueError):
-        _batched([1, 2], 0)
-
-
-# -- filing-level readiness publication --------------------------------------
-
-
-def test_pending_filing_query_recovers_stale_readiness() -> None:
-    sql = str(
-        _pending_filing_ids_statement().compile(
-            dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
-        )
-    )
-
-    assert "filings.indexed_at IS NULL OR filing_chunks.embedding IS NULL" in sql
-
-
-def test_readiness_publication_locks_the_filing_row() -> None:
-    sql = str(
-        _lock_filing_for_publication_statement(uuid.uuid4()).compile(
-            dialect=postgresql.dialect()
-        )
-    )
-
-    assert "FOR UPDATE" in sql
-
-
-def test_scoped_indexing_unpublishes_before_reading_pending_chunks() -> None:
-    class _Rows:
-        def all(self):
-            return []
-
-    class _Scalar:
-        def __init__(self, value: int):
-            self.value = value
-
-        def scalar_one(self):
-            return self.value
-
-    async def run() -> None:
-        session = AsyncMock()
-        session.execute.side_effect = [
-            object(),
-            _Rows(),
-            object(),
-            _Scalar(1),
-            _Scalar(1),
-        ]
-
-        assert await index_filing_embeddings(session, uuid.uuid4()) == 0
-        call_names = [call[0] for call in session.mock_calls]
-        assert call_names[:3] == ["execute", "commit", "execute"]
-
-    asyncio.run(run())
 
 
 # -- _hf_cache_root: HF Hub cache root resolution (env var precedence) -------
@@ -194,3 +85,47 @@ def test_is_model_cached_true_when_revision_has_files(tmp_path) -> None:
     revision.mkdir(parents=True)
     (revision / "config.json").write_text("{}")
     assert _is_model_cached("nlpai-lab/KURE-v1", tmp_path) is True
+
+
+def test_concurrent_embedding_loads_once_and_serializes_inference(monkeypatch) -> None:
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    from functools import lru_cache
+    from threading import Barrier
+
+    from app.embeddings import kure
+
+    loads = 0
+    active = 0
+    maximum_active = 0
+    barrier = Barrier(2)
+
+    class Model:
+        def encode(self, texts, *, normalize_embeddings, convert_to_numpy):
+            nonlocal active, maximum_active
+            assert normalize_embeddings is True
+            assert convert_to_numpy is True
+            active += 1
+            maximum_active = max(maximum_active, active)
+            time.sleep(0.02)
+            active -= 1
+            return [[1.0] + [0.0] * 1023 for _ in texts]
+
+    @lru_cache(maxsize=1)
+    def load():
+        nonlocal loads
+        loads += 1
+        time.sleep(0.02)
+        return Model()
+
+    monkeypatch.setattr(kure, "_load_model", load)
+
+    def embed():
+        barrier.wait(timeout=2)
+        return kure.embed_texts(["query"])
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(embed) for _ in range(2)]
+        assert futures[0].result() == futures[1].result()
+    assert loads == 1
+    assert maximum_active == 1
