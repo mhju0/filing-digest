@@ -17,7 +17,7 @@ Definitions used here:
 
 ## NOW
 
-**Engineering cleanup implemented; review and CI verification pending (D48).**
+**Engineering cleanup implemented and ready for review (D48).**
 The changes remove unused implementations, offload inference, batch vector writes,
 and add disposable PostgreSQL verification. See [the audit record](ENGINEERING_AUDIT.md).
 The clean-slate Codex takeover (D47) remains complete.

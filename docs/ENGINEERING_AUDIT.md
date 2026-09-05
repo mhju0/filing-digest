@@ -42,6 +42,9 @@ Same machine, PostgreSQL 16 / pgvector 0.8.4, before and after this patch:
 - Database-runner failure injection: nonzero test exit preserved, scratch database
   removed. The existing local corpus was never migrated or rewritten.
 - Full OpenAPI document equals the baseline at `d752423`; `pip check` passes.
+- Container builds successfully. With networking disabled: CPU torch 2.14.0,
+  no NVIDIA packages or baked `.env`, model-library import, application startup,
+  `/health`, and dependency consistency checks all passed.
 - Live API evaluation: **24/24 passed**, including ten retrieval cases with
   Hit@1 0.90, Hit@3 1.00, MRR 0.95. Reports remain in ignored `backend/evals/reports/`.
 
