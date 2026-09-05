@@ -299,7 +299,7 @@ def test_failed_batch_keeps_progress_and_retry_preserves_vector_alignment(monkey
                 assert await backfill_embeddings(session, batch_size=2) == 3
                 rows = (await session.execute(select(ChunkRow.content, ChunkRow.embedding))).all()
                 for content, vector in rows:
-                    assert vector.tolist() == encode([content])[0]
+                    assert list(vector) == encode([content])[0]
                 assert (await session.execute(select(Filing.indexed_at))).scalar_one() is not None
                 assert await backfill_embeddings(session, batch_size=2) == 0
 
