@@ -28,8 +28,8 @@ from app.llm.answer import Answer
 class Violation:
     """One inline financial number found in a single answer segment.
 
-    ``span`` is a ``(start, end)`` half-open range into the NFKC-normalized, format-character-stripped
-    segment text (the same normalization the scan runs on), and ``token`` is the
+    ``span`` is a ``(start, end)`` half-open range into segment text after NFKC
+    normalization and format-character removal. ``token`` is the
     exact matched substring from that normalized text.
     """
 
