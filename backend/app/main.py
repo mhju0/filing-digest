@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import __version__
 from app.api.routes import router
@@ -54,6 +55,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=get_settings().allowed_hosts)
 app.include_router(router)
 
 logger.info("filing-digest backend app initialized (version %s)", __version__)

@@ -60,7 +60,10 @@ def _solar_body(answer_obj: dict) -> dict:
     }
 
 
-def _run(answer_obj, *, chunks=_CHUNKS, capture=None, allow_empty_citations=False):
+def _run(
+    answer_obj, *, chunks=_CHUNKS, capture=None, allow_empty_citations=False,
+    question="How did revenue do?",
+):
     """Drive generate_narrative against a MockTransport serving ``answer_obj``."""
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -74,7 +77,7 @@ def _run(answer_obj, *, chunks=_CHUNKS, capture=None, allow_empty_citations=Fals
         try:
             return await generate_narrative(
                 client,
-                "How did revenue do?",
+                question,
                 chunks,
                 allow_empty_citations=allow_empty_citations,
             )
@@ -168,3 +171,14 @@ def test_prompt_passes_response_format_and_hides_raw_uuids() -> None:
     assert str(_CHUNK_A_ID) not in prompt_text
     assert str(_CHUNK_B_ID) not in prompt_text
     assert "[1]" in prompt_text and "[2]" in prompt_text
+
+
+@pytest.mark.parametrize("question,language", [
+    ("주요 사업은 무엇인가요?", "Korean"),
+    ("What are 삼성전자 products?", "English"),
+    ("LG전자 주요 사업은?", "Korean"),
+])
+def test_output_language_comes_from_question_not_sources(question, language):
+    capture = {}
+    _run({"answer_segments": [{"text": "Supported qualitative description.", "citations": ["1"]}]}, capture=capture, question=question)
+    assert f"Answer text MUST be in {language}." in capture["body"]["messages"][0]["content"]

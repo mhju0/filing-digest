@@ -23,6 +23,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    allowed_hosts: list[str] = ["127.0.0.1", "localhost", "testserver"]
+
     # DART (OpenDART) -- secret; keep as SecretStr, never log its value.
     dart_api_key: SecretStr | None = None
     dart_base_url: str = "https://opendart.fss.or.kr/api"

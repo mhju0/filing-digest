@@ -3,14 +3,14 @@
 Mirror of :mod:`app.llm.citation_guard`: pure validation, no repair, no network,
 no DB. In filing-digest, numbers come only from the structured filing API; the
 LLM narrates and must never emit figures of its own. This module scans each
-answer segment's narrated ``text`` for financial
+answer segment's narrated ``text`` for recognized financial
 number tokens -- currency amounts, percentages, and multiples -- and reports
 every one it finds. It NEVER scans ``segment.citations`` (those are chunk-id
 strings / UUIDs and would always false-positive). Callers decide what to do with
 the violations reported here.
 
 Calibration: stored prose chunks are structurally prose but retain inline
-numbers. Financial figures always carry a ``원``/``%``/``배`` suffix (Korean)
+numbers. Recognized financial expressions carry a ``원``/``%``/``배`` suffix (Korean)
 or a ``$``/currency-word/``x``/``times`` anchor (English); innocent tokens
 (years, article numbers, dates, counts, section references) do not -- so the
 match rules are suffix/prefix-anchored blocklists rather than a bare digit
@@ -79,7 +79,7 @@ _CURRENCY_RE = re.compile(r"\d[\d,.\s조억만천백]*(?<!\s)원")
 _PERCENT_RE = re.compile(r"\d[\d,.]*\s*%")
 _MULTIPLE_RE = re.compile(r"\d[\d,.]*\s*배")
 _CURRENCY_USD_RE = re.compile(
-    r"\$\d[\d,]*(?:\.\d+)?(?:\s+(?:thousand|million|billion|trillion)\b|[kmbt]\b)?",
+    r"\$\s*[+-]?\d[\d,]*(?:\.\d+)?(?:\s+(?:thousand|million|billion|trillion)\b|[kmbt]\b)?",
     re.IGNORECASE,
 )
 _CURRENCY_WORD_RE = re.compile(
@@ -89,6 +89,33 @@ _CURRENCY_WORD_RE = re.compile(
 )
 _MULTIPLE_X_RE = re.compile(r"\d[\d.]*\s?x\b", re.IGNORECASE)
 _MULTIPLE_TIMES_RE = re.compile(r"\d[\d,.]*\s+times\b", re.IGNORECASE)
+# Alternative financial spellings still violate the prose-only contract.
+_PERCENT_WORD_RE = re.compile(
+    r"\d[\d,.]*\s*(?:퍼센트|퍼센트포인트|percent\b|per\s+cent\b|basis\s+points?\b)",
+    re.IGNORECASE,
+)
+_CURRENCY_PREFIX_RE = re.compile(
+    r"(?:\b(?:USD|KRW|EUR|GBP)\s+|[€£₩]\s*)[+-]?\d[\d,]*(?:\.\d+)?"
+    r"(?:\s+(?:thousand|million|billion|trillion)\b)?",
+    re.IGNORECASE,
+)
+_NUMBER_WORD = (
+    r"(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+    r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|"
+    r"thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion)"
+)
+_SPELLED_NUMBER = rf"\b{_NUMBER_WORD}(?:[\s-]+(?:(?:and|point)\s+)?{_NUMBER_WORD})*"
+_SPELLED_FINANCIAL_RE = re.compile(
+    _SPELLED_NUMBER + r"\s+(?:dollars?|USD|KRW|EUR|GBP|percent|per\s+cent|times|basis\s+points?)\b",
+    re.IGNORECASE,
+)
+_SPELLED_PREFIX_RE = re.compile(
+    r"\b(?:USD|KRW|EUR|GBP)\s+" + _SPELLED_NUMBER, re.IGNORECASE,
+)
+_KOREAN_SPELLED_RE = re.compile(
+    r"(?<![가-힣\d])(?:[일이삼사오육칠팔구]?[십백천만억조][영공일이삼사오육칠팔구십백천만억조]*원|"
+    r"[영공일이삼사오육칠팔구십백천만억조]+(?:퍼센트|배))"
+)
 _NUMBER_RES = (
     _CURRENCY_RE,
     _PERCENT_RE,
@@ -97,11 +124,16 @@ _NUMBER_RES = (
     _CURRENCY_WORD_RE,
     _MULTIPLE_X_RE,
     _MULTIPLE_TIMES_RE,
+    _PERCENT_WORD_RE,
+    _CURRENCY_PREFIX_RE,
+    _SPELLED_FINANCIAL_RE,
+    _SPELLED_PREFIX_RE,
+    _KOREAN_SPELLED_RE,
 )
 
 
 def find_number_violations(answer: Answer) -> list[Violation]:
-    """Return every inline financial number in ``answer``; ``[]`` means clean.
+    """Return recognized financial expressions; an empty list is not entailment proof.
 
     Each segment's ``text`` is NFKC-normalized first (so full-width digits like
     ``８`` collapse to ``8``), then scanned against the currency/percent/multiple
@@ -110,13 +142,19 @@ def find_number_violations(answer: Answer) -> list[Violation]:
     """
     violations: list[Violation] = []
     for index, segment in enumerate(answer.answer_segments):
-        text = unicodedata.normalize("NFKC", segment.text)
+        text = "".join(char for char in unicodedata.normalize("NFKC", segment.text)
+                       if unicodedata.category(char) != "Cf")
         matches: list[Violation] = []
         for pattern in _NUMBER_RES:
             for match in pattern.finditer(text):
                 matches.append(Violation(index, match.group(), match.span()))
-        matches.sort(key=lambda violation: violation.span)
-        violations.extend(matches)
+        matches.sort(key=lambda violation: (violation.span[0], -violation.span[1]))
+        retained: list[Violation] = []
+        for match in matches:
+            if not any(start <= match.span[0] and match.span[1] <= end
+                       for start, end in (item.span for item in retained)):
+                retained.append(match)
+        violations.extend(retained)
     return violations
 
 

@@ -512,6 +512,7 @@ _PROSE_ANGLE_RE = re.compile(r"<([A-Za-z][\w.-]*\s[^<>=\"']*[^<>=\"'/\s])>")
 # (NAVER 2025 사업보고서 [Verified]). The stray inner quote is dropped so the
 # attribute becomes well-formed; a genuinely empty value followed by another
 # attribute never matches because the next attribute carries its own '='.
+_TRAILING_ATTR_QUOTE_RE = re.compile(r'="([^"<>]*)""(?=\s+[A-Za-z_][\w:.-]*=|\s*/?>)')
 _DOUBLED_ATTR_QUOTE_RE = re.compile(r'=""([^"<>=]+)"')
 
 
@@ -638,6 +639,7 @@ def _repair_dsd_markup(text: str) -> str:
     """
     text = _BARE_AMP_RE.sub("&amp;", text)
     text = _DOUBLED_ATTR_QUOTE_RE.sub(r'="\1"', text)
+    text = _TRAILING_ATTR_QUOTE_RE.sub(r'="\1"', text)
     text = _PROSE_ANGLE_RE.sub(r"&lt;\1&gt;", text)
     return _BARE_LT_RE.sub("&lt;", text)
 

@@ -69,6 +69,8 @@ class NarrativeError(RuntimeError):
 _LABEL_RE = re.compile(r"\s*\[?\s*(\d+)\s*\]?\s*\Z")
 
 _SYSTEM_PROMPT = (
+    "Write at most two concise answer segments in the language of the question, "
+    "even when the sources use a different language. "
     "You are a filings analyst. Answer ONLY from the numbered source chunks the "
     "user provides. Put citations ONLY in each segment's 'citations' array as "
     "chunk labels, e.g. [1] or [2]; cite only labels that appear in the sources, "
@@ -147,8 +149,11 @@ async def generate_narrative(
     :class:`app.llm.citation_guard.CitationError` for a citation-set violation.
     """
     label_map = _build_label_map(chunks)
+    hangul = len(re.findall(r"[가-힣]", question))
+    latin = len(re.findall(r"[A-Za-z]", question))
+    language = "Korean" if hangul > latin / 2 else "English"
     messages: list[ChatMessage] = [
-        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "system", "content": _SYSTEM_PROMPT + f" Answer text MUST be in {language}."},
         {
             "role": "user",
             "content": f"Question: {question}\n\nSources:\n{_format_chunks(chunks)}",

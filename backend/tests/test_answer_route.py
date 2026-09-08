@@ -9,6 +9,7 @@ branch must NOT call the LLM (project rule: no narrative over zero sources), and
 round-trip is a later live step.
 """
 
+import json
 import uuid
 from decimal import Decimal
 from types import SimpleNamespace
@@ -538,3 +539,45 @@ def test_answer_claim_without_citation_is_evidence_integrity_block(api_client, m
     assert body["citations"] == []
     assert body["filing_sources"] == []
     assert len(body["figures"]) == 1
+
+
+@pytest.mark.parametrize("prose", ["Revenue increased by 20 percent.", "영업이익률은 20퍼센트입니다.", "Revenue was USD 5 billion.", "Revenue was five billion dollars.", "Revenue was $5 billion."])
+def test_financial_word_forms_preserve_figures_but_block_narrative(api_client, monkeypatch, prose):
+    # LLM cites label [1]; the endpoint remaps it to the real chunk id and the
+    # guards pass (prose has no numbers), so the wired narrative path returns 200.
+    app.dependency_overrides[get_llm_client] = lambda: _StubClient(
+        json.dumps({"answer_segments": [{"text": prose, "citations": ["[1]"]}]})
+    )
+    app.dependency_overrides[get_db_session] = lambda: _FakeFilingSession(
+        [_filing_row()]
+    )
+
+    async def _one_chunk(*args, **kwargs):
+        return [
+            SimpleNamespace(
+                chunk_id=_CHUNK_ID,
+                filing_id=_FILING_ID,
+                text="Revenue grew on demand.",
+                score=0.9,
+                location=FilingChunkLocation(
+                    section_title="Business overview",
+                    section_order=2,
+                    part_index=1,
+                ),
+                chunk_index=9,
+            )
+        ]
+
+    async def _one_financial(*args, **kwargs):
+        return [_financial_row()]
+
+    monkeypatch.setattr(answers, "search_chunks", _one_chunk)
+    monkeypatch.setattr(answers, "fetch_financials", _one_financial)
+
+    response = api_client.post("/answer", json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["narrative_status"] == "blocked"
+    assert body["answer"] is None
+    assert len(body["figures"]) == 1
+    assert body["figures"][0]["value"] == "279600000000000.0000"

@@ -122,7 +122,7 @@ iOS client.
 
 ```bash
 python3.11 -m venv .venv
-.venv/bin/pip install -r backend/requirements.txt
+.venv/bin/pip install -r backend/requirements.lock
 .venv/bin/pip install ruff==0.15.21
 cp backend/.env.example backend/.env
 docker compose up -d db
@@ -131,7 +131,7 @@ cd backend
 ```
 
 On Linux, preinstall the CPU build with
-`.venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu`
+`.venv/bin/pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu`
 before installing requirements, as CI and the Docker image do. This avoids
 unused CUDA libraries; see [PyTorch CPU installation](https://pytorch.org/get-started/locally/).
 
