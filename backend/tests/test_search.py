@@ -177,7 +177,7 @@ def test_search_keeps_health_responsive_during_inference(monkeypatch) -> None:
         search = asyncio.create_task(search_chunks(_FakeSearchSession(), query="q"))
         try:
             assert await asyncio.to_thread(started.wait, 2)
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost") as client:
                 response = await client.get("/health")
             assert response.status_code == 200
             assert not search.done()

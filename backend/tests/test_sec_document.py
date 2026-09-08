@@ -13,6 +13,7 @@ Two offline concerns, no network call:
 
 import asyncio
 import logging
+import re
 
 import httpx
 import pytest
@@ -343,3 +344,33 @@ def test_html_to_text_folds_nbsp_and_preserves_paragraph_breaks() -> None:
     assert "Item 1." in text
     assert "\n" in text  # paragraph boundary preserved
     assert "\xa0" not in text  # nbsp folded to a plain space
+
+
+@pytest.mark.parametrize("separator", ["—", "–", "-", ":"])
+def test_extract_typographic_item_separators(separator: str) -> None:
+    # Costco 2025 10-K uses Item 1—Business and Item 7—Management headings.
+    raw = _build_10k_html().decode().replace("Item 1.", "Item 1" + separator).replace(
+        "Item 7.", "Item 7" + separator
+    )
+    sections = extract_10k_prose(raw.encode())
+    assert _BIZ_SENTINEL in sections[0].content
+    assert _MDNA_SENTINEL in sections[1].content
+
+
+def test_heading_only_tables_survive_but_financial_tables_do_not():
+    raw = re.sub(r"<p><b>(Item.*?)</b>(.*?)</p>", r"<table><tr><td>\1</td><td>\2</td></tr></table>", _build_10k_html().decode())
+    sections = extract_10k_prose(raw.encode())
+    assert _BIZ_SENTINEL in sections[0].content
+    assert _MDNA_SENTINEL in sections[1].content
+    assert _TABLE_PRODUCTS_NET not in sections[1].content
+    assert _HIDDEN_NOISE not in sections[1].content
+
+
+def test_heading_table_with_amount_is_not_retained():
+    assert _html_to_text('<table><tr><td>Item 1. Business</td><td>12345</td></tr></table>') == ''
+
+
+def test_risk_cross_reference_is_not_a_section_boundary():
+    raw = _build_10k_html().replace(b'Business</p>', b'Business</p><p>See Item 1A of Part I for risks.</p>', 1)
+    sections = extract_10k_prose(raw)
+    assert _BIZ_TAIL_SENTINEL in sections[0].content

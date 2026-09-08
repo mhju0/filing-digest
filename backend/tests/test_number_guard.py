@@ -197,3 +197,23 @@ def test_assert_number_free_raises_on_dirty_answer():
     assert "258조 9,355억원" in tokens
     assert "14.3%" in tokens
     assert "2배" in tokens
+
+
+@pytest.mark.parametrize("text", [
+    "Revenue increased by 20 percent.", "영업이익률은 20퍼센트입니다.",
+    "Revenue was USD 5 billion.", "Revenue was five billion dollars.",
+    "Margin was twenty-five per cent.", "Sales were EUR 5.2 million.",
+    "Revenue was five hundred and twenty million USD.",
+    "영업이익은 오억원입니다.", "Margin expanded 50 basis points.",
+])
+def test_financial_word_forms_are_blocked(text):
+    assert find_number_violations(_answer((text, ["c1"])))
+
+
+def test_company_membership_is_not_a_spelled_currency_amount():
+    assert find_number_violations(_answer(("회사는 그룹의 일원입니다.", ["c1"]))) == []
+
+
+@pytest.mark.parametrize("text", ["Revenue was $ 5 billion.", "Margin was 20\u200b%."])
+def test_spacing_and_invisible_format_characters_do_not_hide_amounts(text):
+    assert find_number_violations(_answer((text, ["c1"])))

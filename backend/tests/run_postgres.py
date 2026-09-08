@@ -56,7 +56,7 @@ def main() -> None:
             environment["TEST_DATABASE_URL"] = environment["DATABASE_URL"]
             # Smoke tests consume the seed. Persistence tests then replace it
             # per test using the actual SQL schema and real transactions.
-            for suite in ("test_smoke.py", "test_normalized_filing_persistence.py"):
+            for suite in ("test_smoke.py", "test_normalized_filing_persistence.py", "test_legacy_migration.py"):
                 subprocess.run(
                     [sys.executable, "-m", "pytest", "-q", f"tests/{suite}"],
                     cwd=BACKEND,

@@ -15,7 +15,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-filing_digest_dev}
       POSTGRES_DB: ${POSTGRES_DB:-filing_digest}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       # 최초 기동 시(빈 데이터 디렉토리일 때만) 스키마 초기화. Alembic 미사용 - docs/ARCHITECTURE.md 참고.
@@ -36,7 +36,7 @@ services:
     # 컨테이너 실행이 필요할 때만: `docker compose --profile container up -d --build backend`
     profiles: ["container"]
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     # Native uvicorn and the container share one local configuration source.
     # The file is gitignored; a fresh checkout without it uses Settings defaults.
     env_file:

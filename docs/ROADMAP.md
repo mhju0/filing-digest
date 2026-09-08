@@ -1,11 +1,8 @@
 # Roadmap
 
-Current release qualification: [2026-09-09 review](RELEASE_READINESS.md). Remediation review is pending; the coverage pilot did not pass its expansion gate.
-
-Status as of **2026-09-09**. Filing Digest's latest release is **v0.5.1**
-(`507692d`, 2026-08-27). The owner authorized a bounded engineering cleanup
-(D48), making an exception to the original no-refactors maintenance policy.
-Features, API v0.4, and database schema v0.3 remain frozen.
+Current release qualification: [2026-09-09 remediation](RELEASE_READINESS.md).
+The approved fixes and ten-company expansion are implemented (D50). API v0.4
+and schema v0.3 remain unchanged; the public walkthrough remains recorded.
 
 Definitions used here:
 - **Maintenance** — security patches, dependency vulnerability fixes,
@@ -19,26 +16,17 @@ Definitions used here:
 
 ## NOW
 
-**Release-readiness review and delivery of the implemented cleanup (D48, D49).**
-The changes remove unused implementations, offload inference, batch vector writes,
-and add disposable PostgreSQL verification. See [the audit record](ENGINEERING_AUDIT.md).
-The clean-slate Codex takeover (D47) remains complete.
+Complete release delivery and verify required CI checks. The local corpus has
+18 qualified companies; see [coverage and limitations](COVERAGE.md).
 
 ## NEXT
 
-**Final quality audit and a bounded coverage pilot (D49).** Review the local app,
-public walkthrough, security, correctness, UX, accessibility, documentation and
-reproducibility before maintenance handoff. Qualify one additional Korean and
-one US company in an isolated database, then assess expansion toward ten.
-Substantial parser work or new in-app ingestion requires a separate decision.
+Maintain dependency, link and regression checks. Re-run live quality evaluation
+before a live demonstration or after retrieval/generation changes. The targeted
+expansion checks do not supersede the historical 24-case evaluation.
 
-[Filing Agent](https://github.com/mhju0/filing-agent) is implemented and has a
-public recorded replay. It owns its qualified snapshot and local execution;
-this pilot does not expand Agent's supported coverage.
-
-The cleanup audit passed all 24 live evaluation cases on 2026-09-05. Re-run
-before a live demonstration or after further ingestion, retrieval, embedding,
-or generation changes; deterministic CI does not establish live-model quality.
+Filing Agent owns its separately verified snapshot. Arbitrary-company discovery,
+in-app ingestion and automatic Agent coverage expansion remain out of scope.
 
 ## LATER
 

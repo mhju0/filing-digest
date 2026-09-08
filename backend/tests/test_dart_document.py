@@ -455,3 +455,13 @@ def test_fetch_document_live_samsung_dsd() -> None:
         preview.section_title,
         preview.content[:200],
     )
+
+
+def test_trailing_duplicate_attribute_quote_keeps_prose_and_drops_table():
+    doc = ('<DOCUMENT><SECTION-1><TITLE>사업</TITLE><P>검증할 사업 설명입니다.</P>'
+           '<TABLE><TR><TE ENG=""Gain (loss) on valuation"" VALIGN="MIDDLE">99999</TE></TR></TABLE>'
+           '<P>표 다음 설명입니다.</P></SECTION-1></DOCUMENT>')
+    sections = extract_dsd_prose(doc)
+    assert "검증할 사업 설명" in sections[0].content
+    assert "표 다음 설명" in sections[0].content
+    assert "99999" not in sections[0].content

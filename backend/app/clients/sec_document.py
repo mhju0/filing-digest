@@ -39,7 +39,8 @@ body heading (see that function's docstring for the full rationale):
       body heading spans the whole section.
 
 Numbers: like DART's ``extract_dsd_prose``, this extractor drops ``<table>``
-content entirely (nesting-aware). A raw financial table (e.g. Item 7's segment
+content except for short, exact item-heading tables (nesting-aware). A raw
+financial table (e.g. Item 7's segment
 revenue breakdown) tag-strips into bare numbers with no sentence structure --
 ingesting that as "prose" contaminates chunks with ungrounded digits that
 number_guard then (correctly) blocks at answer time. Numbers stay sourced
@@ -120,6 +121,15 @@ _ITEM7_TITLE = "Item 7. Management's Discussion and Analysis"
 _UNICODE_SPACES = ("\xa0", " ", " ", " ", " ", " ", " ")
 
 
+_HEADING_TABLE_RE = re.compile(
+    r"item\s+(1|1A|7|7A)\s*[.\-–—:]?\s+"
+    r"(business|risk factors|management['’]s discussion and analysis"
+    r"(?: of financial condition and results of operations)?|"
+    r"quantitative and qualitative disclosures about market risk)\.?",
+    re.IGNORECASE,
+)
+
+
 class _TextExtractor(HTMLParser):
     """Strip HTML to visible text, preserving paragraph boundaries as newlines.
 
@@ -143,6 +153,8 @@ class _TextExtractor(HTMLParser):
         self._skip_tag: str | None = None
         self._skip_depth = 0
         self._table_depth = 0
+        self._table_parts: list[str] = []
+        self._table_chars = 0
 
     def handle_starttag(self, tag: str, attrs: object) -> None:
         if self._skip_depth:
@@ -156,6 +168,8 @@ class _TextExtractor(HTMLParser):
         if tag == "table":
             self._table_depth += 1
             if self._table_depth == 1:
+                self._table_parts = []
+                self._table_chars = 0
                 self._parts.append("\n")
             return
         if self._table_depth:
@@ -174,6 +188,15 @@ class _TextExtractor(HTMLParser):
             if self._table_depth:
                 self._table_depth -= 1
                 if self._table_depth == 0:
+                    # Some issuers use a table for only an item heading. Never
+                    # retain a financial table or a multi-entry table of contents.
+                    heading = " ".join(" ".join(self._table_parts).split())
+                    match = (
+                        _HEADING_TABLE_RE.fullmatch(heading)
+                        if self._table_chars <= 512 else None
+                    )
+                    if match:
+                        self._parts.append(f"Item {match[1]}. {match[2]}")
                     self._parts.append("\n")
             return
         if self._table_depth:
@@ -182,7 +205,12 @@ class _TextExtractor(HTMLParser):
             self._parts.append("\n")
 
     def handle_data(self, data: str) -> None:
-        if self._skip_depth or self._table_depth:
+        if self._skip_depth:
+            return
+        if self._table_depth:
+            if self._table_chars <= 512:
+                self._table_parts.append(data)
+                self._table_chars += len(data)
             return
         self._parts.append(data)
 
@@ -260,14 +288,18 @@ def _locate_item(
 
     Pure -> unit-tested.
     """
-    ends = [m.start() for m in re.finditer(rf"item\s+{sub}\b", text, re.IGNORECASE)]
+    boundary_title = "risk factors" if sub == "1A" else "quantitative"
+    ends = [m.start() for m in re.finditer(
+        rf"^item\s+{sub}\b\s*[.\-–—:]?\s*{boundary_title}\b", text,
+        re.IGNORECASE | re.MULTILINE,
+    )]
     if not ends:
         return None  # no sub-item boundary -> item not locatable
 
     hint_lower = hint.lower()
     hint_starts = [
         m.start()
-        for m in re.finditer(rf"item\s+{num}\.", text, re.IGNORECASE)
+        for m in re.finditer(rf"item\s+{num}\s*[.\-–—:]", text, re.IGNORECASE)
         if hint_lower in text[m.start() : m.start() + _HINT_WINDOW].lower()
     ]
 

@@ -10,6 +10,6 @@ document.querySelectorAll("[data-demo-image]").forEach((button) => {
     const isPlaying = button.getAttribute("aria-pressed") === "true";
     image.src = isPlaying ? staticSource : animatedSource;
     button.setAttribute("aria-pressed", String(!isPlaying));
-    button.textContent = `${isPlaying ? "Play" : "Pause"} ${label}`;
+    button.textContent = `${isPlaying ? "Play" : "Stop"} ${label}`;
   });
 });

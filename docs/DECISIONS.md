@@ -456,6 +456,20 @@ critical/high defects and core-workflow failures before handoff; explicitly
 accept or resolve medium findings and keep minor polish from extending the
 project indefinitely. Record unavailable checks as unverified.
 
+## D50 — Release remediation and ten-company expansion — `ACCEPTED`
+
+On 2026-09-09 the owner approved D49's remediation sequence and requested company
+expansion immediately. The bounded SEC pilot succeeded after generic heading
+repairs; LG Chem additionally exposed doubled XML attribute quotes. Ten new
+companies passed regulator-value and bilingual retrieval checks in isolation,
+then were added without changing original rows. See [coverage](COVERAGE.md).
+
+The approved follow-up includes financial-expression guard regressions, loopback
+network defaults, host validation, locked dependencies, migration/restore tests,
+CI protection and native accessibility fixes. No API/schema change, public live
+service or automatic Filing Agent snapshot expansion is introduced. Preserve the
+recorded demos and document generation/accessibility limits honestly.
+
 ## Standing non-goals — `EXPLICITLY REJECTED`
 
 Each was considered and declined on the record, not merely skipped:

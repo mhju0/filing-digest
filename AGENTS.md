@@ -5,12 +5,13 @@ Evidence order: current source/tests → current Git state/history →
 Claude material only when additional context is needed.
 
 Python is exactly 3.11; the virtualenv lives at the repository root. Backend
-dependencies are maintained in `backend/requirements.txt`, not `pyproject.toml`.
+dependency intent is maintained in `backend/requirements.txt`; install the
+qualified `backend/requirements.lock`, not `pyproject.toml`.
 
 ```sh
 # Install from the repository root in a fresh environment
 python3.11 -m venv .venv
-.venv/bin/pip install -r backend/requirements.txt ruff==0.15.21
+.venv/bin/pip install -r backend/requirements.lock ruff==0.15.21
 
 # Backend commands, from backend/
 ../.venv/bin/python -m uvicorn app.main:app --reload --port 8001

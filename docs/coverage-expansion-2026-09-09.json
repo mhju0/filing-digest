@@ -1,0 +1,955 @@
+[
+  {
+    "ticker": "000270",
+    "filing_identity": "20260312001224",
+    "financials": 10,
+    "chunks": 82,
+    "indexed": 82,
+    "company": "Kia",
+    "source": "dart",
+    "url": "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260312001224",
+    "financial_values_match_regulator_response": true,
+    "financial_checks": [
+      {
+        "metric": "operating_income",
+        "year": 2025,
+        "value": "9078148000000.0000",
+        "matching_source_labels": [
+          "영업이익"
+        ]
+      },
+      {
+        "metric": "operating_income",
+        "year": 2024,
+        "value": "12667139000000.0000",
+        "matching_source_labels": [
+          "영업이익"
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2025,
+        "value": "19382.0000",
+        "matching_source_labels": [
+          "기본주당이익"
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2024,
+        "value": "24893.0000",
+        "matching_source_labels": [
+          "기본주당이익"
+        ]
+      },
+      {
+        "metric": "net_income",
+        "year": 2025,
+        "value": "7554174000000.0000",
+        "matching_source_labels": [
+          "당기순이익",
+          "당기순이익",
+          "당기순이익"
+        ]
+      },
+      {
+        "metric": "net_income",
+        "year": 2024,
+        "value": "9775005000000.0000",
+        "matching_source_labels": [
+          "당기순이익",
+          "당기순이익",
+          "당기순이익"
+        ]
+      },
+      {
+        "metric": "net_income_attributable",
+        "year": 2025,
+        "value": "7560983000000.0000",
+        "matching_source_labels": [
+          "지배기업소유주지분순이익",
+          "당기순이익",
+          "당기순이익"
+        ]
+      },
+      {
+        "metric": "net_income_attributable",
+        "year": 2024,
+        "value": "9772957000000.0000",
+        "matching_source_labels": [
+          "지배기업소유주지분순이익",
+          "당기순이익",
+          "당기순이익"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "year": 2025,
+        "value": "114140919000000.0000",
+        "matching_source_labels": [
+          "매출액"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "year": 2024,
+        "value": "107448752000000.0000",
+        "matching_source_labels": [
+          "매출액"
+        ]
+      }
+    ],
+    "retrieval": [
+      {
+        "query": "주요 사업 부문과 제품은 무엇인가요?",
+        "hit_count": 5
+      },
+      {
+        "query": "What are the main business segments and products?",
+        "hit_count": 5
+      }
+    ]
+  },
+  {
+    "ticker": "006400",
+    "filing_identity": "20260310002954",
+    "financials": 8,
+    "chunks": 96,
+    "indexed": 96,
+    "company": "Samsung SDI",
+    "source": "dart",
+    "url": "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260310002954",
+    "financial_values_match_regulator_response": true,
+    "financial_checks": [
+      {
+        "metric": "operating_income",
+        "year": 2025,
+        "value": "-1722360788760.0000",
+        "matching_source_labels": [
+          "영업손익"
+        ]
+      },
+      {
+        "metric": "operating_income",
+        "year": 2024,
+        "value": "363304463263.0000",
+        "matching_source_labels": [
+          "영업손익"
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2025,
+        "value": "-8796.0000",
+        "matching_source_labels": [
+          "우선주 기본주당손익",
+          "우선주 희석주당손익",
+          "보통주 기본주당손익",
+          "보통주 희석주당손익"
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2024,
+        "value": "8961.0000",
+        "matching_source_labels": [
+          "보통주 기본주당손익",
+          "보통주 희석주당손익"
+        ]
+      },
+      {
+        "metric": "eps_diluted",
+        "year": 2025,
+        "value": "-8796.0000",
+        "matching_source_labels": [
+          "우선주 기본주당손익",
+          "우선주 희석주당손익",
+          "보통주 기본주당손익",
+          "보통주 희석주당손익"
+        ]
+      },
+      {
+        "metric": "eps_diluted",
+        "year": 2024,
+        "value": "8961.0000",
+        "matching_source_labels": [
+          "보통주 기본주당손익",
+          "보통주 희석주당손익"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "year": 2025,
+        "value": "13266730679499.0000",
+        "matching_source_labels": [
+          "매출액"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "year": 2024,
+        "value": "16592248884388.0000",
+        "matching_source_labels": [
+          "매출액"
+        ]
+      }
+    ],
+    "retrieval": [
+      {
+        "query": "주요 사업 부문과 제품은 무엇인가요?",
+        "hit_count": 5
+      },
+      {
+        "query": "What are the main business segments and products?",
+        "hit_count": 5
+      }
+    ]
+  },
+  {
+    "ticker": "051910",
+    "filing_identity": "20260313001195",
+    "financials": 10,
+    "chunks": 91,
+    "indexed": 91,
+    "company": "LG Chem",
+    "source": "dart",
+    "url": "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313001195",
+    "financial_values_match_regulator_response": true,
+    "financial_checks": [
+      {
+        "metric": "operating_income",
+        "year": 2025,
+        "value": "1180900000000.0000",
+        "matching_source_labels": [
+          "영업이익(손실)"
+        ]
+      },
+      {
+        "metric": "operating_income",
+        "year": 2024,
+        "value": "874927000000.0000",
+        "matching_source_labels": [
+          "영업이익(손실)"
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2025,
+        "value": "-23244.0000",
+        "matching_source_labels": [
+          "우선주 기본주당순이익(손실)",
+          "보통주 기본주당이익(손실)"
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2024,
+        "value": "-8826.0000",
+        "matching_source_labels": [
+          "우선주 기본주당순이익(손실)",
+          "보통주 기본주당이익(손실)"
+        ]
+      },
+      {
+        "metric": "net_income",
+        "year": 2025,
+        "value": "-977063000000.0000",
+        "matching_source_labels": [
+          "당기순이익(손실)",
+          "당기순이익(손실)",
+          "당기순이익(손실)"
+        ]
+      },
+      {
+        "metric": "net_income",
+        "year": 2024,
+        "value": "515011000000.0000",
+        "matching_source_labels": [
+          "당기순이익(손실)",
+          "당기순이익(손실)",
+          "당기순이익(손실)"
+        ]
+      },
+      {
+        "metric": "net_income_attributable",
+        "year": 2025,
+        "value": "-1819449000000.0000",
+        "matching_source_labels": [
+          "지배기업의 소유주에게 귀속되는 당기순이익(손실)"
+        ]
+      },
+      {
+        "metric": "net_income_attributable",
+        "year": 2024,
+        "value": "-690854000000.0000",
+        "matching_source_labels": [
+          "지배기업의 소유주에게 귀속되는 당기순이익(손실)",
+          "당기순이익(손실)",
+          "당기순이익(손실)"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "year": 2025,
+        "value": "45932167000000.0000",
+        "matching_source_labels": [
+          "영업수익"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "year": 2024,
+        "value": "48699754000000.0000",
+        "matching_source_labels": [
+          "영업수익"
+        ]
+      }
+    ],
+    "retrieval": [
+      {
+        "query": "주요 사업 부문과 제품은 무엇인가요?",
+        "hit_count": 5
+      },
+      {
+        "query": "What are the main business segments and products?",
+        "hit_count": 5
+      }
+    ]
+  },
+  {
+    "ticker": "066570",
+    "filing_identity": "20260313000662",
+    "financials": 10,
+    "chunks": 115,
+    "indexed": 115,
+    "company": "LG Electronics",
+    "source": "dart",
+    "url": "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260313000662",
+    "financial_values_match_regulator_response": true,
+    "financial_checks": [
+      {
+        "metric": "operating_income",
+        "year": 2025,
+        "value": "2478392000000.0000",
+        "matching_source_labels": [
+          "영업이익"
+        ]
+      },
+      {
+        "metric": "operating_income",
+        "year": 2024,
+        "value": "3419675000000.0000",
+        "matching_source_labels": [
+          "영업이익"
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2025,
+        "value": "5330.0000",
+        "matching_source_labels": [
+          "보통주기본주당순이익(손실)"
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2024,
+        "value": "2036.0000",
+        "matching_source_labels": [
+          "보통주기본주당순이익(손실)"
+        ]
+      },
+      {
+        "metric": "net_income",
+        "year": 2025,
+        "value": "1220412000000.0000",
+        "matching_source_labels": [
+          "당기순이익(손실)",
+          "당기순이익(손실)",
+          "당기순이익(손실)"
+        ]
+      },
+      {
+        "metric": "net_income",
+        "year": 2024,
+        "value": "591365000000.0000",
+        "matching_source_labels": [
+          "당기순이익(손실)",
+          "당기순이익(손실)",
+          "당기순이익(손실)"
+        ]
+      },
+      {
+        "metric": "net_income_attributable",
+        "year": 2025,
+        "value": "960579000000.0000",
+        "matching_source_labels": [
+          "지배기업의 소유주지분",
+          "당기순이익(손실)",
+          "당기순이익(손실)"
+        ]
+      },
+      {
+        "metric": "net_income_attributable",
+        "year": 2024,
+        "value": "367515000000.0000",
+        "matching_source_labels": [
+          "지배기업의 소유주지분",
+          "당기순이익(손실)",
+          "당기순이익(손실)"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "year": 2025,
+        "value": "89200882000000.0000",
+        "matching_source_labels": [
+          "매출액"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "year": 2024,
+        "value": "87728182000000.0000",
+        "matching_source_labels": [
+          "매출액"
+        ]
+      }
+    ],
+    "retrieval": [
+      {
+        "query": "주요 사업 부문과 제품은 무엇인가요?",
+        "hit_count": 5
+      },
+      {
+        "query": "What are the main business segments and products?",
+        "hit_count": 5
+      }
+    ]
+  },
+  {
+    "ticker": "207940",
+    "filing_identity": "20260312001119",
+    "financials": 4,
+    "chunks": 79,
+    "indexed": 79,
+    "company": "Samsung Biologics",
+    "source": "dart",
+    "url": "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260312001119",
+    "financial_values_match_regulator_response": true,
+    "financial_checks": [
+      {
+        "metric": "operating_income",
+        "year": 2025,
+        "value": "2069221266630.0000",
+        "matching_source_labels": [
+          "영업이익"
+        ]
+      },
+      {
+        "metric": "operating_income",
+        "year": 2024,
+        "value": "1321366380588.0000",
+        "matching_source_labels": [
+          "영업이익"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "year": 2025,
+        "value": "4556971695180.0000",
+        "matching_source_labels": [
+          "매출액"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "year": 2024,
+        "value": "3497145675782.0000",
+        "matching_source_labels": [
+          "매출액"
+        ]
+      }
+    ],
+    "retrieval": [
+      {
+        "query": "주요 사업 부문과 제품은 무엇인가요?",
+        "hit_count": 5
+      },
+      {
+        "query": "What are the main business segments and products?",
+        "hit_count": 5
+      }
+    ]
+  },
+  {
+    "ticker": "AMZN",
+    "filing_identity": "0001018724-26-000004",
+    "financials": 5,
+    "chunks": 71,
+    "indexed": 71,
+    "company": "Amazon",
+    "source": "sec",
+    "url": "https://www.sec.gov/Archives/edgar/data/1018724/000101872426000004/amzn-20251231.htm",
+    "financial_values_match_regulator_response": true,
+    "financial_checks": [
+      {
+        "metric": "revenue",
+        "year": 2025,
+        "value": "716924000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "operating_income",
+        "year": 2025,
+        "value": "79975000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "OperatingIncomeLoss",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "net_income",
+        "year": 2025,
+        "value": "77670000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "NetIncomeLoss",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2025,
+        "value": "7.2900",
+        "matching_source_labels": [
+          {
+            "tag": "EarningsPerShareBasic",
+            "unit": "USD/shares",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "eps_diluted",
+        "year": 2025,
+        "value": "7.1700",
+        "matching_source_labels": [
+          {
+            "tag": "EarningsPerShareDiluted",
+            "unit": "USD/shares",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      }
+    ],
+    "retrieval": [
+      {
+        "query": "주요 사업 부문과 제품은 무엇인가요?",
+        "hit_count": 5
+      },
+      {
+        "query": "What are the main business segments and products?",
+        "hit_count": 5
+      }
+    ]
+  },
+  {
+    "ticker": "COST",
+    "filing_identity": "0000909832-25-000101",
+    "financials": 5,
+    "chunks": 49,
+    "indexed": 49,
+    "company": "Costco",
+    "source": "sec",
+    "url": "https://www.sec.gov/Archives/edgar/data/909832/000090983225000101/cost-20250831.htm",
+    "financial_values_match_regulator_response": true,
+    "financial_checks": [
+      {
+        "metric": "revenue",
+        "year": 2025,
+        "value": "275235000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "unit": "USD",
+            "start": "2024-09-02",
+            "end": "2025-08-31"
+          },
+          {
+            "tag": "Revenues",
+            "unit": "USD",
+            "start": "2024-09-02",
+            "end": "2025-08-31"
+          }
+        ]
+      },
+      {
+        "metric": "operating_income",
+        "year": 2025,
+        "value": "10383000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "OperatingIncomeLoss",
+            "unit": "USD",
+            "start": "2024-09-02",
+            "end": "2025-08-31"
+          }
+        ]
+      },
+      {
+        "metric": "net_income",
+        "year": 2025,
+        "value": "8099000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "NetIncomeLoss",
+            "unit": "USD",
+            "start": "2024-09-02",
+            "end": "2025-08-31"
+          },
+          {
+            "tag": "ProfitLoss",
+            "unit": "USD",
+            "start": "2024-09-02",
+            "end": "2025-08-31"
+          }
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2025,
+        "value": "18.2400",
+        "matching_source_labels": [
+          {
+            "tag": "EarningsPerShareBasic",
+            "unit": "USD/shares",
+            "start": "2024-09-02",
+            "end": "2025-08-31"
+          }
+        ]
+      },
+      {
+        "metric": "eps_diluted",
+        "year": 2025,
+        "value": "18.2100",
+        "matching_source_labels": [
+          {
+            "tag": "EarningsPerShareDiluted",
+            "unit": "USD/shares",
+            "start": "2024-09-02",
+            "end": "2025-08-31"
+          }
+        ]
+      }
+    ],
+    "retrieval": [
+      {
+        "query": "주요 사업 부문과 제품은 무엇인가요?",
+        "hit_count": 5
+      },
+      {
+        "query": "What are the main business segments and products?",
+        "hit_count": 5
+      }
+    ]
+  },
+  {
+    "ticker": "GOOGL",
+    "filing_identity": "0001652044-26-000018",
+    "financials": 5,
+    "chunks": 84,
+    "indexed": 84,
+    "company": "Alphabet",
+    "source": "sec",
+    "url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/goog-20251231.htm",
+    "financial_values_match_regulator_response": true,
+    "financial_checks": [
+      {
+        "metric": "revenue",
+        "year": 2025,
+        "value": "402836000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "Revenues",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "operating_income",
+        "year": 2025,
+        "value": "129039000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "OperatingIncomeLoss",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "net_income",
+        "year": 2025,
+        "value": "132170000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "NetIncomeLoss",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          },
+          {
+            "tag": "NetIncomeLossAvailableToCommonStockholdersBasic",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          },
+          {
+            "tag": "NetIncomeLossAvailableToCommonStockholdersDiluted",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2025,
+        "value": "10.9100",
+        "matching_source_labels": [
+          {
+            "tag": "EarningsPerShareBasic",
+            "unit": "USD/shares",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "eps_diluted",
+        "year": 2025,
+        "value": "10.8100",
+        "matching_source_labels": [
+          {
+            "tag": "EarningsPerShareDiluted",
+            "unit": "USD/shares",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      }
+    ],
+    "retrieval": [
+      {
+        "query": "주요 사업 부문과 제품은 무엇인가요?",
+        "hit_count": 5
+      },
+      {
+        "query": "What are the main business segments and products?",
+        "hit_count": 5
+      }
+    ]
+  },
+  {
+    "ticker": "META",
+    "filing_identity": "0001628280-26-003942",
+    "financials": 5,
+    "chunks": 95,
+    "indexed": 95,
+    "company": "Meta",
+    "source": "sec",
+    "url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026003942/meta-20251231.htm",
+    "financial_values_match_regulator_response": true,
+    "financial_checks": [
+      {
+        "metric": "revenue",
+        "year": 2025,
+        "value": "200966000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "operating_income",
+        "year": 2025,
+        "value": "83276000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "OperatingIncomeLoss",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "net_income",
+        "year": 2025,
+        "value": "60458000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "NetIncomeLoss",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          },
+          {
+            "tag": "NetIncomeLossAttributableToParentDiluted",
+            "unit": "USD",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2025,
+        "value": "23.9800",
+        "matching_source_labels": [
+          {
+            "tag": "EarningsPerShareBasic",
+            "unit": "USD/shares",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      },
+      {
+        "metric": "eps_diluted",
+        "year": 2025,
+        "value": "23.4900",
+        "matching_source_labels": [
+          {
+            "tag": "EarningsPerShareDiluted",
+            "unit": "USD/shares",
+            "start": "2025-01-01",
+            "end": "2025-12-31"
+          }
+        ]
+      }
+    ],
+    "retrieval": [
+      {
+        "query": "주요 사업 부문과 제품은 무엇인가요?",
+        "hit_count": 5
+      },
+      {
+        "query": "What are the main business segments and products?",
+        "hit_count": 5
+      }
+    ]
+  },
+  {
+    "ticker": "WMT",
+    "filing_identity": "0000104169-26-000055",
+    "financials": 5,
+    "chunks": 104,
+    "indexed": 104,
+    "company": "Walmart",
+    "source": "sec",
+    "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000055/wmt-20260131.htm",
+    "financial_values_match_regulator_response": true,
+    "financial_checks": [
+      {
+        "metric": "revenue",
+        "year": 2026,
+        "value": "713163000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "Revenues",
+            "unit": "USD",
+            "start": "2025-02-01",
+            "end": "2026-01-31"
+          }
+        ]
+      },
+      {
+        "metric": "operating_income",
+        "year": 2026,
+        "value": "29825000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "OperatingIncomeLoss",
+            "unit": "USD",
+            "start": "2025-02-01",
+            "end": "2026-01-31"
+          }
+        ]
+      },
+      {
+        "metric": "net_income",
+        "year": 2026,
+        "value": "21893000000.0000",
+        "matching_source_labels": [
+          {
+            "tag": "NetIncomeLoss",
+            "unit": "USD",
+            "start": "2025-02-01",
+            "end": "2026-01-31"
+          }
+        ]
+      },
+      {
+        "metric": "eps",
+        "year": 2026,
+        "value": "2.7400",
+        "matching_source_labels": [
+          {
+            "tag": "EarningsPerShareBasic",
+            "unit": "USD/shares",
+            "start": "2025-02-01",
+            "end": "2026-01-31"
+          }
+        ]
+      },
+      {
+        "metric": "eps_diluted",
+        "year": 2026,
+        "value": "2.7300",
+        "matching_source_labels": [
+          {
+            "tag": "EarningsPerShareDiluted",
+            "unit": "USD/shares",
+            "start": "2025-02-01",
+            "end": "2026-01-31"
+          }
+        ]
+      }
+    ],
+    "retrieval": [
+      {
+        "query": "주요 사업 부문과 제품은 무엇인가요?",
+        "hit_count": 5
+      },
+      {
+        "query": "What are the main business segments and products?",
+        "hit_count": 5
+      }
+    ]
+  }
+]

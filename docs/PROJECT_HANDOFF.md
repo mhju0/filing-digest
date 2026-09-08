@@ -40,7 +40,7 @@ financial and narrative paths:
 
 This is a **portfolio project**, not a service. It is local, single-user, and
 has no authentication, authorization, rate limiting, or tenant isolation
-(`README.md:265-272`). It shipped **v0.5.1 as its final release** on
+(`README.md:265-272`). It shipped **v0.5.1 before the subsequent D48-D50 remediation** on
 2026-08-27. The implemented cleanup is under release-readiness review (D48, D49).
 A bounded company-coverage pilot is approved; API and schema remain frozen.
 
@@ -213,7 +213,8 @@ There is no application-level cache beyond the digest summary, which is
 versioned by filing snapshot (commit `2334ba8`).
 
 **Live local corpus** (verified 2026-09-04 against the running database):
-8 companies, 13 filings, 1,191 chunks, 1,191 embedded, 86 financial rows.
+18 companies, 23 filings, 2,057 chunks, 2,057 embedded, 153 financial rows
+as of the D50 expansion. Original rows remain unchanged. See [coverage](COVERAGE.md).
 DART: 삼성전자, SK하이닉스, NAVER, 현대자동차. SEC: Apple, Microsoft, NVIDIA,
 Tesla. This database is local and is not distributed with the repository.
 
@@ -467,3 +468,10 @@ company in an isolated database before considering ten additional companies.
 It does not change Agent's snapshot, API v0.4 or schema v0.3. ROADMAP tracks the
 remaining audit and coverage work; completed cleanup evidence is in
 ENGINEERING_AUDIT.md.
+
+## Release remediation update · 2026-09-09
+
+D50 qualifies ten additional companies and local release fixes. See
+[release evidence](RELEASE_READINESS.md) and [coverage](COVERAGE.md). Install
+`backend/requirements.lock`; `requirements.txt` records dependency intent.
+Compose now binds host ports to loopback and the API validates Host headers.
