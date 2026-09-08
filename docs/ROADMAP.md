@@ -1,5 +1,7 @@
 # Roadmap
 
+Current release qualification: [2026-09-09 review](RELEASE_READINESS.md). Remediation review is pending; the coverage pilot did not pass its expansion gate.
+
 Status as of **2026-09-09**. Filing Digest's latest release is **v0.5.1**
 (`507692d`, 2026-08-27). The owner authorized a bounded engineering cleanup
 (D48), making an exception to the original no-refactors maintenance policy.
