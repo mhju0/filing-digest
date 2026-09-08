@@ -21,9 +21,8 @@ Design:
    has at least one chunk and every chunk has a vector; search requires it.
 
 4. **Positional id<->vector alignment is guarded.** ``embed_texts`` returns
-   vectors in input order; :func:`align_ids_with_vectors` refuses to zip when the
-   counts differ, so a wrong vector can never be written onto a chunk. The
-   alignment is a pure function, unit-tested without the model or DB.
+   vectors in input order; strict zip checks the entire batch before any write.
+   PostgreSQL tests cover alignment, failed batches, and resumable indexing.
 
 Binding ``list[float]`` to the ``vector(1024)`` column goes through the ORM's
 :class:`pgvector.sqlalchemy.Vector` type on ``FilingChunk.embedding`` (its bind
@@ -35,10 +34,8 @@ import argparse
 import asyncio
 import logging
 import uuid
-from collections.abc import Sequence
-from typing import TypeVar
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import bindparam, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Filing, FilingChunk
@@ -49,33 +46,15 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BATCH_SIZE = 32
 
-_T = TypeVar("_T")
-_V = TypeVar("_V")
 
+async def backfill_embeddings(
+    session: AsyncSession, batch_size: int = DEFAULT_BATCH_SIZE, limit: int | None = None
+) -> int:
+    """Resume unpublished filings and recover stale readiness markers.
 
-def _batched(items: Sequence[_T], size: int) -> list[Sequence[_T]]:
-    """Split ``items`` into consecutive chunks of at most ``size`` (order-kept)."""
-    if size < 1:
-        raise ValueError(f"batch size must be >= 1, got {size}")
-    return [items[i : i + size] for i in range(0, len(items), size)]
-
-
-def align_ids_with_vectors(ids: Sequence[_T], vectors: Sequence[_V]) -> list[tuple[_T, _V]]:
-    """Zip chunk ids with their vectors 1:1, guarding alignment (pure).
-
-    ``embed_texts`` returns vectors positionally, so ``ids[i]`` owns
-    ``vectors[i]``. A length mismatch means a silent misalignment (every later
-    vector lands on the wrong chunk), so we raise instead of zipping to the
-    shorter sequence. Separated out and unit-tested without the model or DB.
+    ``limit`` caps the number of chunks embedded across all filings.
     """
-    if len(ids) != len(vectors):
-        raise ValueError(f"id/vector count mismatch: {len(ids)} ids vs {len(vectors)} vectors")
-    return list(zip(ids, vectors, strict=True))
-
-
-def _pending_filing_ids_statement():
-    """Select filings that are unpublished or contain a pending chunk vector."""
-    return (
+    statement = (
         select(Filing.id)
         .join(FilingChunk, FilingChunk.filing_id == Filing.id)
         .where(
@@ -87,31 +66,7 @@ def _pending_filing_ids_statement():
         .distinct()
         .order_by(Filing.id)
     )
-
-
-def _lock_filing_for_publication_statement(filing_id: uuid.UUID):
-    """Lock one filing so re-ingestion cannot race readiness publication."""
-    return select(Filing.id).where(Filing.id == filing_id).with_for_update()
-
-
-async def backfill_embeddings(
-    session: AsyncSession, batch_size: int = DEFAULT_BATCH_SIZE, limit: int | None = None
-) -> int:
-    """Resume every filing whose search index is not yet published.
-
-    Enumerates unpublished filings plus any filing containing a NULL vector in
-    stable id order, so a stale readiness marker is self-healing. Delegates to
-    the scoped indexer and returns the number of chunks embedded. ``limit`` is a
-    global cap across filings (useful for a smoke run); ``None`` means all
-    pending chunks.
-    """
-    filing_ids = (
-        (
-            await session.execute(_pending_filing_ids_statement())
-        )
-        .scalars()
-        .all()
-    )
+    filing_ids = (await session.execute(statement)).scalars().all()
     filled = 0
     for filing_id in filing_ids:
         remaining = None if limit is None else max(limit - filled, 0)
@@ -142,6 +97,10 @@ async def index_filing_embeddings(
     republished only when the target filing has at least one chunk and no pending
     chunks.
     """
+    if batch_size < 1:
+        raise ValueError(f"batch size must be >= 1, got {batch_size}")
+    if limit is not None and limit < 0:
+        raise ValueError(f"limit must be >= 0, got {limit}")
     await session.execute(
         update(Filing).where(Filing.id == filing_id).values(indexed_at=None)
     )
@@ -160,13 +119,22 @@ async def index_filing_embeddings(
     rows = (await session.execute(stmt)).all()
     filled = 0
     try:
-        for batch in _batched(rows, batch_size):
-            ids = [row.id for row in batch]
-            vectors = embed_texts([row.content for row in batch])
-            for chunk_id, vector in align_ids_with_vectors(ids, vectors):
-                await session.execute(
-                    update(FilingChunk).where(FilingChunk.id == chunk_id).values(embedding=vector)
-                )
+        for start in range(0, len(rows), batch_size):
+            batch = rows[start : start + batch_size]
+            vectors = await asyncio.to_thread(embed_texts, [row.content for row in batch])
+            # Build the whole batch before executing so a length mismatch cannot
+            # write a partial set. Core executemany also tolerates chunks removed
+            # by concurrent re-ingestion; publication below rechecks readiness.
+            parameters = [
+                {"chunk_id": row.id, "vector": vector}
+                for row, vector in zip(batch, vectors, strict=True)
+            ]
+            await session.execute(
+                FilingChunk.__table__.update()
+                .where(FilingChunk.id == bindparam("chunk_id"))
+                .values(embedding=bindparam("vector")),
+                parameters,
+            )
             await session.commit()
             filled += len(batch)
 
@@ -174,20 +142,17 @@ async def index_filing_embeddings(
         # re-ingestion. If replacement wins the lock first, these counts see its
         # new NULL vectors; if indexing wins first, replacement subsequently
         # resets indexed_at to NULL before swapping the snapshot.
-        await session.execute(_lock_filing_for_publication_statement(filing_id))
-        total_chunks = (
+        await session.execute(
+            select(Filing.id).where(Filing.id == filing_id).with_for_update()
+        )
+        total_chunks, pending_chunks = (
             await session.execute(
-                select(func.count(FilingChunk.id)).where(FilingChunk.filing_id == filing_id)
+                select(
+                    func.count(FilingChunk.id),
+                    func.count(FilingChunk.id).filter(FilingChunk.embedding.is_(None)),
+                ).where(FilingChunk.filing_id == filing_id)
             )
-        ).scalar_one()
-        pending_chunks = (
-            await session.execute(
-                select(func.count(FilingChunk.id)).where(
-                    FilingChunk.filing_id == filing_id,
-                    FilingChunk.embedding.is_(None),
-                )
-            )
-        ).scalar_one()
+        ).one()
         if total_chunks > 0 and pending_chunks == 0:
             await session.execute(
                 update(Filing).where(Filing.id == filing_id).values(indexed_at=func.now())

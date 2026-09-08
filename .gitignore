@@ -49,7 +49,6 @@ scratchpad/
 
 # Local assistant and editor workspace config.
 CLAUDE.md
-AGENTS.md
 GEMINI.md
 docs/agents/
 .claude/
@@ -64,3 +63,6 @@ docs/agents/
 .github/agents/
 .github/instructions/
 .github/prompts/
+
+# Private takeover inventory; keep local rather than publishing environment details.
+docs/CLAUDE_ENV_INVENTORY.md

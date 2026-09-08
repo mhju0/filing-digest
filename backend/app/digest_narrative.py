@@ -12,18 +12,10 @@ FIXED, query-less business-overview summary for a company's filing:
   hand-authored (no ``$ref``/``$defs``, one level of nesting) for the same
   reason as :func:`app.llm.answer.build_answer_json_schema`: Solar rejects
   ref/recursive schemas.
-- NUMBER POLICY: the prompt forbids ALL numerals
-  in the prose, and :func:`_assert_summary_number_free` enforces it on BOTH the
-  Korean AND English summary in two layers -- the shared financial-number guard
-  (:func:`app.llm.number_guard.assert_number_free`, suffix-anchored on 원/%/배)
-  reused verbatim, PLUS a stricter bare-digit scan. Stored chunk text keeps
-  innocent counts/years, but a GENERATED summary must be fully qualitative
-  (numbers live only in the figures track), so ANY numeral -- a bare count like
-  "232 subsidiaries", a year, or an English "$5 billion" that the suffix-anchored
-  guard alone would miss -- is a violation. On a guard trip we retry ONCE with a
-  stronger no-numbers instruction; a second trip yields null summaries (the
-  digest still returns its authoritative figures -- the summary is an
-  enhancement, never a source of numbers).
+- NUMBER POLICY: generated summaries must be fully qualitative in both
+  languages. NFKC normalization followed by a digit scan rejects financial
+  amounts, counts and years. Retry once on a violation, then return null
+  summaries while retaining authoritative figures.
 - CACHE: a process-local dict memoizes SUCCESSFUL summaries for the exact
   retrieved Filing Chunk snapshot. Reingestion replaces chunk identities, so
   the same Filing Identity cannot reuse stale prose. Guard-blocked / failed
@@ -44,12 +36,10 @@ from typing import Any
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.llm.answer import Answer, AnswerSegment
 from app.llm.base import ChatMessage, LLMClient
 from app.llm.number_guard import (
     NumberInNarrativeError,
     Violation,
-    assert_number_free,
 )
 from app.search.service import SearchResult, search_chunks
 
@@ -171,29 +161,11 @@ def _build_messages(
 
 
 def _assert_summary_number_free(summary: DigestSummary) -> None:
-    """Reject any inline number in EITHER the KO or EN summary (two layers).
+    """Reject digits in either summary, including Unicode compatibility digits.
 
-    1. The shared financial-number guard
-       (:func:`app.llm.number_guard.assert_number_free`) is reused verbatim by
-       wrapping each summary as one throwaway :class:`Answer` segment (citations
-       empty -- the guard never scans them). It flags currency/percent/multiple
-       tokens (suffix-anchored on 원/%/배).
-    2. A stricter bare-digit scan then rejects ANY remaining numeral. Generated
-       digest prose must be fully qualitative (numbers live only in the figures
-       track), so bare counts ("232 subsidiaries"), years, and English currency
-       ("$5 billion") -- which layer 1 cannot see -- are violations too.
-
-    Raises :class:`app.llm.number_guard.NumberInNarrativeError` on the first
-    violation of either layer.
+    Every financial-number pattern also requires a digit, so this stricter
+    digest policy subsumes the answer guard without constructing an Answer.
     """
-    probe = Answer(
-        answer_segments=[
-            AnswerSegment(text=summary.summary_ko, citations=[]),
-            AnswerSegment(text=summary.summary_en, citations=[]),
-        ]
-    )
-    assert_number_free(probe)
-
     for index, text in enumerate((summary.summary_ko, summary.summary_en)):
         match = _ANY_DIGIT_RE.search(unicodedata.normalize("NFKC", text))
         if match is not None:

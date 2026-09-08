@@ -3,6 +3,7 @@
 Run with: uvicorn app.main:app --host 0.0.0.0 --port 8001
 """
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -38,7 +39,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     from app.embeddings.kure import embed_texts
 
-    embed_texts(["warm-up"])
+    await asyncio.to_thread(embed_texts, ["warm-up"])
     yield
 
 

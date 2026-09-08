@@ -25,14 +25,8 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://filing_digest:filing_digest_dev@localhost:5432/filing_digest
       EMBEDDING_WARMUP_ENABLED: "false"
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v7
-      - name: Validate Docker Compose
-        working-directory: .
-        run: docker compose --profile container config -q
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
@@ -40,18 +34,14 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          # KURE runs on CPU; PyPI's Linux torch wheel pulls in unused CUDA libraries.
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r backend/requirements.txt
           pip install ruff==0.15.21
-      - name: Lint
-        run: ruff check .
-      - name: Initialize database schema
-        run: docker exec -i "${{ job.services.postgres.id }}" psql -U filing_digest -d filing_digest -v ON_ERROR_STOP=1 < db/init.sql
-      - name: Seed smoke-test corpus
-        run: docker exec -i "${{ job.services.postgres.id }}" psql -U filing_digest -d filing_digest -v ON_ERROR_STOP=1 < tests/fixtures/ci_smoke_seed.sql
-      - name: Offline test suite
-        run: python -m pytest -q --ignore=tests/test_smoke.py
-      - name: PostgreSQL smoke suite
-        run: python -m pytest -q tests/test_smoke.py
+      - name: Lint, offline tests, and Compose validation
+        run: make check PYTHON=python RUFF=ruff
+      - name: PostgreSQL smoke and persistence tests
+        run: make test-db PYTHON=python
 
   ios:
     runs-on: macos-15

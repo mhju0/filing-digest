@@ -1,8 +1,7 @@
 """Tests for SEC ``companyfacts/CIK##########.json`` parsing -> SecFinancialItem.
 
-Offline: pure functions (``parse_sec_amount``, ``parse_sec_decimal``,
-``us_gaap_tag_to_metric``) and ``parse_companyfacts_payload`` are driven with
-inline fixtures modeled on the public XBRL frames API shape. This is where the
+Offline: pure functions ``parse_sec_amount``, ``parse_sec_decimal``, and
+``parse_companyfacts_payload`` are driven with inline fixtures modeled on the public XBRL frames API shape. This is where the
 project's core rule -- "numbers come only from this structured API, never
 fabricated" -- is enforced for SEC data, mirroring test_dart_financials.py.
 The response shape (``facts.us-gaap.<tag>.units.<unit>[]`` entries) is
@@ -26,7 +25,6 @@ from app.clients.sec import (
     parse_companyfacts_payload,
     parse_sec_amount,
     parse_sec_decimal,
-    us_gaap_tag_to_metric,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,28 +88,6 @@ def test_parse_sec_decimal_no_binary_float_artifact() -> None:
     # (6.129999999999999893...) -- going through str() first avoids that.
     assert parse_sec_decimal(6.13) == Decimal("6.13")
     assert str(parse_sec_decimal(6.13)) == "6.13"
-
-
-# -- us_gaap_tag_to_metric -----------------------------------------------------
-
-
-def test_us_gaap_tag_to_metric_maps_all_six() -> None:
-    assert us_gaap_tag_to_metric("Revenues") == "revenue"
-    assert (
-        us_gaap_tag_to_metric("RevenueFromContractWithCustomerExcludingAssessedTax")
-        == "revenue"
-    )
-    assert us_gaap_tag_to_metric("OperatingIncomeLoss") == "operating_income"
-    assert us_gaap_tag_to_metric("NetIncomeLoss") == "net_income"
-    assert us_gaap_tag_to_metric("EarningsPerShareBasic") == "eps"
-    assert us_gaap_tag_to_metric("EarningsPerShareDiluted") == "eps_diluted"
-
-
-def test_us_gaap_tag_to_metric_unmapped_is_none() -> None:
-    assert us_gaap_tag_to_metric("Assets") is None
-    assert us_gaap_tag_to_metric("") is None
-    assert us_gaap_tag_to_metric(None) is None
-
 
 # -- parse_companyfacts_payload: full parse + status-like branching ----------
 

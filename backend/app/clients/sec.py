@@ -205,11 +205,6 @@ _EPS_TAGS = frozenset({"EarningsPerShareBasic", "EarningsPerShareDiluted"})
 _ANNUAL_FORM = "10-K"
 
 
-def us_gaap_tag_to_metric(tag: str | None) -> str | None:
-    """Map a us-gaap tag to our standard metric key, or ``None`` if unmapped."""
-    return _US_GAAP_TO_METRIC.get((tag or "").strip())
-
-
 def parse_sec_amount(raw: Any) -> int | None:
     """Parse a companyfacts amount (JSON number, unlike DART's string) -> int.
 

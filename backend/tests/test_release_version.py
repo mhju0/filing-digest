@@ -32,11 +32,6 @@ def test_product_release_version_is_consistent() -> None:
         f"v{release_version} portfolio architecture"
         in (REPOSITORY_ROOT / "docs" / "ARCHITECTURE.md").read_text()
     )
-    assert (
-        f"앱 릴리스 v{release_version}"
-        in (REPOSITORY_ROOT / "CLAUDE.md").read_text()
-    )
-
     project = (
         REPOSITORY_ROOT / "ios" / "FilingDigest.xcodeproj" / "project.pbxproj"
     ).read_text()

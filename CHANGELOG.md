@@ -56,7 +56,7 @@ Release-closing pass. No feature work.
 - Answer validation error messages are preserved instead of being flattened.
 
 **Performance**
-- Cached digests skip retrieval entirely.
+- Cached digests reuse generated summaries after retrieval validates the chunk snapshot.
 
 ## v0.4.0 — 2026-07-25
 
