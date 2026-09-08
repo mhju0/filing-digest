@@ -1,6 +1,6 @@
 # Roadmap
 
-Status as of **2026-09-05**. Filing Digest's latest release is **v0.5.1**
+Status as of **2026-09-09**. Filing Digest's latest release is **v0.5.1**
 (`507692d`, 2026-08-27). The owner authorized a bounded engineering cleanup
 (D48), making an exception to the original no-refactors maintenance policy.
 Features, API v0.4, and database schema v0.3 remain frozen.
@@ -11,21 +11,28 @@ Definitions used here:
   the current cleanup and verification pass.
 - **Frozen contract** — the v0.4 API shape in
   [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) stays fixed under the maintenance
-  policy, independently of the planned `filing-agent` consumer.
+  policy, independently of Filing Agent's separate snapshot-based runtime.
 
 ---
 
 ## NOW
 
-**Engineering cleanup implemented and ready for review (D48).**
+**Release-readiness review and delivery of the implemented cleanup (D48, D49).**
 The changes remove unused implementations, offload inference, batch vector writes,
 and add disposable PostgreSQL verification. See [the audit record](ENGINEERING_AUDIT.md).
 The clean-slate Codex takeover (D47) remains complete.
 
 ## NEXT
 
-**Nothing is scheduled.** `filing-agent` remains a planned, deferred project
-(D43); the architecture and v0.5.1 release note describe it accordingly.
+**Final quality audit and a bounded coverage pilot (D49).** Review the local app,
+public walkthrough, security, correctness, UX, accessibility, documentation and
+reproducibility before maintenance handoff. Qualify one additional Korean and
+one US company in an isolated database, then assess expansion toward ten.
+Substantial parser work or new in-app ingestion requires a separate decision.
+
+[Filing Agent](https://github.com/mhju0/filing-agent) is implemented and has a
+public recorded replay. It owns its qualified snapshot and local execution;
+this pilot does not expand Agent's supported coverage.
 
 The cleanup audit passed all 24 live evaluation cases on 2026-09-05. Re-run
 before a live demonstration or after further ingestion, retrieval, embedding,
@@ -58,13 +65,11 @@ Recorded so they are not rediscovered as if new. None of these is planned.
 
 | Idea | Where it came from | Why it is not committed |
 |---|---|---|
-| `filing-agent`: a LangGraph multi-turn agent consuming the five endpoints as tools | `~/Workspace/Projects/filing-agent/FOUNDATION.md`, 2026-08-27 | Planned separate project; design document only. Owner confirmed deferral on 2026-09-05; implementation requires an explicit decision (D43) |
 | `/search` filters by period and source | unchecked leftover in the deleted `ROADMAP.md` (`git show c8f881e^:ROADMAP.md`) | Pre-freeze idea; would change the API contract |
 | DART `list_filings` pagination | same | Never needed at eight companies |
 | CORS middleware | same | No browser client exists; the iOS app is native |
 | Design directions **B Research Desk**, **C Signal Brief**, **D Evidence Thread** | `docs/design/explorations/`, 2026-08-11 | Direction A shipped as Ledger. C additionally needs a defensible *what changed* model this corpus cannot support (D28) |
 | String Catalog / device-locale localization | Phase B checklist | The in-app KO/EN toggle **is** the bilingual mechanism; a second language system for chrome adds competing state (D19) |
-| Expanding the corpus beyond eight companies | Phase C scope discussion | Adds ingestion cost without changing what the project demonstrates |
 
 ## EXPLICITLY REJECTED
 
@@ -99,6 +104,7 @@ Newest first.
 
 | Date | Work | Evidence |
 |---|---|---|
+| 2026-09-09 | Reconciled the implemented sister-project relationship and approved the release audit and coverage pilot | D49 |
 | 2026-09-05 | Completed the approved clean-slate Codex takeover; retired the Claude release-test dependency and tracked minimal project instructions | D47, `AGENTS.md`, `backend/tests/test_release_version.py` |
 | 2026-09-05 | Clarified that `filing-agent` is deferred and the API freeze stands independently | D40, D43, `docs/ARCHITECTURE.md`, v0.5.1 release note |
 | 2026-09-02 | Trimmed dated measurements and duplicated port rules out of `CLAUDE.md` | `4b8855d` |

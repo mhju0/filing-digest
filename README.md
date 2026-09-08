@@ -36,6 +36,12 @@ DART/SEC endpoints supply every displayed number. KURE-v1 retrieval selects
 source passages, Solar writes narrative only, and deterministic guards reject
 uncited claims or financial numbers in generated text.
 
+**Sister project: [Filing Agent](https://github.com/mhju0/filing-agent).**
+Digest owns filing ingestion, retrieval and the iOS reader. Agent adds local
+conversational investigations over a separately verified snapshot, with a
+[recorded public replay](https://filing-agent.vercel.app). It does not call
+Digest's live API or Solar service during a question.
+
 ## Product
 
 - Browse and filter Korean and US public companies.

@@ -352,7 +352,7 @@ model (`EMBEDDING_WARMUP_ENABLED=false`) and its corpus is seeded SQL. Verifying
 it would require re-embedding the corpus and re-running the live evaluation.
 `requirements.txt` still pins `>=3.0,<6.0`.
 
-### D43 · `filing-agent` as a separate repository — `DEFERRED`
+### D43 · `filing-agent` as a separate repository — `SUPERSEDED` by D49
 A downstream multi-turn agent that calls Filing Digest's five endpoints as
 tools, keeping Filing Digest itself read-only. A 30 KB design document exists at
 `~/Workspace/Projects/filing-agent/FOUNDATION.md` (written 2026-08-27, outside
@@ -433,6 +433,28 @@ keep its vocabulary value for wire compatibility. Financial numbers and source
 provenance retain their existing contracts.
 
 ---
+
+## 2026-09-09 — Release-readiness review
+
+### D49 · Verify both sister projects before maintenance handoff — `ACTIVE`
+The owner approved a comprehensive release-readiness audit, review and merge
+of pending work in both repositories, and a staged Digest coverage expansion.
+First qualify one additional Korean and one US company in an isolated database;
+expand toward ten additional companies only if the pilot succeeds without
+substantial parser changes. Preserve the existing corpus and keep Agent's
+qualified snapshot unchanged. Arbitrary-company discovery and in-app ingestion
+remain optional proposals, not release requirements.
+
+Filing Agent is now implemented and its recorded public replay is deployed.
+It uses a separately qualified snapshot rather than five live Digest API tools.
+This supersedes D43's deferral and proposed integration; D43 retains its dated
+context. API v0.4 and schema v0.3 remain unchanged.
+
+Audit findings precede general remediation. New feature proposals must explain
+their portfolio value, cost and maintenance burden before approval. Resolve
+critical/high defects and core-workflow failures before handoff; explicitly
+accept or resolve medium findings and keep minor polish from extending the
+project indefinitely. Record unavailable checks as unverified.
 
 ## Standing non-goals — `EXPLICITLY REJECTED`
 

@@ -1,6 +1,6 @@
 # Project Handoff
 
-A one-file description of what Filing Digest actually is, as of **2026-09-05**,
+A one-file description of what Filing Digest actually is, as of **2026-09-09**,
 written so a new agent or engineer can work on it without prior conversation
 history.
 
@@ -41,8 +41,8 @@ financial and narrative paths:
 This is a **portfolio project**, not a service. It is local, single-user, and
 has no authentication, authorization, rate limiting, or tenant isolation
 (`README.md:265-272`). It shipped **v0.5.1 as its final release** on
-2026-08-27. A bounded cleanup and verification audit is now authorized (D48);
-features, API, and schema remain frozen.
+2026-08-27. The implemented cleanup is under release-readiness review (D48, D49).
+A bounded company-coverage pilot is approved; API and schema remain frozen.
 
 ---
 
@@ -347,8 +347,8 @@ No failing tests were found in the takeover audit. No open GitHub issues, open
 PRs, stashes, or tracked `TODO`/`FIXME`/`HACK`/`XXX` markers were found. This is
 not proof that live integrations are bug-free; see §§11–12 and §15.
 
-The architecture and v0.5.1 release description now identify `filing-agent` as
-planned and deferred. The v0.5.0 release's API v0.3 statement remains historically
+At the September 5 takeover, the architecture and v0.5.1 release description
+identified `filing-agent` as planned and deferred. D49 supersedes that status. The v0.5.0 release's API v0.3 statement remains historically
 correct; v0.5.1 changed the API to v0.4 after removing MetricCard labels.
 
 ---
@@ -447,8 +447,9 @@ it does not enforce every convention or guarantee live integration behavior.
 
 ## 18. Deferred work and remaining unknowns
 
-- `filing-agent` remains deferred by owner decision (DECISIONS D43). The API
-  freeze and maintenance policy stand independently of its implementation.
+- Filing Agent is implemented with a separately qualified snapshot and local
+  runtime (D49). It does not call Digest live during a question. The API freeze
+  stands independently of that sister project.
 - All 24 live evaluation cases passed during the 2026-09-05 cleanup audit.
   Re-run before a live demonstration or after further ingestion, retrieval,
   embedding, or generation changes; see ROADMAP.
@@ -459,7 +460,10 @@ it does not enforce every convention or guarantee live integration behavior.
 
 ## 19. Current development focus
 
-**Bounded engineering cleanup (D48).** The owner authorized simplification,
-performance improvements, and stronger verification after the clean-slate
-takeover. API v0.4, schema v0.3, and feature scope remain unchanged; ROADMAP
-tracks the cleanup state and deferred work.
+**Release-readiness review (D49).** The implemented cleanup (D48) is being
+reviewed for delivery to main. The final audit covers both projects and their
+public recordings. The approved coverage pilot qualifies one Korean and one US
+company in an isolated database before considering ten additional companies.
+It does not change Agent's snapshot, API v0.4 or schema v0.3. ROADMAP tracks the
+remaining audit and coverage work; completed cleanup evidence is in
+ENGINEERING_AUDIT.md.

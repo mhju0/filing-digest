@@ -136,8 +136,14 @@ Ingestion is CLI-only. There is no remote write endpoint.
 **This contract is frozen** under Filing Digest's maintenance policy. Endpoint
 paths, request limits, and response fields stay as documented above, and no
 endpoint is added. A change to any of them would be a new contract version,
-which this project does not plan to publish. `filing-agent` is a planned,
-deferred consumer; the contract freeze stands independently of whether it is built.
+which this project does not plan to publish.
+
+[Filing Agent](https://github.com/mhju0/filing-agent) is the implemented sister
+project for conversational investigations. It uses a separately qualified,
+pinned snapshot of Digest facts plus regulator supplements. It does not call
+these endpoints, KURE or Solar during a question. Digest owns ingestion and the
+iOS reader; Agent owns its local model runtime, investigations and static replay.
+The contract freeze stands independently of Agent's implementation.
 
 ## Database
 
