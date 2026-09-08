@@ -23,7 +23,7 @@ asset catalog; this document records the durable design rules.
 |---|---|---|---|---|
 | Paper | `#F7F4EE` | `#14130F` | ground | `Color("Paper")` |
 | Ink | `#1A1917` | `#ECE9E3` | 16.0:1 / 15.3:1 | `Color("Ink")` |
-| Muted ink | `#6B6965` | `#8A877F` | 5.0:1 / 5.2:1 | `Color("InkMuted")` |
+| Muted ink | `#53514C` | `#A9A59D` | 7.22:1 / 7.57:1 | `Color("InkMuted")` |
 | Ledger green | `#1D5C45` | `#3E8E6E` | 7.2:1 / 4.7:1 | `AccentColor` |
 | Border | `#8F8B82` | `#6E6B64` | 3.1:1 / 3.5:1 | `Theme.border` |
 | Negative | `#A32A1E` | `#E8776A` | 6.6:1 / 6.4:1 | `Theme.negative` |

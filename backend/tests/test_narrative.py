@@ -177,6 +177,10 @@ def test_prompt_passes_response_format_and_hides_raw_uuids() -> None:
     ("주요 사업은 무엇인가요?", "Korean"),
     ("What are 삼성전자 products?", "English"),
     ("LG전자 주요 사업은?", "Korean"),
+    ("Microsoft 매출은?", "Korean"),
+    ("Costco 사업은?", "Korean"),
+    ("LG Electronics 주요 사업은?", "Korean"),
+    ("Describe 삼성전자 business", "English"),
 ])
 def test_output_language_comes_from_question_not_sources(question, language):
     capture = {}

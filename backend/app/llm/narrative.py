@@ -110,9 +110,7 @@ def _build_label_map(chunks: list[NarrativeChunk]) -> dict[int, str]:
     return {i: str(chunk.chunk_id) for i, chunk in enumerate(chunks, start=1)}
 
 
-def _remap_segment(
-    segment: AnswerSegment, label_map: dict[int, str]
-) -> AnswerSegment:
+def _remap_segment(segment: AnswerSegment, label_map: dict[int, str]) -> AnswerSegment:
     """Rewrite one segment's label citations to real chunk-id strings.
 
     Fails loud (:class:`NarrativeError`) on any citation that is not a known,
@@ -125,8 +123,7 @@ def _remap_segment(
         label = int(match.group(1)) if match else None
         if label is None or label not in label_map:
             raise NarrativeError(
-                f"LLM cited unknown chunk label {raw!r} "
-                f"(valid labels: 1..{len(label_map)})"
+                f"LLM cited unknown chunk label {raw!r} (valid labels: 1..{len(label_map)})"
             )
         remapped.append(label_map[label])
     return AnswerSegment(text=segment.text, citations=remapped)
@@ -151,7 +148,21 @@ async def generate_narrative(
     label_map = _build_label_map(chunks)
     hangul = len(re.findall(r"[가-힣]", question))
     latin = len(re.findall(r"[A-Za-z]", question))
-    language = "Korean" if hangul > latin / 2 else "English"
+    # Question syntax outranks script counts: Latin company names are common
+    # in Korean questions, and Korean company names occur in English ones.
+    korean_question = re.search(
+        r"(?:은|는|인가요|인가|나요|까요|어떤|무엇|알려|설명|주요|매출|사업)", question
+    )
+    english_question = re.search(
+        r"^\s*(?:what|how|which|why|describe|explain|summarize|tell|show)\b", question, re.I
+    )
+    language = (
+        "English"
+        if english_question
+        else "Korean"
+        if korean_question or hangul > latin / 2
+        else "English"
+    )
     messages: list[ChatMessage] = [
         {"role": "system", "content": _SYSTEM_PROMPT + f" Answer text MUST be in {language}."},
         {
@@ -160,9 +171,7 @@ async def generate_narrative(
         },
     ]
 
-    result = await client.complete(
-        messages, response_format=build_answer_json_schema()
-    )
+    result = await client.complete(messages, response_format=build_answer_json_schema())
 
     try:
         raw_answer = Answer.model_validate_json(result.text)
@@ -174,9 +183,7 @@ async def generate_narrative(
     )
 
     retrieved_ids = set(label_map.values())
-    assert_citations(
-        remapped, retrieved_ids, allow_empty_citations=allow_empty_citations
-    )
+    assert_citations(remapped, retrieved_ids, allow_empty_citations=allow_empty_citations)
     assert_number_free(remapped)
     logger.info(
         "narrative generated: %d segment(s) from %d chunk(s)",

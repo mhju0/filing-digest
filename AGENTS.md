@@ -5,7 +5,8 @@ Evidence order: current source/tests → current Git state/history →
 Claude material only when additional context is needed.
 
 Python is exactly 3.11; the virtualenv lives at the repository root. Backend
-dependencies are maintained in `backend/requirements.txt`, not `pyproject.toml`.
+dependency intent is maintained in `backend/requirements.txt`; install the
+qualified `backend/requirements.lock`, not `pyproject.toml`.
 
 ```sh
 # Install from the repository root in a fresh environment

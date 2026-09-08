@@ -18,23 +18,20 @@ citation-grounded FastAPI retrieval pipeline.
 
 </div>
 
-> **Status:** v0.5.1, feature-complete portfolio project in maintenance mode.
-> The current API contract is v0.4; the database schema remains v0.3.
-> [Open the read-only hosted walkthrough](https://mhju0.github.io/filing-digest/).
-> It uses captured app sessions and makes no live API calls. Run the project
-> locally with your own DART and Upstage credentials for the live experience.
-> No production data or API keys are included.
+> **Status:** v0.5.1 with release-readiness fixes and an expanded local corpus.
+> API v0.4 and database schema v0.3 remain unchanged.
+> [Open the recorded, read-only walkthrough](https://mhju0.github.io/filing-digest/).
+> It makes no live API calls. The local app requires your own DART and Upstage
+> credentials; no production data or API keys are included.
 >
-> Maintenance is a narrow set of changes: security patches, dependency
-> vulnerability fixes, corrections to documentation errors, and repairs to dead
-> links. The owner authorized a bounded cleanup, performance, and verification
-> audit on 2026-09-05 ([D48](docs/DECISIONS.md#d48--bounded-engineering-cleanup--active)).
-> New features, database schema changes, and API contract changes remain out of scope.
+> [Coverage](docs/COVERAGE.md): 18 companies across DART and SEC.
+> [Release qualification and remaining limits](docs/RELEASE_READINESS.md).
 
 Filing Digest separates financial figures from generated prose. Structured
 DART/SEC endpoints supply every displayed number. KURE-v1 retrieval selects
 source passages, Solar writes narrative only, and deterministic guards reject
-uncited claims or financial numbers in generated text.
+missing/invalid citations and recognized financial expressions in generated text.
+They do not prove that every sentence is supported by its cited passage.
 
 **Sister project: [Filing Agent](https://github.com/mhju0/filing-agent).**
 Digest owns filing ingestion, retrieval and the iOS reader. Agent adds local
@@ -44,7 +41,7 @@ Digest's live API or Solar service during a question.
 
 ## Product
 
-- Browse and filter Korean and US public companies.
+- Browse and filter companies already ingested from Korean and US filings.
 - Read bilingual company digests with filing-linked metric cards and YoY changes.
 - Ask cross-lingual questions and inspect claim-level excerpts plus the original
   filing source.
@@ -150,6 +147,7 @@ API or health checks.
 | `SEC_BASE_URL` | No | Defaults to `https://data.sec.gov` |
 | `SEC_USER_AGENT` | SEC ingestion | Must contain real contact information |
 | `DATABASE_URL` | No | Local default targets PostgreSQL on port 5433 |
+| `ALLOWED_HOSTS` | No | JSON array of accepted HTTP host names; defaults to localhost and loopback |
 | `EMBEDDING_MODEL` | No | Defaults to `nlpai-lab/KURE-v1` |
 | `EMBEDDING_OFFLINE_FIRST` | No | Prefer a cached model snapshot |
 | `EMBEDDING_WARMUP_ENABLED` | No | Load the model during API startup |
@@ -161,6 +159,11 @@ Hugging Face model cache in a named volume:
 ```bash
 docker compose --profile container up -d --build backend
 ```
+
+Host API and database ports bind to `127.0.0.1`. Physical-device testing over
+LAN requires an explicit API bind and adding the Mac's address to
+`ALLOWED_HOSTS`. Use a trusted private network and restore loopback afterward;
+the API has no authentication. Do not expose PostgreSQL for device testing.
 
 ### Upgrade an existing local database
 
@@ -177,6 +180,12 @@ docker compose exec -T db sh -c \
 cd backend
 ../.venv/bin/python -m app.embeddings.backfill
 ```
+
+Use PostgreSQL 16 `pg_dump` and `pg_restore` with this PostgreSQL 16 database.
+Check both client versions first; do not use a newer default client blindly.
+Restore the backup into a disposable database and verify rows before migration.
+Keep dumps outside Git. The legacy v0.2 migration and restore path are covered
+by `make test-db`; null filing identities fail and roll back rather than being invented.
 
 The migration never invents historical Reporting Period dates. Re-ingest a
 filing to enrich exact dates when its regulator provides them. The final
@@ -195,7 +204,8 @@ From `backend/` with the database running:
 The reference portfolio corpus used for the screenshots contains four DART
 companies (Samsung Electronics, SK Hynix, NAVER, Hyundai Motor) and four SEC
 companies (Apple, Microsoft, NVIDIA, Tesla). That database is local and is not
-distributed with the repository; a fresh checkout starts empty.
+distributed with the repository; a fresh checkout starts empty. The owner’s
+current corpus adds ten qualified companies; see [coverage](docs/COVERAGE.md).
 
 ### Validate
 
