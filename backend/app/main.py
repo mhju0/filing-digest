@@ -7,9 +7,11 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.responses import JSONResponse
 
 from app import __version__
 from app.api.routes import router
@@ -54,6 +56,38 @@ app = FastAPI(
     ),
     lifespan=lifespan,
 )
+
+def _origin(value: str) -> tuple[str, str, int] | None:
+    try:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme not in ("http", "https")
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+        ):
+            return None
+        port = parsed.port if parsed.port is not None else (443 if parsed.scheme == "https" else 80)
+        return parsed.scheme, parsed.hostname, port
+    except ValueError:
+        return None
+
+
+@app.middleware("http")
+async def browser_boundary(request: Request, call_next):
+    origins = request.headers.getlist("origin")
+    sites = request.headers.getlist("sec-fetch-site")
+    expected = _origin(f"{request.url.scheme}://{request.headers.get('host', '')}")
+    foreign_origin = bool(origins) and (
+        len(origins) != 1 or _origin(origins[0]) is None or _origin(origins[0]) != expected
+    )
+    if foreign_origin or any(site.lower() not in ("same-origin", "none") for site in sites):
+        return JSONResponse({"detail": "Cross-site browser request denied"}, status_code=403)
+    return await call_next(request)
+
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=get_settings().allowed_hosts)
 app.include_router(router)
