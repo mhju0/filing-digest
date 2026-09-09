@@ -485,6 +485,21 @@ Blocked browser storage does not prevent either control from working. Fonts are
 bundled with their licenses. This is still a recorded walkthrough with no live
 question API; it does not claim a new recording of the expanded corpus.
 
+## Local browser request boundary — 2026-09-09
+
+Reject requests with a foreign or invalid Origin, or cross-site/same-site Fetch Metadata,
+before route dependencies can access PostgreSQL, embeddings or Solar. Compare
+scheme, host and effective port; retain TrustedHost validation. This applies to
+GET routes too, because a digest cache miss can initiate model work.
+
+Sibling origins are not trusted, including another port on localhost.
+Native iOS and command-line requests without browser headers remain supported.
+Same-origin browser requests remain supported. This is browser request hardening,
+not authentication: the API remains a single-owner local service and must not be
+exposed publicly. No database schema, corpus, financial contract or iOS change is
+needed. Regression tests cover rejection before dependencies and successful
+native/same-origin routing.
+
 ## Standing non-goals — `EXPLICITLY REJECTED`
 
 Each was considered and declined on the record, not merely skipped:
