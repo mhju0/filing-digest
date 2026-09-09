@@ -1,0 +1,103 @@
+@font-face {
+  font-family: Pretendard;
+  src: url('fonts/Pretendard.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nanum Myeongjo';
+  src: url('fonts/NanumMyeongjo-Bold.ttf') format('truetype');
+  font-weight: 600 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nanum Myeongjo';
+  src: url('fonts/NanumMyeongjo-ExtraBold.ttf') format('truetype');
+  font-weight: 800 900;
+  font-display: swap;
+}
+:root { --ink-muted: #53514c; --body: Pretendard, -apple-system, sans-serif; }
+html, body { overflow-anchor: none; }
+html { scroll-behavior: auto; }
+main { overflow: visible; }
+main section[id] { scroll-margin-top: 80px; }
+.page-line { display: block; }
+.facts div { align-items: center; text-align: center; }
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--paper);
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  padding: 8px 0;
+}
+.site-header nav { gap: 20px; margin-left: auto; }
+.language-switch { display: flex; align-items: center; border: 1px solid var(--border); padding: 2px; }
+.language-switch button {
+  min-height: 36px;
+  border: 0;
+  padding: 6px 11px;
+  font: 600 12px var(--body);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.language-switch button[aria-pressed=true] { background: var(--ink); color: var(--paper); }
+.theme-control {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+  font: 600 12px var(--body);
+  min-height: 42px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+html[lang=ko] body { font-family: var(--body); line-height: 1.85; word-break: keep-all; overflow-wrap: anywhere; }
+html[lang=ko] :is(h1,h2,h3,.flow-notes strong,.demo-card figcaption) {
+  font-family: 'Nanum Myeongjo', Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -.055em;
+  line-height: 1.2;
+}
+html[lang=ko] :is(.hero h1,.section-heading h2,.closing h2,.track-grid h3) { font-weight: 800; font-synthesis: none; }
+html[lang=ko] .hero h1 { font-size: min(13.4vw,var(--step-h1)); line-height: 1.14; letter-spacing: -.06em; }
+html[lang=ko] h2, html[lang=ko] .closing h2 { font-size: clamp(2.15rem,4.2vw,4.15rem); }
+html[lang=ko] h3 { font-size: clamp(1.6rem,2.5vw,2.25rem); line-height: 1.4; }
+html[lang=ko] .lede { font-size: 1.13rem; line-height: 1.85; max-width: 540px; }
+html[lang=ko] :is(.eyebrow,.track-label,figcaption,.motion-control,.facts span) { letter-spacing: .025em; }
+html[lang=ko] .facts strong { font-family: 'Nanum Myeongjo',Georgia,serif; font-size: clamp(1.75rem,2.7vw,2.5rem); }
+html[lang=ko] .flow-notes p { line-height: 1.85; margin-top: 10px; }
+html[lang=ko] .section-heading p:last-child { max-width: 630px; line-height: 1.85; }
+html[lang=ko] .demo-card figcaption { line-height: 1.65; }
+html[lang=ko] .flow-notes strong { font-size: 1.4rem; line-height: 1.45; }
+html[lang=ko] .demo-disclosure { line-height: 1.85; }
+body[data-theme=dark] {
+  --paper:#171714; --paper-raised:#22221e; --paper-sunken:#1e1e1a;
+  --ink:#ece9e3; --ink-muted:#b9b5ad; --accent:#93c7ae;
+  --accent-dark:#b6dfc9; --border:#89867e; --hairline:#55534c;
+}
+body[data-theme=dark] .facts, body[data-theme=dark] footer { background:#0e100e; color:#ece9e3; }
+body[data-theme=dark] .facts span, body[data-theme=dark] footer { color:#b9b5ad; }
+body[data-theme=dark] .brand img { content:url('design/logos/mark_dark.png'); }
+body[data-theme=dark] .button-primary { background:#ece9e3; color:#171714; }
+body[data-theme=dark] .button-primary:hover { background:#b6dfc9; }
+body[data-theme=dark] .button-secondary:hover { color:#171714; }
+body[data-theme=dark] .motion-control[aria-pressed=true] { color:#171714; }
+body[data-theme=dark] .device-frame { --chassis:#252622; --chassis-edge:#767369; }
+@media(max-width:750px) {
+  main section[id] { scroll-margin-top:120px; }
+  .site-header { gap:8px; justify-content:space-between; }
+  .site-header nav { width:100%; justify-content:space-between; gap:12px; margin:0; order:2; }
+  .site-header nav a { display:inline-flex!important; font-size:12px; }
+  .language-switch { margin-left:auto; }
+  .theme-control { padding:6px 8px; }
+  .hero { gap:40px; }
+  html[lang=ko] .hero { padding-top:48px; }
+  html[lang=ko] .lede { font-size:1.04rem; }
+  html[lang=ko] .closing { padding-top:44px; padding-bottom:44px; }
+  .brand { font-size:.67rem; gap:6px; letter-spacing:.1em; }
+  .brand img { width:28px; height:21px; }
+  .facts strong { overflow-wrap:anywhere; }
+}

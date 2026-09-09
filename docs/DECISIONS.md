@@ -470,6 +470,21 @@ CI protection and native accessibility fixes. No API/schema change, public live
 service or automatic Filing Agent snapshot expansion is introduced. Preserve the
 recorded demos and document generation/accessibility limits honestly.
 
+## D51 — Bilingual public walkthrough — `ACCEPTED`
+
+The owner selected the original-style Korean design after comparing five local
+studies, then approved publication. The existing page structure and captured
+app footage remain. Korean titles use Nanum Myeongjo ExtraBold, with the hero
+sharing the English maximum display scale. Titles in both languages omit periods;
+each scope-band cell centers its heading and supporting line.
+
+The visible Korean/English toggle supports direct `?lang=ko` and `?lang=en`
+links. An explicit link overrides the saved browser preference; otherwise the
+browser language determines the first visit. Theme preference is also local.
+Blocked browser storage does not prevent either control from working. Fonts are
+bundled with their licenses. This is still a recorded walkthrough with no live
+question API; it does not claim a new recording of the expanded corpus.
+
 ## Standing non-goals — `EXPLICITLY REJECTED`
 
 Each was considered and declined on the record, not merely skipped:

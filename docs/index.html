@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="favicon.png">
   <meta name="description" content="A read-only product walkthrough of Filing Digest, a citation-grounded iOS reader for DART and SEC filings.">
   <meta name="theme-color" content="#f7f4ee">
   <meta property="og:title" content="Filing Digest — Every claim carries a citation">
@@ -10,7 +11,8 @@
   <meta property="og:image" content="https://mhju0.github.io/filing-digest/social-preview.png">
   <title>Filing Digest — Portfolio Demo</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="demo.js" defer></script>
+  <link rel="stylesheet" href="typography.css">
+  <script src="walkthrough.js" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to product demo</a>
@@ -31,7 +33,7 @@
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="hero-copy">
         <p class="eyebrow">READ-ONLY PORTFOLIO DEMO</p>
-        <h1 id="hero-title">Every claim carries a&nbsp;citation.</h1>
+        <h1 id="hero-title">Every claim carries a&nbsp;citation</h1>
         <p class="lede">
           Filing Digest turns Korean DART and US SEC filings into bilingual,
           source-linked iOS reading flows. Financial figures come from structured
@@ -62,7 +64,7 @@
       </figure>
     </section>
 
-    <section class="facts" aria-label="Product scope">
+    <section class="facts" id="scope" aria-label="Product scope">
       <div><strong>DART + SEC</strong><span>Two filing systems</span></div>
       <div><strong>KO + EN</strong><span>Bilingual digests</span></div>
       <div><strong>Claim-level</strong><span>Bounded citations</span></div>
@@ -72,7 +74,7 @@
     <section class="section" id="walkthrough" aria-labelledby="walkthrough-title">
       <div class="section-heading">
         <p class="eyebrow">01 / PRODUCT WALKTHROUGH</p>
-        <h2 id="walkthrough-title">From company list to filing proof.</h2>
+        <h2 id="walkthrough-title">From company list to filing proof</h2>
         <p>
           The captured flow below exercises the product’s central promise:
           browse a bounded corpus, read structured facts, ask a question, and
@@ -154,11 +156,11 @@
       </div>
     </section>
 
-    <section class="screens" aria-labelledby="screens-title">
+    <section class="screens" id="screens" aria-labelledby="screens-title">
       <div class="screens-inner">
         <div class="section-heading compact">
           <p class="eyebrow">IMPLEMENTED SURFACES</p>
-          <h2 id="screens-title">The app, not a concept render.</h2>
+          <h2 id="screens-title">The app, not a concept render</h2>
         </div>
         <div class="screen-grid">
           <figure class="screen-card">
@@ -287,7 +289,7 @@
     <section class="section evidence" id="evidence" aria-labelledby="evidence-title">
       <div class="section-heading">
         <p class="eyebrow">02 / EVIDENCE MODEL</p>
-        <h2 id="evidence-title">Two tracks. One hard boundary.</h2>
+        <h2 id="evidence-title">Two tracks<br>One hard boundary</h2>
         <p>
           Financial facts and generated narrative travel separately, then meet
           in the client only after deterministic checks have run.
@@ -325,9 +327,9 @@
       </div>
     </section>
 
-    <section class="closing" aria-labelledby="closing-title">
+    <section class="closing" id="implementation" aria-labelledby="closing-title">
       <p class="eyebrow">REPOSITORY EVIDENCE</p>
-      <h2 id="closing-title">The implementation is open for inspection.</h2>
+      <h2 id="closing-title">The implementation is open for inspection</h2>
       <p>Architecture decisions, evaluation harnesses, tests, and the full SwiftUI/FastAPI source live beside this demo.</p>
       <div class="hero-actions">
         <a class="button button-primary" href="https://github.com/mhju0/filing-digest">View source and README</a>
