@@ -21,6 +21,8 @@ citation-grounded FastAPI retrieval pipeline.
 > **Status:** v0.5.1 with release-readiness fixes and an expanded local corpus.
 > API v0.4 and database schema v0.3 remain unchanged.
 > [Open the recorded, read-only walkthrough](https://mhju0.github.io/filing-digest/).
+> Available in [한국어](https://mhju0.github.io/filing-digest/?lang=ko) and
+> [English](https://mhju0.github.io/filing-digest/?lang=en).
 > It makes no live API calls. The local app requires your own DART and Upstage
 > credentials; no production data or API keys are included.
 >
