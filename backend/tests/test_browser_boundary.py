@@ -12,6 +12,7 @@ from app.main import app
     {"origin": "https://attacker.invalid"},
     {"origin": "null"},
     {"origin": "http://testserver:8002"},
+    {"origin": "http://testserver:0"},
     {"origin": "https://testserver"},
     {"sec-fetch-site": "cross-site"},
     {"sec-fetch-site": "same-site"},
