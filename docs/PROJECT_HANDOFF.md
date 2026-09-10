@@ -107,7 +107,8 @@ across 24 files [Verified, `wc -l`].
   versioned migration, for upgrading pre-v0.3 local volumes.
 - `backend/evals/golden_set.yaml` — 24 live evaluation cases (14 full, 10
   retrieval). Manual, not a CI gate.
-- `docs/index.html`, `docs/demo.js`, `docs/styles.css`, `docs/screenshots/` —
+- `docs/index.html`, `docs/walkthrough.js`, `docs/preferences.js`,
+  `docs/styles.css`, `docs/screenshots/` —
   the GitHub Pages walkthrough. `backend/tests/test_portfolio_demo.py`
   [Verified] asserts it is fully local (no `http(s)://` image sources) and
   discloses that it makes no live API calls.

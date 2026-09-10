@@ -64,7 +64,14 @@ private final class UITestURLProtocol: URLProtocol {
     }
     """#
 
-    private static let digestJSON = #"""
+    private static var digestJSON: String {
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing-digest-polish") {
+            return digestPolishJSON
+        }
+        return defaultDigestJSON
+    }
+
+    private static let defaultDigestJSON = #"""
     {
       "company_id": "11111111-1111-1111-1111-111111111111",
       "company_name": "삼성전자",
@@ -88,6 +95,59 @@ private final class UITestURLProtocol: URLProtocol {
         "filed_at": "2026-03-10"
       }],
       "generated_at": "2026-08-22T00:00:00Z"
+    }
+    """#
+
+    private static let digestPolishJSON = #"""
+    {
+      "company_id": "11111111-1111-1111-1111-111111111111",
+      "company_name": "삼성전자",
+      "period": "FY2025",
+      "metrics": [
+        {
+          "key": "revenue",
+          "value": 300900000000000,
+          "unit": "KRW",
+          "yoy_delta_pct": 0,
+          "source": "dart",
+          "filing_source_id": "dart:2025-report"
+        },
+        {
+          "key": "operating_income",
+          "value": 26700000000000,
+          "unit": "KRW",
+          "yoy_delta_pct": 4.1,
+          "source": "dart",
+          "filing_source_id": "dart:2025-report"
+        },
+        {
+          "key": "net_income",
+          "value": 22100000000000,
+          "unit": "KRW",
+          "yoy_delta_pct": -2.4,
+          "source": "dart",
+          "filing_source_id": "dart:2025-report"
+        },
+        {
+          "key": "operating_margin",
+          "value": 8.9,
+          "unit": "%",
+          "yoy_delta_pct": null,
+          "source": "dart",
+          "filing_source_id": "dart:2025-report"
+        }
+      ],
+      "summary_ko": null,
+      "summary_en": null,
+      "filing_sources": [{
+        "id": "dart:2025-report",
+        "source": "dart",
+        "source_filing_id": "2025-report",
+        "title": "사업보고서 (2025.12)",
+        "url": "https://dart.fss.or.kr/",
+        "filed_at": "2026-03-10"
+      }],
+      "generated_at": "2026-09-10T00:00:00Z"
     }
     """#
 

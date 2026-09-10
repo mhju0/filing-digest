@@ -7,7 +7,7 @@
 
 # Filing Digest
 
-**Every claim carries a citation.**
+**Every claim carries a citation**
 
 A bilingual iOS reader for Korean DART and US SEC filings, backed by a
 citation-grounded FastAPI retrieval pipeline.

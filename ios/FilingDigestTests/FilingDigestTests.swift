@@ -589,3 +589,50 @@ struct DigestMetricHierarchyTests {
         )
     }
 }
+
+@Suite("Digest language presentation")
+struct DigestLanguagePresentationTests {
+    @Test("Section and action copy follows the selected language")
+    func localizedSectionAndActionCopy() {
+        #expect(DigestCopy.askCompany(.ko) == "이 회사에 질문하기")
+        #expect(DigestCopy.askCompany(.en) == "Ask a question")
+        #expect(DigestCopy.summaryTitle(.ko) == "핵심 요약")
+        #expect(DigestCopy.summaryTitle(.en) == "Key Summary")
+        #expect(DigestCopy.filingSourcesTitle(.ko) == "근거 공시")
+        #expect(DigestCopy.filingSourcesTitle(.en) == "Filing Sources")
+        #expect(DigestCopy.filingOpenLabel(.ko) == "앱에서 열기")
+        #expect(DigestCopy.filingOpenLabel(.en) == "Open in app")
+    }
+
+    @Test("Positive, negative, zero, and missing YoY stay distinct", arguments: [
+        (Language.ko, 3.2, "↑ 전년 대비 3.2%", "+3.2%"),
+        (Language.ko, -3.2, "↓ 전년 대비 -3.2%", "-3.2%"),
+        (Language.ko, 0, "전년 대비 0%", "0%"),
+        (Language.en, 3.2, "↑ YoY 3.2%", "+3.2%"),
+        (Language.en, -3.2, "↓ YoY -3.2%", "-3.2%"),
+        (Language.en, 0, "YoY 0%", "0%"),
+    ])
+    func localizedYearOverYear(
+        language: Language,
+        delta: Double,
+        full: String,
+        compact: String
+    ) {
+        #expect(DigestCopy.yearOverYear(delta, language: language, compact: false) == full)
+        #expect(DigestCopy.yearOverYear(delta, language: language, compact: true) == compact)
+    }
+
+    @Test("Missing YoY is explicit in both languages")
+    func missingYearOverYear() {
+        #expect(DigestCopy.yearOverYear(nil, language: .ko, compact: false) == "전년 비교 자료 없음")
+        #expect(DigestCopy.yearOverYear(nil, language: .en, compact: false) == "YoY unavailable")
+    }
+
+    @Test("Unavailable summary preserves the structured-figure explanation")
+    func unavailableSummary() {
+        #expect(DigestCopy.summaryUnavailable(.ko, hasFigures: true).contains("재무 수치"))
+        #expect(DigestCopy.summaryUnavailable(.en, hasFigures: true).contains("financial figures"))
+        #expect(!DigestCopy.summaryUnavailable(.ko, hasFigures: false).contains("위 재무 수치"))
+        #expect(!DigestCopy.summaryUnavailable(.en, hasFigures: false).contains("figures above"))
+    }
+}

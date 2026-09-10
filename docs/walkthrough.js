@@ -10,12 +10,14 @@ const copy={
 '.skip-link':'제품 화면으로 건너뛰기',
 '.site-header nav a:nth-child(1)':'사용 흐름',
 '.site-header nav a:nth-child(2)':'근거 처리',
-'.site-header nav a:nth-child(3)':'소스 코드',
+'.site-header nav a:nth-child(3)':'Filing Agent',
+'.site-header nav a:nth-child(4)':'소스 코드',
 '.hero .eyebrow':'실제 앱을 녹화한 포트폴리오 데모',
 '.hero .lede':d.intro,
 '.hero-actions a:nth-child(1)':'사용 흐름 보기',
 '.hero-actions a:nth-child(2)':'저장소 살펴보기',
 '.demo-disclosure':'실제 앱 사용 장면을 녹화한 읽기 전용 데모입니다. 실시간 API 호출 없이 동작하며, 인증 정보·분석 도구·사용자 데이터를 사용하지 않습니다.',
+'.capture-scope':'2026년 8월, 초기 8개 회사 기준 화면입니다. 로컬에서 검증한 데이터는 2026년 9월 9일 18개 회사로 늘어났으며, 이 녹화는 당시 공개 버전을 그대로 보여줍니다.',
 '.hero-device figcaption':'구현된 SwiftUI 앱에서 촬영했습니다',
 '.facts div:nth-child(1) span':'한국과 미국의 공시',
 '.facts div:nth-child(2) span':'한국어·영어 요약',
@@ -55,6 +57,7 @@ const copy={
 '.closing > p:not(.eyebrow)':'설계 결정, 평가 도구, 테스트와 SwiftUI·FastAPI 전체 소스를 저장소에서 확인할 수 있습니다.',
 '.closing .hero-actions a:nth-child(1)':'소스 코드와 README 보기',
 '.closing .hero-actions a:nth-child(2)':'아키텍처 읽기',
+'.closing .hero-actions a:nth-child(3)':'Filing Agent 데모 열기',
 'footer span:last-child':'녹화된 포트폴리오 체험'
 };
 const originals=new Map();for(const s of Object.keys(copy))for(const e of document.querySelectorAll(s))if(!originals.has(e))originals.set(e,e.innerHTML);
