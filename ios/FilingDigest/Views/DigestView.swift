@@ -10,7 +10,7 @@
 //
 //  Metric labels are presentation-only and switch locally without refetching.
 //  summary_ko/summary_en may be nil (no narrative generated yet); the summary
-//  section is hidden in that case.
+//  section explains that condition without hiding the structured figures.
 //
 
 import SwiftUI
@@ -161,7 +161,7 @@ struct DigestView: View {
                     HeroMetricView(metric: heroMetric, language: language, isOpenable: true)
                 }
                 .buttonStyle(.ledgerRow)
-                .accessibilityHint("이 수치가 실린 공시를 엽니다")
+                .accessibilityHint(DigestCopy.metricOpenHint(language))
             } else {
                 HeroMetricView(metric: heroMetric, language: language, isOpenable: false)
             }
@@ -176,10 +176,14 @@ struct DigestView: View {
             AnswerView(client: client, company: company)
         } label: {
             HStack(spacing: 10) {
-                Text("이 회사에 질문하기")
+                Text(DigestCopy.askCompany(language))
                     .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Spacer(minLength: 8)
-                Image(systemName: "arrow.right").font(.caption)
+                Image(systemName: "arrow.right")
+                    .font(.caption)
+                    .fixedSize()
             }
             .foregroundStyle(Color.accentColor)
             .padding(.horizontal, 14)
@@ -190,22 +194,34 @@ struct DigestView: View {
         .buttonStyle(.ledgerRow)
         .accessibilityIdentifier("ask-company")
 
-        if let summary = digest.summary(for: language) {
+        if !digest.metrics.isEmpty || !digest.filingSources.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                SectionHeader(title: "핵심 요약", detail: "01")
-                Text(summary)
-                    .font(.system(.body, design: .serif))
-                    .foregroundStyle(Theme.ink)
-                    .lineSpacing(7)
-                    .fixedSize(horizontal: false, vertical: true)
+                SectionHeader(title: DigestCopy.summaryTitle(language), detail: "01")
+                if let summary = digest.summary(for: language) {
+                    Text(summary)
+                        .font(.system(.body, design: .serif))
+                        .foregroundStyle(Theme.ink)
+                        .lineSpacing(7)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(DigestCopy.summaryUnavailable(language, hasFigures: !digest.metrics.isEmpty))
+                        .font(.body)
+                        .foregroundStyle(Theme.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
 
         if !digest.filingSources.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(title: "근거 공시", detail: "\(digest.filingSources.count)")
+                SectionHeader(
+                    title: DigestCopy.filingSourcesTitle(language),
+                    detail: "\(digest.filingSources.count)"
+                )
                 ForEach(digest.filingSources) { filingSource in
-                    FilingSourceRow(filingSource: filingSource) { openFiling = $0 }
+                    FilingSourceRow(filingSource: filingSource, language: language) {
+                        openFiling = $0
+                    }
                     Rectangle()
                         .fill(Theme.hairline)
                         .frame(height: 1)
@@ -295,7 +311,7 @@ struct DigestView: View {
                 SupportingMetricView(metric: metric, language: language, isOpenable: true)
             }
             .buttonStyle(.ledgerRow)
-            .accessibilityHint("이 수치가 실린 공시를 엽니다")
+            .accessibilityHint(DigestCopy.metricOpenHint(language))
         } else {
             SupportingMetricView(metric: metric, language: language, isOpenable: false)
         }
@@ -325,6 +341,62 @@ struct DigestView: View {
     /// language control on compact phones.
     private func filingContext(_ digest: CompanyDigest) -> String {
         FigureDisplay.periodTitle(digest.period, language: language)
+    }
+}
+
+enum DigestCopy {
+    static func askCompany(_ language: Language) -> String {
+        language == .ko ? "이 회사에 질문하기" : "Ask a question"
+    }
+
+    static func summaryTitle(_ language: Language) -> String {
+        language == .ko ? "핵심 요약" : "Key Summary"
+    }
+
+    static func filingSourcesTitle(_ language: Language) -> String {
+        language == .ko ? "근거 공시" : "Filing Sources"
+    }
+
+    static func summaryUnavailable(_ language: Language, hasFigures: Bool) -> String {
+        switch (language, hasFigures) {
+        case (.ko, true):
+            "서술형 요약을 사용할 수 없습니다. 위 재무 수치는 공시 데이터에서 가져온 값으로 그대로 확인할 수 있습니다."
+        case (.ko, false):
+            "서술형 요약을 사용할 수 없습니다."
+        case (.en, true):
+            "Narrative summary unavailable. The financial figures above remain available from structured filing data."
+        case (.en, false):
+            "Narrative summary unavailable."
+        }
+    }
+
+    static func yearOverYear(_ delta: Double?, language: Language, compact: Bool) -> String {
+        guard let delta else {
+            return language == .ko ? "전년 비교 자료 없음" : "YoY unavailable"
+        }
+
+        let formatted = delta.formatted(.number.precision(.fractionLength(0...1)))
+        if compact {
+            if delta > 0 { return "+\(formatted)%" }
+            return "\(formatted)%"
+        }
+
+        let label = language == .ko ? "전년 대비" : "YoY"
+        if delta > 0 { return "↑ \(label) \(formatted)%" }
+        if delta < 0 { return "↓ \(label) \(formatted)%" }
+        return "\(label) \(formatted)%"
+    }
+
+    static func metricOpenHint(_ language: Language) -> String {
+        language == .ko ? "이 수치가 실린 공시를 엽니다" : "Opens the filing containing this figure"
+    }
+
+    static func filingOpenLabel(_ language: Language) -> String {
+        language == .ko ? "앱에서 열기" : "Open in app"
+    }
+
+    static func filingOpenHint(_ language: Language) -> String {
+        language == .ko ? "공시 원문을 앱에서 엽니다" : "Opens the original filing in the app"
     }
 }
 
@@ -363,12 +435,10 @@ private struct HeroMetricView: View {
                         .fixedSize()
                 }
             }
-            if let delta = metric.yoyDeltaPct {
-                Text(deltaText(delta))
-                    .font(.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(delta >= 0 ? Color.accentColor : Theme.negative)
-            }
+            Text(DigestCopy.yearOverYear(metric.yoyDeltaPct, language: language, compact: false))
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(deltaColor)
             VStack(spacing: 3) {
                 Rectangle().fill(Theme.hairline).frame(height: 1)
                 Rectangle().fill(Theme.hairline).frame(height: 1)
@@ -387,9 +457,11 @@ private struct HeroMetricView: View {
         return FigureDisplay.formattedValueParts(value, unit: metric.unit, language: language)
     }
 
-    private func deltaText(_ delta: Double) -> String {
-        let formatted = delta.formatted(.number.precision(.fractionLength(0...1)))
-        return delta >= 0 ? "↑ 전년 대비 \(formatted)%" : "↓ 전년 대비 \(formatted)%"
+    private var deltaColor: Color {
+        guard let delta = metric.yoyDeltaPct else { return Theme.inkMuted }
+        if delta > 0 { return Color.accentColor }
+        if delta < 0 { return Theme.negative }
+        return Theme.inkMuted
     }
 }
 
@@ -419,16 +491,10 @@ private struct SupportingMetricView: View {
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
-            if let delta = metric.yoyDeltaPct {
-                Text(delta >= 0 ? "+\(formattedDelta(delta))%" : "\(formattedDelta(delta))%")
-                    .font(.caption2)
-                    .monospacedDigit()
-                    .foregroundStyle(delta >= 0 ? Color.accentColor : Theme.negative)
-            } else {
-                Text("변동률 없음")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.inkMuted)
-            }
+            Text(DigestCopy.yearOverYear(metric.yoyDeltaPct, language: language, compact: true))
+                .font(.caption2)
+                .monospacedDigit()
+                .foregroundStyle(deltaColor)
         }
         .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
         .contentShape(Rectangle())
@@ -440,8 +506,11 @@ private struct SupportingMetricView: View {
         return FigureDisplay.formattedValue(value, unit: metric.unit, language: language)
     }
 
-    private func formattedDelta(_ delta: Double) -> String {
-        delta.formatted(.number.precision(.fractionLength(0...1)))
+    private var deltaColor: Color {
+        guard let delta = metric.yoyDeltaPct else { return Theme.inkMuted }
+        if delta > 0 { return Color.accentColor }
+        if delta < 0 { return Theme.negative }
+        return Theme.inkMuted
     }
 }
 
@@ -452,6 +521,7 @@ private struct SupportingMetricView: View {
 /// a two-line title is a poor tap target for the app's central action.
 struct FilingSourceRow: View {
     let filingSource: FilingSource
+    var language: Language = .ko
     var onOpen: ((OpenableFiling) -> Void)?
 
     @ViewBuilder
@@ -459,7 +529,7 @@ struct FilingSourceRow: View {
         if let openable = OpenableFiling(filingSource), let onOpen {
             Button { onOpen(openable) } label: { row(isOpenable: true) }
                 .buttonStyle(.ledgerRow)
-                .accessibilityHint("공시 원문을 앱에서 엽니다")
+                .accessibilityHint(DigestCopy.filingOpenHint(language))
         } else {
             row(isOpenable: false)
         }
@@ -477,7 +547,11 @@ struct FilingSourceRow: View {
                         Text(filedAt).font(.caption.monospaced())
                     }
                     if isOpenable {
-                        Text(filingSource.filedAt == nil ? "앱에서 열기" : "· 앱에서 열기")
+                        Text(
+                            filingSource.filedAt == nil
+                                ? DigestCopy.filingOpenLabel(language)
+                                : "· \(DigestCopy.filingOpenLabel(language))"
+                        )
                             .font(.caption)
                     }
                 }

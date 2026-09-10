@@ -61,4 +61,50 @@ final class FilingDigestUITests: XCTestCase {
         ask.tap()
         XCTAssertTrue(app.textFields["answer-question"].waitForExistence(timeout: 5))
     }
+
+    func testDigestPolishStatesInKoreanAndEnglish() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-ui-testing-digest-polish"]
+        app.launch()
+
+        app.buttons["company-005930"].firstMatch.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["digest-screen"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["전년 대비 0%"].exists)
+        XCTAssertFalse(app.staticTexts["↑ 전년 대비 0%"].exists)
+        XCTAssertTrue(app.staticTexts["+4.1%"].exists)
+        XCTAssertTrue(app.staticTexts["-2.4%"].exists)
+        XCTAssertTrue(app.staticTexts["전년 비교 자료 없음"].exists)
+        attachScreenshot(named: "digest-polish-ko-metrics")
+
+        let summary = app.staticTexts["서술형 요약을 사용할 수 없습니다. 위 재무 수치는 공시 데이터에서 가져온 값으로 그대로 확인할 수 있습니다."]
+        for _ in 0..<6 where !summary.isHittable { app.swipeUp() }
+        XCTAssertTrue(summary.isHittable)
+        XCTAssertTrue(app.staticTexts["근거 공시"].exists)
+        XCTAssertTrue(app.staticTexts["· 앱에서 열기"].exists)
+        attachScreenshot(named: "digest-polish-ko-summary")
+
+        let english = app.buttons["영어"]
+        for _ in 0..<6 where !english.isHittable { app.swipeDown() }
+        XCTAssertTrue(english.isHittable)
+        english.tap()
+        for _ in 0..<6 { app.swipeDown() }
+        XCTAssertTrue(app.staticTexts["YoY 0%"].exists)
+        XCTAssertFalse(app.staticTexts["↑ YoY 0%"].exists)
+        XCTAssertTrue(app.staticTexts["YoY unavailable"].exists)
+        attachScreenshot(named: "digest-polish-en-metrics")
+
+        let englishSummary = app.staticTexts["Narrative summary unavailable. The financial figures above remain available from structured filing data."]
+        for _ in 0..<6 where !englishSummary.isHittable { app.swipeUp() }
+        XCTAssertTrue(englishSummary.isHittable)
+        XCTAssertTrue(app.staticTexts["Filing Sources"].exists)
+        XCTAssertTrue(app.staticTexts["· Open in app"].exists)
+        attachScreenshot(named: "digest-polish-en-summary")
+    }
+
+    private func attachScreenshot(named name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
 }
