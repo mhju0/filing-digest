@@ -12,6 +12,8 @@
 A bilingual iOS reader for Korean DART and US SEC filings, backed by a
 citation-grounded FastAPI retrieval pipeline.
 
+[Recorded walkthrough](https://mhju0.github.io/filing-digest/) · [Coverage](docs/COVERAGE.md) · [Release qualification](docs/RELEASE_READINESS.md) · [Sister project: Filing Agent](https://github.com/mhju0/filing-agent)
+
 [![CI](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml/badge.svg)](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml)
 ![Python 3.11](https://img.shields.io/badge/Python-3.11-3776ab.svg)
 ![iOS 17+](https://img.shields.io/badge/iOS-17%2B-black.svg)
@@ -26,14 +28,17 @@ citation-grounded FastAPI retrieval pipeline.
 > It makes no live API calls. The local app requires your own DART and Upstage
 > credentials; no production data or API keys are included.
 >
-> [Coverage](docs/COVERAGE.md): 18 companies across DART and SEC.
+> [Latest local qualification](docs/COVERAGE.md): 18 companies across DART and
+> SEC as of September 9, 2026.
 > [Release qualification and remaining limits](docs/RELEASE_READINESS.md).
 
 Filing Digest separates financial figures from generated prose. Structured
-DART/SEC endpoints supply every displayed number. KURE-v1 retrieval selects
-source passages, Solar writes narrative only, and deterministic guards reject
-missing/invalid citations and recognized financial expressions in generated text.
-They do not prove that every sentence is supported by its cited passage.
+DART/SEC facts supply displayed reported financial values, and backend code
+derives displayed comparisons and ratios from those facts. KURE-v1 retrieval
+selects source passages, Solar writes narrative only, and deterministic guards
+reject missing/invalid citations and recognized financial expressions in
+generated text. They do not prove that every sentence is supported by its cited
+passage.
 
 **Sister project: [Filing Agent](https://github.com/mhju0/filing-agent).**
 Digest owns filing ingestion, retrieval and the iOS reader. Agent adds local
@@ -80,7 +85,7 @@ Corporate Filing; source-neutral chunks carry only a typed Filing Chunk
 Location. The persistence adapter is the only layer that serializes that
 location to JSONB.
 
-The answer path has two independent tracks:
+The answer path has two independent tracks, followed by source resolution:
 
 1. Filing-scoped Financial Facts become exact, source-bearing figures without
    passing through an LLM.
@@ -100,7 +105,7 @@ bilingual display labels and derives them from the transported metric key.
 | Document | Contents |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Component boundaries, schema decisions, API contract |
-| [CONTEXT.md](CONTEXT.md) | Domain glossary — the vocabulary the code is named after |
+| [CONTEXT.md](CONTEXT.md) | Domain glossary: the vocabulary the code is named after |
 | [docs/adr/](docs/adr/) | Architecture decisions and the alternatives they replaced |
 | [docs/design/DESIGN.md](docs/design/DESIGN.md) | The implemented visual system and its accessibility floor |
 | [docs/dart-api-notes.md](docs/dart-api-notes.md) | Non-obvious OpenDART response behaviors |
@@ -206,8 +211,9 @@ From `backend/` with the database running:
 The reference portfolio corpus used for the screenshots contains four DART
 companies (Samsung Electronics, SK Hynix, NAVER, Hyundai Motor) and four SEC
 companies (Apple, Microsoft, NVIDIA, Tesla). That database is local and is not
-distributed with the repository; a fresh checkout starts empty. The owner’s
-current corpus adds ten qualified companies; see [coverage](docs/COVERAGE.md).
+distributed with the repository; a fresh checkout starts empty. As of September
+9, 2026, the owner's qualified local corpus adds ten companies beyond that
+screenshot set; see [coverage](docs/COVERAGE.md).
 
 ### Validate
 
@@ -255,7 +261,7 @@ update; see [`backend/evals/README.md`](backend/evals/README.md).
 The Simulator shares the host's network stack, so a fresh checkout needs no
 configuration: `APIClient` falls back to `http://127.0.0.1:8001`. On a real
 device that address is the phone itself, so the build has to be told where the
-Mac is. Create `ios/Local.xcconfig` — it is gitignored, because a signing
+Mac is. Create `ios/Local.xcconfig`. It is gitignored because a signing
 identity and a LAN address belong to one machine, not to the repository:
 
 ```text
@@ -280,7 +286,7 @@ unauthenticated API to everyone on the same Wi-Fi. macOS also blocks incoming
 connections to the venv Python binary by default; allow it in System Settings →
 Network → Firewall. App Transport Security permits the plain-HTTP dev server
 through `NSAllowsLocalNetworking`, which covers `.local` and unqualified
-hostnames only — not arbitrary internet loads.
+hostnames only, not arbitrary internet loads.
 
 ## API
 
