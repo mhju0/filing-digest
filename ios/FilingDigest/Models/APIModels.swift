@@ -48,6 +48,10 @@ enum Market: String, Codable, Hashable, Sendable {
         case .nasdaq: "나스닥"
         }
     }
+
+    func displayName(_ language: Language) -> String {
+        language == .ko ? koreanDisplayName : rawValue
+    }
 }
 
 /// Canonical measures reported directly by a Corporate Filing.
@@ -145,6 +149,42 @@ struct Company: Codable, Identifiable, Hashable, Sendable {
     var koreanSecurityIdentifier: String? {
         guard let ticker, !ticker.isEmpty else { return nil }
         return source == .dart ? "종목코드 \(ticker)" : "티커 \(ticker)"
+    }
+
+    /// Familiar English names for the same corpus; regulator English names
+    /// arrive as legal forms such as "SAMSUNG ELECTRONICS CO,.LTD".
+    var englishDisplayName: String {
+        switch ticker?.uppercased() {
+        case "005930": "Samsung Electronics"
+        case "000660": "SK hynix"
+        case "035420": "NAVER"
+        case "005380": "Hyundai Motor"
+        case "000270": "Kia"
+        case "006400": "Samsung SDI"
+        case "051910": "LG Chem"
+        case "066570": "LG Electronics"
+        case "207940": "Samsung Biologics"
+        case "AAPL": "Apple"
+        case "MSFT": "Microsoft"
+        case "NVDA": "NVIDIA"
+        case "TSLA": "Tesla"
+        case "AMZN": "Amazon"
+        case "COST": "Costco"
+        case "GOOGL": "Alphabet"
+        case "META": "Meta"
+        case "WMT": "Walmart"
+        default: nameEn ?? name
+        }
+    }
+
+    func displayName(_ language: Language) -> String {
+        language == .ko ? koreanDisplayName : englishDisplayName
+    }
+
+    func securityIdentifier(_ language: Language) -> String? {
+        guard language == .en else { return koreanSecurityIdentifier }
+        guard let ticker, !ticker.isEmpty else { return nil }
+        return source == .dart ? "Stock code \(ticker)" : "Ticker \(ticker)"
     }
 }
 

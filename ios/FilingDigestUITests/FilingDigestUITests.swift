@@ -27,6 +27,30 @@ final class FilingDigestUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["반도체와 모바일 사업이 핵심 사업 부문입니다."].exists)
         XCTAssertTrue(app.staticTexts["근거 확인됨"].exists)
     }
+    func testEnglishToggleCarriesIntoAnswerAndEvidence() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing"]
+        app.launch()
+
+        let company = app.buttons["company-005930"].firstMatch
+        XCTAssertTrue(company.waitForExistence(timeout: 5))
+        company.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["digest-screen"].waitForExistence(timeout: 5))
+        app.buttons["영어"].tap()
+        XCTAssertTrue(app.staticTexts["Stock code 005930 / KOSPI"].waitForExistence(timeout: 2))
+        app.buttons["ask-company"].tap()
+
+        XCTAssertTrue(app.staticTexts["Answers come only from the filings"].waitForExistence(timeout: 5))
+        app.staticTexts["What are the main business segments?"].tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["answer-result"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Samsung Electronics / Answer"].exists)
+        XCTAssertTrue(app.staticTexts["Evidence verified"].exists)
+        app.buttons["Evidence 1"].tap()
+        XCTAssertTrue(app.staticTexts["Evidence 01"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["View in the original filing"].exists)
+    }
+
     func testAccessibilityOfReaderAndAnswer() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing"]

@@ -500,6 +500,16 @@ exposed publicly. No database schema, corpus, financial contract or iOS change i
 needed. Regression tests cover rejection before dependencies and successful
 native/same-origin routing.
 
+## D52 — The digest language toggle also drives app chrome — `ACCEPTED`
+
+2026-09-29. D19 stands: there is no device-locale localization and no String
+Catalog. The digest's existing KO/EN toggle is still the only language control;
+it now also switches the answer screen, evidence sheet, figure rows and company
+header, and is passed into `AnswerView`. English mode suggests English
+questions because `/answer` narrates in the question's language. Korean output
+is unchanged. The search screen has no toggle and stays Korean, and transport
+and evidence-validation error text is still Korean.
+
 ## Standing non-goals — `EXPLICITLY REJECTED`
 
 Each was considered and declined on the record, not merely skipped:
@@ -512,4 +522,4 @@ Each was considered and declined on the record, not merely skipped:
 | DART `xforms` parsing and attachment ingestion | Detected and skipped deliberately; a different parser project |
 | Financial and holding companies in the corpus | D15 — IFRS financial-sector account mapping is its own project |
 | An in-app conversational chat surface | D8 — removed once `/answer` was real, and never reinstated |
-| Device-locale localization | D19 — the in-app KO/EN toggle is the bilingual mechanism |
+| Device-locale localization | D19 — the in-app KO/EN toggle is the bilingual mechanism (extended to chrome by D52) |

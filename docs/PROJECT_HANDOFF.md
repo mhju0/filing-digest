@@ -476,3 +476,11 @@ D50 qualifies ten additional companies and local release fixes. See
 [release evidence](RELEASE_READINESS.md) and [coverage](COVERAGE.md). Install
 `backend/requirements.lock`; `requirements.txt` records dependency intent.
 Compose now binds host ports to loopback and the API validates Host headers.
+
+## English app chrome · 2026-09-29
+
+The digest KO/EN toggle now carries into the answer and evidence screens (D52).
+Open issues: the search screen and transport/validation error messages remain
+Korean-only; `CompanyDirectoryTests.ordering()` already fails on `main` because
+`localizedStandardCompare` ordering depends on the simulator locale. Next step:
+decide whether search needs its own language control.

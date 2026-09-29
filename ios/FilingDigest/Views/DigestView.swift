@@ -41,16 +41,19 @@ struct DigestView: View {
                     requestStatus
                     digestContent(digest)
                 } else if state.isLoading {
-                    ProgressView("불러오는 중…")
+                    ProgressView(language == .ko ? "불러오는 중…" : "Loading…")
                         .frame(maxWidth: .infinity)
                         .padding(.top, 40)
                 } else if let blockingError = state.blockingError {
                     ContentUnavailableView {
-                        Label("요약을 불러오지 못했습니다", systemImage: "exclamationmark.triangle")
+                        Label(
+                            language == .ko ? "요약을 불러오지 못했습니다" : "Couldn't load the digest",
+                            systemImage: "exclamationmark.triangle"
+                        )
                     } description: {
                         Text(blockingError)
                     } actions: {
-                        Button("다시 시도") {
+                        Button(language == .ko ? "다시 시도" : "Try again") {
                             Task { await state.retry() }
                         }
                         .buttonStyle(.ledger)
@@ -71,18 +74,18 @@ struct DigestView: View {
                 // The wordmark belongs to the root screen. Once you are inside
                 // a company, the useful thing to hold at the top is which
                 // company — the serif header scrolls away, this does not.
-                Text(company.koreanDisplayName)
+                Text(company.displayName(language))
                     .font(Theme.display(.headline))
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
-                    AnswerView(client: client, company: company)
+                    AnswerView(client: client, company: company, language: language)
                 } label: {
                     Image(systemName: "questionmark.bubble")
                 }
-                .accessibilityLabel("이 회사에 질문하기")
+                .accessibilityLabel(DigestCopy.askCompany(language))
             }
         }
         .toolbarBackground(Theme.paper, for: .navigationBar)
@@ -99,16 +102,16 @@ struct DigestView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center) {
                 Text(
-                    [company.koreanSecurityIdentifier, company.market?.koreanDisplayName]
+                    [company.securityIdentifier(language), company.market?.displayName(language)]
                         .compactMap(\.self)
                         .joined(separator: " / ")
                 )
                 .font(.caption.monospaced())
                 .foregroundStyle(Theme.inkMuted)
                 Spacer(minLength: 8)
-                SourceBadge(source: company.source)
+                SourceBadge(source: company.source, language: language)
             }
-            Text(company.koreanDisplayName)
+            Text(company.displayName(language))
                 .font(Theme.display(.title))
                 .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -122,7 +125,7 @@ struct DigestView: View {
     @ViewBuilder
     private var requestStatus: some View {
         if state.isRefreshing {
-            ProgressView("새로 고치는 중…")
+            ProgressView(language == .ko ? "새로 고치는 중…" : "Refreshing…")
                 .font(.caption)
                 .foregroundStyle(Theme.inkMuted)
         }
@@ -141,9 +144,13 @@ struct DigestView: View {
         if digest.metrics.isEmpty && digest.summary(for: language) == nil
             && digest.filingSources.isEmpty {
             ContentUnavailableView(
-                "아직 요약할 공시가 없습니다",
+                language == .ko ? "아직 요약할 공시가 없습니다" : "No filings to summarize yet",
                 systemImage: "doc.text",
-                description: Text("이 회사의 공시가 수집되면 핵심 수치와 요약이 표시됩니다.")
+                description: Text(
+                    language == .ko
+                        ? "이 회사의 공시가 수집되면 핵심 수치와 요약이 표시됩니다."
+                        : "Key figures and a summary appear once this company's filings are collected."
+                )
             )
             .padding(.top, 20)
         }
@@ -173,7 +180,7 @@ struct DigestView: View {
         }
 
         NavigationLink {
-            AnswerView(client: client, company: company)
+            AnswerView(client: client, company: company, language: language)
         } label: {
             HStack(spacing: 10) {
                 Text(DigestCopy.askCompany(language))
@@ -258,9 +265,9 @@ struct DigestView: View {
     }
 
     private var languagePicker: some View {
-        Picker("표시 언어", selection: $language) {
-            Text("한국어").tag(Language.ko)
-            Text("영어").tag(Language.en)
+        Picker(language == .ko ? "표시 언어" : "Display language", selection: $language) {
+            Text(language == .ko ? "한국어" : "Korean").tag(Language.ko)
+            Text(language == .ko ? "영어" : "English").tag(Language.en)
         }
         .pickerStyle(.segmented)
         .frame(maxWidth: 156)
@@ -558,7 +565,7 @@ struct FilingSourceRow: View {
                 .foregroundStyle(Theme.inkMuted)
             }
             Spacer(minLength: 8)
-            SourceBadge(source: filingSource.source)
+            SourceBadge(source: filingSource.source, language: language)
         }
         .padding(.vertical, 12)
         .frame(minHeight: 44)

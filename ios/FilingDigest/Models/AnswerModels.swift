@@ -61,6 +61,18 @@ enum NarrativeBlockedReason: String, Decodable, CaseIterable, Hashable, Sendable
             "인용을 원문까지 확인하지 못해 서술을 보류했습니다. 아래 값은 공시 원문 그대로입니다."
         }
     }
+
+    func userMessage(_ language: Language) -> String {
+        guard language == .en else { return userMessage }
+        switch self {
+        case .numberGuard:
+            return "The generated text contained amounts, so it was withheld. The values below are exactly as filed."
+        case .narrativeUnavailable:
+            return "A written answer is not available right now. The values below are exactly as filed."
+        case .evidenceIntegrity:
+            return "Citations could not be traced to the filing, so the written answer was withheld. The values below are exactly as filed."
+        }
+    }
 }
 
 /// One narrated span and the Citation ids backing it.
