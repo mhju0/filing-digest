@@ -76,7 +76,7 @@ html[lang=ko] .demo-disclosure { line-height: 1.85; }
 body[data-theme=dark] {
   --paper:#171714; --paper-raised:#22221e; --paper-sunken:#1e1e1a;
   --ink:#ece9e3; --ink-muted:#b9b5ad; --accent:#93c7ae;
-  --accent-dark:#b6dfc9; --border:#89867e; --hairline:#55534c;
+  --accent-dark:#b6dfc9; --border:#89867e; --hairline:#55534c; --agent:#e8a985;
 }
 body[data-theme=dark] .facts, body[data-theme=dark] footer { background:#0e100e; color:#ece9e3; }
 body[data-theme=dark] .facts span, body[data-theme=dark] footer { color:#b9b5ad; }
