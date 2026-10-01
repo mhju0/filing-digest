@@ -4,6 +4,7 @@ import SwiftUI
 /// DART carries the accent; SEC stays ink — one accent color does real work.
 struct SourceBadge: View {
     let source: RegulatorySource
+    var language: Language = .ko
 
     var body: some View {
         Text(source.rawValue.uppercased())
@@ -19,6 +20,8 @@ struct SourceBadge: View {
                         lineWidth: 1
                     )
             )
-            .accessibilityLabel("출처 \(source.rawValue.uppercased())")
+            .accessibilityLabel(
+                "\(language == .ko ? "출처" : "Source") \(source.rawValue.uppercased())"
+            )
     }
 }

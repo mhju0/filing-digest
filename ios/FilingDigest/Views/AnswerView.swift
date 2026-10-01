@@ -17,6 +17,8 @@ import SwiftUI
 struct AnswerView: View {
     let client: APIClient
     let company: Company
+    /// Chosen on the digest's KO/EN toggle; the app's one language control.
+    let language: Language
 
     @StateObject private var state: AnswerState
     @State private var query = ""
@@ -25,9 +27,10 @@ struct AnswerView: View {
     /// narrative expands it unconditionally.
     @State private var figuresExpanded = false
 
-    init(client: APIClient, company: Company) {
+    init(client: APIClient, company: Company, language: Language) {
         self.client = client
         self.company = company
+        self.language = language
         _state = StateObject(wrappedValue: AnswerState(sendAnswer: {
             try await client.sendAnswer(query: $0, companyId: $1, period: $2)
         }))
@@ -40,7 +43,7 @@ struct AnswerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("\(company.koreanDisplayName) / 답변")
+                    Text(AnswerCopy.title(companyName: company.displayName(language), language: language))
                         .font(Theme.display(.headline))
                         .foregroundStyle(Theme.ink)
                         .lineLimit(1)
@@ -49,7 +52,7 @@ struct AnswerView: View {
             .toolbarBackground(Theme.paper, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .sheet(item: $selectedEvidence) { selection in
-                EvidenceSheet(selection: selection)
+                EvidenceSheet(selection: selection, language: language)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
                     .presentationBackground(Theme.paper)
@@ -64,7 +67,7 @@ struct AnswerView: View {
             TextField(
                 // "이어서" promised a thread the backend does not keep: every
                 // /answer call is single-shot and carries no history.
-                state.response == nil ? "이 회사에 대해 질문하세요" : "다른 질문하기",
+                AnswerCopy.inputPlaceholder(hasResponse: state.response != nil, language: language),
                 text: $query,
                 axis: .vertical
             )
@@ -100,7 +103,7 @@ struct AnswerView: View {
                 .background(Rectangle().fill(canAsk ? Theme.ink : Theme.border))
             }
             .disabled(!canAsk)
-            .accessibilityLabel("질문 전송")
+            .accessibilityLabel(language == .ko ? "질문 전송" : "Send question")
             .accessibilityIdentifier("answer-submit")
         }
         .readableWidth()
@@ -144,11 +147,14 @@ struct AnswerView: View {
             pendingAnswer
         } else if let blockingError = state.blockingError {
             ContentUnavailableView {
-                Label("답변을 가져오지 못했습니다", systemImage: "exclamationmark.triangle")
+                Label(
+                    language == .ko ? "답변을 가져오지 못했습니다" : "Couldn't get an answer",
+                    systemImage: "exclamationmark.triangle"
+                )
             } description: {
                 Text(blockingError)
             } actions: {
-                Button("다시 시도") {
+                Button(language == .ko ? "다시 시도" : "Try again") {
                     Task { await state.retry() }
                 }
                 .buttonStyle(.ledger)
@@ -161,7 +167,7 @@ struct AnswerView: View {
     @ViewBuilder
     private var requestStatus: some View {
         if state.isRefreshing {
-            ProgressView("답변을 새로 생성하는 중…")
+            ProgressView(language == .ko ? "답변을 새로 생성하는 중…" : "Generating a new answer…")
                 .font(.caption)
                 .foregroundStyle(Theme.inkMuted)
         }
@@ -178,12 +184,8 @@ struct AnswerView: View {
     /// will withhold. These are the shapes that retrieve well against an
     /// annual report, and they teach the rule faster than any explanation.
     /// Korean phrasing also works against the SEC corpus — KURE-v1 is one
-    /// cross-lingual embedding space.
-    private static let suggestedQuestions = [
-        "주요 사업 부문은 무엇인가요",
-        "주요 리스크 요인은 무엇인가요",
-        "연구개발 조직은 어떻게 구성되어 있나요",
-    ]
+    /// cross-lingual embedding space. The answer follows the question's
+    /// language, so English mode suggests English questions.
 
     private var starter: some View {
         ScrollView {
@@ -192,10 +194,10 @@ struct AnswerView: View {
                     Image(systemName: "text.quote")
                         .font(.title)
                         .foregroundStyle(Theme.inkMuted)
-                    Text("공시에 있는 것만 답합니다")
+                    Text(AnswerCopy.starterTitle(language))
                         .font(Theme.display(.title3))
                         .foregroundStyle(Theme.ink)
-                    Text("답변의 모든 문장에 원문 인용이 붙습니다. 근거를 찾지 못하면 답하지 않습니다.")
+                    Text(AnswerCopy.starterBody(language))
                         .font(.subheadline)
                         .foregroundStyle(Theme.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -203,10 +205,10 @@ struct AnswerView: View {
                 .padding(.top, 28)
                 .accessibilityElement(children: .combine)
 
-                SectionHeader(title: "이렇게 물어보세요")
+                SectionHeader(title: AnswerCopy.suggestionsTitle(language))
 
                 VStack(spacing: 9) {
-                    ForEach(Self.suggestedQuestions, id: \.self) { question in
+                    ForEach(AnswerCopy.suggestedQuestions(language), id: \.self) { question in
                         Button {
                             Task { await ask(question) }
                         } label: {
@@ -254,7 +256,7 @@ struct AnswerView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
-                        Text("답변 생성 중")
+                        Text(language == .ko ? "답변 생성 중" : "Generating answer")
                             .font(Theme.sectionLabel)
                             .tracking(1.2)
                             .foregroundStyle(Theme.inkMuted)
@@ -271,7 +273,7 @@ struct AnswerView: View {
                             .scaleEffect(x: fraction, anchor: .leading)
                     }
                 }
-                Text("공시 원문에서 근거를 찾는 중입니다.")
+                Text(language == .ko ? "공시 원문에서 근거를 찾는 중입니다." : "Searching the filing for evidence.")
                     .font(.caption)
                     .foregroundStyle(Theme.inkMuted)
             }
@@ -279,7 +281,11 @@ struct AnswerView: View {
             .padding(.top, 12)
             .readableWidth()
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("답변 생성 중. 질문: \(state.askedQuery)")
+            .accessibilityLabel(
+                language == .ko
+                    ? "답변 생성 중. 질문: \(state.askedQuery)"
+                    : "Generating answer. Question: \(state.askedQuery)"
+            )
         }
     }
 
@@ -294,7 +300,9 @@ struct AnswerView: View {
                 .foregroundStyle(Theme.ink)
         }
         .fixedSize(horizontal: false, vertical: true)
-        .accessibilityLabel("질문: \(state.askedQuery)")
+        .accessibilityLabel(
+            language == .ko ? "질문: \(state.askedQuery)" : "Question: \(state.askedQuery)"
+        )
     }
 
     // MARK: 3-state result
@@ -330,13 +338,14 @@ struct AnswerView: View {
         onCitationTap: @escaping (Int) -> Void
     ) -> some View {
         SectionHeader(
-            title: "답변 / 주장 \(answer.answerSegments.count)개",
-            detail: "근거 확인됨"
+            title: AnswerCopy.claims(answer.answerSegments.count, language: language),
+            detail: AnswerCopy.evidenceVerified(language)
         )
         ForEach(Array(answer.answerSegments.enumerated()), id: \.offset) { _, segment in
             SegmentView(
                 segment: segment,
                 evidenceIndex: evidenceIndex,
+                language: language,
                 onCitationTap: onCitationTap
             )
         }
@@ -349,10 +358,10 @@ struct AnswerView: View {
             Image(systemName: "shield.lefthalf.filled")
                 .foregroundStyle(Color.accentColor)
             VStack(alignment: .leading, spacing: 4) {
-                Text("숫자는 AI가 쓰지 않습니다")
+                Text(language == .ko ? "숫자는 AI가 쓰지 않습니다" : "AI does not write the numbers")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.ink)
-                Text(reason?.userMessage ?? "이 답변의 서술은 보류하고, 공시 원문 수치만 보여줍니다.")
+                Text(reason?.userMessage(language) ?? AnswerCopy.blockedFallback(language))
                     .font(.caption)
                     .foregroundStyle(Theme.inkMuted)
             }
@@ -363,9 +372,9 @@ struct AnswerView: View {
 
     private var noResultsNotice: some View {
         ContentUnavailableView(
-            "공시에서 근거를 찾지 못했습니다",
+            AnswerCopy.noResultsTitle(language),
             systemImage: "doc.text.magnifyingglass",
-            description: Text("인용할 문단이 없어 답하지 않았습니다. 이 회사의 사업, 리스크, 조직에 대해 물어보세요.")
+            description: Text(AnswerCopy.noResultsBody(language))
         )
     }
 
@@ -384,8 +393,14 @@ struct AnswerView: View {
                     } label: {
                         figuresHeader(count: figures.count, chevron: true)
                     }
-                    .accessibilityLabel("공시 원문 수치 \(figures.count)건")
-                    .accessibilityHint(figuresExpanded ? "접기" : "펼치기")
+                    .accessibilityLabel(
+                        "\(AnswerCopy.figuresTitle(language)) \(AnswerCopy.figureCount(figures.count, language: language))"
+                    )
+                    .accessibilityHint(
+                        language == .ko
+                            ? (figuresExpanded ? "접기" : "펼치기")
+                            : (figuresExpanded ? "Collapse" : "Expand")
+                    )
                 } else {
                     figuresHeader(count: figures.count, chevron: false)
                 }
@@ -397,7 +412,7 @@ struct AnswerView: View {
                                 .fill(Theme.hairline)
                                 .frame(height: 1)
                         }
-                        FigureRow(figure: figure)
+                        FigureRow(figure: figure, language: language)
                     }
                 }
             }
@@ -414,11 +429,11 @@ struct AnswerView: View {
     /// "확정 수치 — 구조화 공시 데이터" named the pipeline, not the thing.
     private func figuresHeader(count: Int, chevron: Bool) -> some View {
         HStack(spacing: 8) {
-            Text("공시 원문 수치")
+            Text(AnswerCopy.figuresTitle(language))
                 .font(Theme.sectionLabel)
                 .tracking(1)
             Spacer(minLength: 8)
-            Text("\(count)건")
+            Text(AnswerCopy.figureCount(count, language: language))
                 .font(.caption.monospacedDigit())
             if chevron {
                 Image(systemName: figuresExpanded ? "chevron.up" : "chevron.down")
@@ -445,6 +460,123 @@ struct AnswerView: View {
     }
 }
 
+enum AnswerCopy {
+    static func title(companyName: String, language: Language) -> String {
+        language == .ko ? "\(companyName) / 답변" : "\(companyName) / Answer"
+    }
+
+    static func inputPlaceholder(hasResponse: Bool, language: Language) -> String {
+        switch (language, hasResponse) {
+        case (.ko, false): "이 회사에 대해 질문하세요"
+        case (.ko, true): "다른 질문하기"
+        case (.en, false): "Ask about this company"
+        case (.en, true): "Ask another question"
+        }
+    }
+
+    static func starterTitle(_ language: Language) -> String {
+        language == .ko ? "공시에 있는 것만 답합니다" : "Answers come only from the filings"
+    }
+
+    static func starterBody(_ language: Language) -> String {
+        language == .ko
+            ? "답변의 모든 문장에 원문 인용이 붙습니다. 근거를 찾지 못하면 답하지 않습니다."
+            : "Every sentence in an answer cites the original filing. Without evidence, there is no answer."
+    }
+
+    static func suggestionsTitle(_ language: Language) -> String {
+        language == .ko ? "이렇게 물어보세요" : "Try asking"
+    }
+
+    static func suggestedQuestions(_ language: Language) -> [String] {
+        language == .ko
+            ? [
+                "주요 사업 부문은 무엇인가요",
+                "주요 리스크 요인은 무엇인가요",
+                "연구개발 조직은 어떻게 구성되어 있나요",
+            ]
+            : [
+                "What are the main business segments?",
+                "What are the main risk factors?",
+                "How is research and development organized?",
+            ]
+    }
+
+    static func claims(_ count: Int, language: Language) -> String {
+        language == .ko
+            ? "답변 / 주장 \(count)개"
+            : "Answer / \(count) \(count == 1 ? "claim" : "claims")"
+    }
+
+    static func evidenceVerified(_ language: Language) -> String {
+        language == .ko ? "근거 확인됨" : "Evidence verified"
+    }
+
+    static func blockedFallback(_ language: Language) -> String {
+        language == .ko
+            ? "이 답변의 서술은 보류하고, 공시 원문 수치만 보여줍니다."
+            : "The written answer is withheld; only figures from the filing are shown."
+    }
+
+    static func noResultsTitle(_ language: Language) -> String {
+        language == .ko ? "공시에서 근거를 찾지 못했습니다" : "No evidence found in the filings"
+    }
+
+    static func noResultsBody(_ language: Language) -> String {
+        language == .ko
+            ? "인용할 문단이 없어 답하지 않았습니다. 이 회사의 사업, 리스크, 조직에 대해 물어보세요."
+            : "There was no passage to cite, so there is no answer. Ask about this company's business, risks or organization."
+    }
+
+    static func figuresTitle(_ language: Language) -> String {
+        language == .ko ? "공시 원문 수치" : "Figures from the filing"
+    }
+
+    static func figureCount(_ count: Int, language: Language) -> String {
+        language == .ko ? "\(count)건" : "\(count)"
+    }
+
+    static func evidenceNumber(_ index: Int, language: Language) -> String {
+        let number = index.formatted(.number.precision(.integerLength(2)))
+        return language == .ko ? "근거 \(number)" : "Evidence \(number)"
+    }
+
+    static func evidenceTitle(_ language: Language) -> String {
+        language == .ko ? "근거 확인" : "Evidence"
+    }
+
+    static func openFiling(_ language: Language) -> String {
+        language == .ko ? "공시 원문에서 보기" : "View in the original filing"
+    }
+
+    static func anchor(sectionOrder: Int?, partIndex: Int?, chunkIndex: Int, language: Language) -> String {
+        var parts: [String] = []
+        if let sectionOrder {
+            parts.append(language == .ko ? "원문 구역 \(sectionOrder)" : "Section \(sectionOrder)")
+        }
+        if let partIndex {
+            parts.append(language == .ko ? "부분 \(partIndex)" : "Part \(partIndex)")
+        }
+        parts.append(language == .ko ? "문단 \(chunkIndex)" : "Paragraph \(chunkIndex)")
+        return parts.joined(separator: " · ")
+    }
+
+    static func figurePeriod(
+        title: String,
+        isInstant: Bool,
+        fiscalYear: Int,
+        quarter: Int?,
+        language: Language
+    ) -> String {
+        let kind = language == .ko
+            ? (isInstant ? "기준일" : "기간")
+            : (isInstant ? "As of" : "Period")
+        let year = language == .ko ? "회계연도 \(fiscalYear)" : "FY\(fiscalYear)"
+        guard let quarter else { return "\(title) · \(kind) · \(year)" }
+        return "\(title) · \(kind) · \(year) · " + (language == .ko ? "\(quarter)분기" : "Q\(quarter)")
+    }
+}
+
 // MARK: - Segment
 
 /// One narrated paragraph plus square citation markers in a wrapping row.
@@ -454,6 +586,7 @@ struct AnswerView: View {
 private struct SegmentView: View {
     let segment: AnswerSegment
     let evidenceIndex: AnswerEvidenceIndex
+    let language: Language
     let onCitationTap: (Int) -> Void
 
     private var sourceIndices: [Int] {
@@ -486,8 +619,10 @@ private struct SegmentView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("근거 \(index)번")
-                        .accessibilityHint("해당 공시 근거를 엽니다")
+                        .accessibilityLabel(language == .ko ? "근거 \(index)번" : "Evidence \(index)")
+                        .accessibilityHint(
+                            language == .ko ? "해당 공시 근거를 엽니다" : "Opens the evidence from this filing"
+                        )
                     }
                 }
                 // 44pt hit areas around 16pt marks would otherwise leave a
@@ -510,6 +645,7 @@ private struct EvidenceSelection: Identifiable {
 
 private struct EvidenceSheet: View {
     let selection: EvidenceSelection
+    let language: Language
 
     @Environment(\.dismiss) private var dismiss
     @State private var openFiling: OpenableFiling?
@@ -519,7 +655,7 @@ private struct EvidenceSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("근거 \(selection.index.formatted(.number.precision(.integerLength(2))))")
+                        Text(AnswerCopy.evidenceNumber(selection.index, language: language))
                             .font(Theme.sectionLabel)
                             .monospacedDigit()
                             .foregroundStyle(Theme.inkMuted)
@@ -532,7 +668,7 @@ private struct EvidenceSheet: View {
                     .accessibilityAddTraits(.isHeader)
 
                     ForEach(selection.group.citations) { citation in
-                        EvidenceExcerpt(citation: citation)
+                        EvidenceExcerpt(citation: citation, language: language)
                     }
 
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -541,14 +677,14 @@ private struct EvidenceSheet: View {
                             .foregroundStyle(Theme.inkMuted)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 8)
-                        SourceBadge(source: selection.group.filingSource.source)
+                        SourceBadge(source: selection.group.filingSource.source, language: language)
                     }
 
                     Button {
                         openFiling = OpenableFiling(selection.group.filingSource)
                     } label: {
                         HStack {
-                            Text("공시 원문에서 보기")
+                            Text(AnswerCopy.openFiling(language))
                             Spacer(minLength: 8)
                             Image(systemName: "arrow.up.forward")
                         }
@@ -561,7 +697,7 @@ private struct EvidenceSheet: View {
                 .readableWidth()
             }
             .paperBackground()
-            .navigationTitle("근거 확인")
+            .navigationTitle(AnswerCopy.evidenceTitle(language))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -569,7 +705,7 @@ private struct EvidenceSheet: View {
                         Image(systemName: "xmark")
                             .frame(width: 44, height: 44)
                     }
-                    .accessibilityLabel("근거 닫기")
+                    .accessibilityLabel(language == .ko ? "근거 닫기" : "Close evidence")
                 }
             }
             .toolbarBackground(Theme.paper, for: .navigationBar)
@@ -587,6 +723,7 @@ private struct EvidenceSheet: View {
 
 private struct EvidenceExcerpt: View {
     let citation: Citation
+    let language: Language
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -606,15 +743,12 @@ private struct EvidenceExcerpt: View {
     }
 
     private var anchorText: String {
-        var parts: [String] = []
-        if let sectionOrder = citation.anchor.sectionOrder {
-            parts.append("원문 구역 \(sectionOrder)")
-        }
-        if let partIndex = citation.anchor.partIndex {
-            parts.append("부분 \(partIndex)")
-        }
-        parts.append("문단 \(citation.anchor.chunkIndex)")
-        return parts.joined(separator: " · ")
+        AnswerCopy.anchor(
+            sectionOrder: citation.anchor.sectionOrder,
+            partIndex: citation.anchor.partIndex,
+            chunkIndex: citation.anchor.chunkIndex,
+            language: language
+        )
     }
 }
 
@@ -622,11 +756,12 @@ private struct EvidenceExcerpt: View {
 
 private struct FigureRow: View {
     let figure: Figure
+    let language: Language
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(FigureDisplay.metricName(figure.metric, language: .ko))
+                Text(FigureDisplay.metricName(figure.metric, language: language))
                     .font(.subheadline)
                     .foregroundStyle(Theme.ink)
                 Text(periodText)
@@ -655,12 +790,13 @@ private struct FigureRow: View {
     }
 
     private var periodText: String {
-        let title = FigureDisplay.periodTitle(figure.period, language: .ko)
-        let kind = figure.periodKind == .instant ? "기준일" : "기간"
-        if let quarter = figure.fiscalQuarter {
-            return "\(title) · \(kind) · 회계연도 \(figure.fiscalYear) · \(quarter)분기"
-        }
-        return "\(title) · \(kind) · 회계연도 \(figure.fiscalYear)"
+        AnswerCopy.figurePeriod(
+            title: FigureDisplay.periodTitle(figure.period, language: language),
+            isInstant: figure.periodKind == .instant,
+            fiscalYear: figure.fiscalYear,
+            quarter: figure.fiscalQuarter,
+            language: language
+        )
     }
 
     /// Abbreviated display value (조/억) — readable at a glance.
@@ -668,7 +804,7 @@ private struct FigureRow: View {
         FigureDisplay.formattedValue(
             NSDecimalNumber(decimal: figure.value).doubleValue,
             unit: figure.unit,
-            language: .ko
+            language: language
         )
     }
 
@@ -679,12 +815,13 @@ private struct FigureRow: View {
         let exact = figure.value.formatted(
             .number.precision(.fractionLength(0...4)).grouping(.automatic)
         )
-        // Same no-space KO join as FigureDisplay.formattedValue, so an
+        // Same join as FigureDisplay.formattedValue (no space in KO), so an
         // unabbreviated value compares equal and the duplicate line hides.
         let unitText = figure.unit.isEmpty
             ? ""
-            : FigureDisplay.unitName(figure.unit, language: .ko)
-        let full = "\(exact)\(unitText)"
+            : FigureDisplay.unitName(figure.unit, language: language)
+        let separator = figure.unit.isEmpty || language == .ko ? "" : " "
+        let full = "\(exact)\(separator)\(unitText)"
         return full == abbreviatedText ? nil : full
     }
 }
