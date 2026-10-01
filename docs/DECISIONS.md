@@ -510,6 +510,21 @@ questions because `/answer` narrates in the question's language. Korean output
 is unchanged. The search screen has no toggle and stays Korean, and transport
 and evidence-validation error text is still Korean.
 
+## D53 — Filing family walkthrough alignment — `ACCEPTED`
+
+Date: 2026-10-01. The walkthrough adds a “Works with Filing Agent” section that
+mirrors Filing Agent's family block: Digest reads a filing as a whole, Agent
+follows one figure back to its cell. The Agent card carries Agent's brown rule
+(`--agent`), as Agent's site carries Digest's green.
+
+Interface text sizes move onto steps shared with Filing Agent
+(`--text-caption` .75, `--text-xs` .8125, `--text-sm` .875, `--text-base` 1,
+`--text-md` 1.125, `--text-lg` 1.375 rem). The fitted `--step-*` display lines
+are unchanged. Distinct rendered sizes per screen drop from 17–19 to 12–13.
+Korean evidence-section translations are scoped to `#evidence` so they cannot
+overwrite other card grids. Device-frame radii remain because they depict
+hardware, not interface.
+
 ## Standing non-goals — `EXPLICITLY REJECTED`
 
 Each was considered and declined on the record, not merely skipped:
