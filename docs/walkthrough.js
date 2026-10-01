@@ -4,7 +4,8 @@ const d={
   intro:'한국 DART와 미국 SEC 공시를 한국어와 영어로 읽습니다. 재무 수치는 공시 데이터에서 가져오고, 생성된 설명에는 확인할 수 있는 원문 근거를 연결합니다.',
   walk:'회사 선택부터\n원문 확인까지',
   evidence:'수치와 설명,\n각자의 근거로',
-  closing:'구현 과정도\n확인할 수 있습니다'
+  closing:'구현 과정도\n확인할 수 있습니다',
+  family:'Filing Agent와\n함께 씁니다'
 };
 const copy={
 '.skip-link':'제품 화면으로 건너뛰기',
@@ -41,18 +42,24 @@ const copy={
 '#screens-title':'앱에서 직접 확인한 화면입니다',
 '#evidence .eyebrow':'02 / 근거 처리',
 '#evidence .section-heading p:last-child':'재무 수치와 생성된 설명은 별도로 처리합니다. 정해진 검사를 거친 뒤 앱에서 함께 보여줍니다.',
-'.track-grid article:nth-child(1) .track-label':'재무 수치',
-'.track-grid article:nth-child(1) h3':'공시 데이터 그대로',
-'.track-grid article:nth-child(1) > p:not(.track-label)':'DART·SEC 데이터의 정확한 값과 출처를 유지합니다. 재무 수치는 언어 모델을 거치지 않습니다.',
-'.track-grid article:nth-child(1) li:nth-child(1)':'정확한 십진수 저장',
-'.track-grid article:nth-child(1) li:nth-child(2)':'회계기간별 구분',
-'.track-grid article:nth-child(1) li:nth-child(3)':'해당 공시 원문 연결',
-'.track-grid article:nth-child(2) .track-label':'생성된 설명',
-'.track-grid article:nth-child(2) h3':'인용으로 이어지는 문장',
-'.track-grid article:nth-child(2) > p:not(.track-label)':'검색된 공시 발췌문을 바탕으로 설명을 생성합니다. 근거 누락이나 잘못된 인용이 감지되면 설명을 표시하지 않습니다.',
-'.track-grid article:nth-child(2) li:nth-child(1)':'범위가 명확한 공시 발췌문',
-'.track-grid article:nth-child(2) li:nth-child(2)':'설명별 인용 연결',
-'.track-grid article:nth-child(2) li:nth-child(3)':'숫자 표현과 근거 무결성 검사',
+'#evidence .track-grid article:nth-child(1) .track-label':'재무 수치',
+'#evidence .track-grid article:nth-child(1) h3':'공시 데이터 그대로',
+'#evidence .track-grid article:nth-child(1) > p:not(.track-label)':'DART·SEC 데이터의 정확한 값과 출처를 유지합니다. 재무 수치는 언어 모델을 거치지 않습니다.',
+'#evidence .track-grid article:nth-child(1) li:nth-child(1)':'정확한 십진수 저장',
+'#evidence .track-grid article:nth-child(1) li:nth-child(2)':'회계기간별 구분',
+'#evidence .track-grid article:nth-child(1) li:nth-child(3)':'해당 공시 원문 연결',
+'#evidence .track-grid article:nth-child(2) .track-label':'생성된 설명',
+'#evidence .track-grid article:nth-child(2) h3':'인용으로 이어지는 문장',
+'#evidence .track-grid article:nth-child(2) > p:not(.track-label)':'검색된 공시 발췌문을 바탕으로 설명을 생성합니다. 근거 누락이나 잘못된 인용이 감지되면 설명을 표시하지 않습니다.',
+'#evidence .track-grid article:nth-child(2) li:nth-child(1)':'범위가 명확한 공시 발췌문',
+'#evidence .track-grid article:nth-child(2) li:nth-child(2)':'설명별 인용 연결',
+'#evidence .track-grid article:nth-child(2) li:nth-child(3)':'숫자 표현과 근거 무결성 검사',
+'.family .section-heading p:last-child':'두 앱 모두 숫자를 공시 원문과 연결합니다. Digest는 공시 한 건을 통째로 읽고, Agent는 숫자 하나를 여러 해와 회사에 걸쳐 따라갑니다.',
+'.family article:nth-child(1) .track-label':'읽기 · 지금 보는 앱',
+'.family article:nth-child(1) > p:not(.track-label)':'회사별 최신 공시를 요약하고, 문장마다 원문 인용을 붙여 읽는 iOS 앱입니다.',
+'.family article:nth-child(2) .track-label':'확인하기',
+'.family article:nth-child(2) > p:nth-of-type(2)':'숫자 하나를 여러 해와 회사에 걸쳐 묻고, 공시 표의 해당 칸까지 확인하는 조사 도구입니다.',
+'.family article:nth-child(2) > p:nth-of-type(3) a':'Filing Agent 데모 열기',
 '.closing .eyebrow':'소스 코드와 검증 기록',
 '.closing > p:not(.eyebrow)':'설계 결정, 평가 도구, 테스트와 SwiftUI·FastAPI 전체 소스를 저장소에서 확인할 수 있습니다.',
 '.closing .hero-actions a:nth-child(1)':'소스 코드와 README 보기',
@@ -61,7 +68,7 @@ const copy={
 'footer span:last-child':'녹화된 포트폴리오 체험'
 };
 const originals=new Map();for(const s of Object.keys(copy))for(const e of document.querySelectorAll(s))if(!originals.has(e))originals.set(e,e.innerHTML);
-const heads={'#hero-title':d.hero,'#walkthrough-title':d.walk,'#evidence-title':d.evidence,'#closing-title':d.closing};for(const s of Object.keys(heads)){const e=document.querySelector(s);originals.set(e,e.innerHTML)}
+const heads={'#hero-title':d.hero,'#walkthrough-title':d.walk,'#evidence-title':d.evidence,'#closing-title':d.closing,'#family-title':d.family};for(const s of Object.keys(heads)){const e=document.querySelector(s);originals.set(e,e.innerHTML)}
 const captions=['회사 목록','공시 요약','근거가 연결된 답변','별도로 보존되는 수치','미국 공시 요약','언어를 넘는 질문','검색 결과 없음','다크 모드'];const screens=[...document.querySelectorAll('.screen-card figcaption')];screens.forEach(e=>originals.set(e,e.innerHTML));
 const images=[...document.querySelectorAll('main img')];images.forEach(e=>e.dataset.originalAlt=e.alt);
 const buttons=[...document.querySelectorAll('[data-demo-image]')];
