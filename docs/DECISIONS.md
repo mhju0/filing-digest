@@ -510,6 +510,24 @@ questions because `/answer` narrates in the question's language. Korean output
 is unchanged. The search screen has no toggle and stays Korean, and transport
 and evidence-validation error text is still Korean.
 
+## D54 — Shared family number rules, search language and glossary — `ACCEPTED`
+
+2026-10-01. Approved with the Filing family revamp report. Supersedes D52's
+sentence that the search screen has no toggle and stays Korean.
+
+- Numbers follow Filing Agent's rules. Negatives use U+2212. Korean dollar
+  amounts read in whole 억 달러 (`3,910억 달러`). The Korean fiscal-year label
+  is `2025 회계연도`. When an exact won figure is abbreviated, a third line
+  restates it in 조/억/만 units without rounding (`258조 9,354억 9,400만 원`).
+- The search screen gains a toggle that names the other language. Search owns
+  the language state and passes it to the digest as a binding, so a choice
+  carries in both directions. The choice is not persisted; each launch starts
+  in Korean, as before. D19 stands: no device-locale localization.
+- `contracts/family-glossary.json` holds metric and company names in both
+  languages and is kept identical to Filing Agent's `slice/web/src/glossary.json`.
+  A contract test checks `FigureDisplay` and `Company` against it. English
+  metric names move to sentence case (`Operating income`) to match.
+
 ## Standing non-goals — `EXPLICITLY REJECTED`
 
 Each was considered and declined on the record, not merely skipped:

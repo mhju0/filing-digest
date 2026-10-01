@@ -15,6 +15,8 @@ struct SearchView: View {
 
     @StateObject private var state: SearchState
     @State private var query = ""
+    /// Shared with DigestView so the KO/EN toggle carries across screens.
+    @State private var language: Language = .ko
     @AppStorage("recentCompanyIDs") private var recentCompanyIDsStorage = ""
     @FocusState private var searchFocused: Bool
 
@@ -54,12 +56,20 @@ struct SearchView: View {
                         .tracking(2)
                         .foregroundStyle(Theme.inkMuted)
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(SearchCopy.otherLanguageName(language)) {
+                        language = language == .ko ? .en : .ko
+                    }
+                    .font(.subheadline)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityLabel(SearchCopy.languageSwitchLabel(language))
+                }
             }
             .toolbarBackground(Theme.paper, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: Company.self) { company in
-                DigestView(client: client, company: company)
+                DigestView(client: client, company: company, language: $language)
                     .onAppear { recordRecent(company) }
             }
             .task { await state.loadIfNeeded() }
@@ -73,15 +83,15 @@ struct SearchView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(state.hasLoaded ? "수집된 공시 / 회사 \(state.companies.count)곳" : "수집된 공시")
+            Text(SearchCopy.corpusLabel(count: state.hasLoaded ? state.companies.count : nil, language: language))
                 .font(Theme.sectionLabel)
                 .monospacedDigit()
                 .foregroundStyle(Theme.inkMuted)
-            Text("공시를,\n읽을 수 있게.")
+            Text(SearchCopy.headline(language))
                 .font(Theme.display(.largeTitle))
                 .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("구조화된 수치. 인용된 설명. 원문까지 한 번에.")
+            Text(SearchCopy.subhead(language))
                 .font(.subheadline)
                 .foregroundStyle(Theme.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -97,7 +107,7 @@ struct SearchView: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(Theme.inkMuted)
-            TextField("회사 또는 티커", text: $query)
+            TextField(SearchCopy.fieldPrompt(language), text: $query)
                 .font(.body)
                 .foregroundStyle(Theme.ink)
                 .focused($searchFocused)
@@ -114,7 +124,7 @@ struct SearchView: View {
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
-                .accessibilityLabel("필터 지우기")
+                .accessibilityLabel(language == .ko ? "필터 지우기" : "Clear filter")
             }
         }
         .padding(.leading, 14)
@@ -133,7 +143,7 @@ struct SearchView: View {
     @ViewBuilder
     private var requestStatus: some View {
         if state.isRefreshing {
-            ProgressView("새로 고치는 중…")
+            ProgressView(language == .ko ? "새로 고치는 중…" : "Refreshing…")
                 .font(.caption)
                 .foregroundStyle(Theme.inkMuted)
         }
@@ -148,11 +158,11 @@ struct SearchView: View {
     /// Full-screen recovery for "the corpus never arrived".
     private func connectionFailure(_ message: String) -> some View {
         ContentUnavailableView {
-            Label("공시를 불러오지 못했습니다", systemImage: "network.slash")
+            Label(language == .ko ? "공시를 불러오지 못했습니다" : "Couldn't load filings", systemImage: "network.slash")
         } description: {
             Text(message)
         } actions: {
-            Button("다시 시도") {
+            Button(language == .ko ? "다시 시도" : "Try again") {
                 Task { await state.retry() }
             }
             .buttonStyle(.ledger)
@@ -165,9 +175,11 @@ struct SearchView: View {
         if state.hasLoaded {
             if state.companies.isEmpty {
                 ContentUnavailableView(
-                    "아직 수집된 공시가 없습니다",
+                    language == .ko ? "아직 수집된 공시가 없습니다" : "No filings collected yet",
                     systemImage: "building.2",
-                    description: Text("공시를 수집하면 회사 목록이 여기에 표시됩니다.")
+                    description: Text(language == .ko
+                        ? "공시를 수집하면 회사 목록이 여기에 표시됩니다."
+                        : "Companies appear here once their filings are collected.")
                 )
                 .padding(.top, 20)
             } else {
@@ -182,7 +194,7 @@ struct SearchView: View {
                 }
             }
         } else if state.isLoading {
-            ProgressView("불러오는 중…")
+            ProgressView(language == .ko ? "불러오는 중…" : "Loading…")
                 .frame(maxWidth: .infinity)
                 .padding(.top, 60)
         }
@@ -193,11 +205,11 @@ struct SearchView: View {
     /// app's — so say what is actually here instead.
     private var noMatch: some View {
         ContentUnavailableView {
-            Label("‘\(query)’는 수집 목록에 없습니다", systemImage: "magnifyingglass")
+            Label(SearchCopy.noMatchTitle(query: query, language: language), systemImage: "magnifyingglass")
         } description: {
-            Text("지금 이 앱에는 \(state.companies.count)개 회사의 공시가 수집되어 있습니다.")
+            Text(SearchCopy.noMatchDetail(count: state.companies.count, language: language))
         } actions: {
-            Button("전체 목록 보기") {
+            Button(language == .ko ? "전체 목록 보기" : "Show all companies") {
                 query = ""
                 searchFocused = false
             }
@@ -210,16 +222,18 @@ struct SearchView: View {
     private func companyList(_ snapshot: CompanyDirectory.Snapshot) -> some View {
         if !snapshot.isFiltering {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(title: "최근 본 회사", detail: "\(snapshot.recentCompanies.count)")
+                SectionHeader(title: language == .ko ? "최근 본 회사" : "Recently viewed", detail: "\(snapshot.recentCompanies.count)")
                 if snapshot.recentCompanies.isEmpty {
-                    Text("회사를 열면 최근 본 순서대로 여기에 표시됩니다.")
+                    Text(language == .ko
+                        ? "회사를 열면 최근 본 순서대로 여기에 표시됩니다."
+                        : "Companies you open appear here, most recent first.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.inkMuted)
                         .padding(.vertical, 16)
                 } else {
                     ForEach(Array(snapshot.recentCompanies.enumerated()), id: \.element.id) { index, company in
                         NavigationLink(value: company) {
-                            FeaturedCompanyRow(company: company, rank: index + 1)
+                            FeaturedCompanyRow(company: company, language: language, rank: index + 1)
                         }
                         .buttonStyle(.ledgerRow)
                         .accessibilityIdentifier("company-\(company.ticker ?? company.id)")
@@ -229,10 +243,10 @@ struct SearchView: View {
             }
 
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(title: "전체 회사", detail: "\(snapshot.visibleCompanies.count)")
+                SectionHeader(title: language == .ko ? "전체 회사" : "All companies", detail: "\(snapshot.visibleCompanies.count)")
                 ForEach(snapshot.visibleCompanies) { company in
                     NavigationLink(value: company) {
-                        CompactCompanyRow(company: company)
+                        CompactCompanyRow(company: company, language: language)
                     }
                     .buttonStyle(.ledgerRow)
                     .accessibilityIdentifier("company-\(company.ticker ?? company.id)")
@@ -241,10 +255,10 @@ struct SearchView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(title: "검색 결과", detail: "\(snapshot.visibleCompanies.count)")
+                SectionHeader(title: language == .ko ? "검색 결과" : "Results", detail: "\(snapshot.visibleCompanies.count)")
                 ForEach(snapshot.visibleCompanies) { company in
                     NavigationLink(value: company) {
-                        FeaturedCompanyRow(company: company)
+                        FeaturedCompanyRow(company: company, language: language)
                     }
                     .buttonStyle(.ledgerRow)
                     .accessibilityIdentifier("company-\(company.ticker ?? company.id)")
@@ -272,6 +286,7 @@ struct SearchView: View {
 
 private struct FeaturedCompanyRow: View {
     let company: Company
+    let language: Language
     var rank: Int? = nil
 
     var body: some View {
@@ -283,12 +298,12 @@ private struct FeaturedCompanyRow: View {
                     .frame(width: 24, alignment: .leading)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(company.koreanDisplayName)
+                Text(company.displayName(language))
                     .font(Theme.display(.body))
                     .foregroundStyle(Theme.ink)
                 if company.ticker != nil || company.market != nil {
                     Text(
-                        [company.koreanSecurityIdentifier, company.market?.koreanDisplayName]
+                        [company.securityIdentifier(language), company.market?.displayName(language)]
                             .compactMap(\.self)
                             .joined(separator: " · ")
                     )
@@ -297,7 +312,7 @@ private struct FeaturedCompanyRow: View {
                 }
             }
             Spacer()
-            SourceBadge(source: company.source)
+            SourceBadge(source: company.source, language: language)
             Image(systemName: "arrow.right")
                 .font(.caption.weight(.light))
                 .foregroundStyle(Theme.inkMuted)
@@ -311,22 +326,23 @@ private struct FeaturedCompanyRow: View {
 
 private struct CompactCompanyRow: View {
     let company: Company
+    let language: Language
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(company.koreanDisplayName)
+                Text(company.displayName(language))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.ink)
                     .multilineTextAlignment(.leading)
-                if let identifier = company.koreanSecurityIdentifier {
+                if let identifier = company.securityIdentifier(language) {
                     Text(identifier)
                         .font(.caption.monospaced())
                         .foregroundStyle(Theme.inkMuted)
                 }
             }
             Spacer(minLength: 8)
-            SourceBadge(source: company.source)
+            SourceBadge(source: company.source, language: language)
             Image(systemName: "chevron.right")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(Theme.inkMuted)
@@ -335,5 +351,49 @@ private struct CompactCompanyRow: View {
         .frame(minHeight: 60)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Copy
+
+enum SearchCopy {
+    static func corpusLabel(count: Int?, language: Language) -> String {
+        guard let count else { return language == .ko ? "수집된 공시" : "Collected filings" }
+        return language == .ko
+            ? "수집된 공시 / 회사 \(count)곳"
+            : "Collected filings / \(count) \(count == 1 ? "company" : "companies")"
+    }
+
+    static func headline(_ language: Language) -> String {
+        language == .ko ? "공시를,\n읽을 수 있게." : "Filings,\nmade readable."
+    }
+
+    static func subhead(_ language: Language) -> String {
+        language == .ko
+            ? "구조화된 수치. 인용된 설명. 원문까지 한 번에."
+            : "Structured figures, cited explanations and the original filing in one place."
+    }
+
+    static func fieldPrompt(_ language: Language) -> String {
+        language == .ko ? "회사 또는 티커" : "Company or ticker"
+    }
+
+    static func noMatchTitle(query: String, language: Language) -> String {
+        language == .ko ? "‘\(query)’는 수집 목록에 없습니다" : "‘\(query)’ isn't in the collection"
+    }
+
+    static func noMatchDetail(count: Int, language: Language) -> String {
+        language == .ko
+            ? "지금 이 앱에는 \(count)개 회사의 공시가 수집되어 있습니다."
+            : "This app currently holds filings for \(count) \(count == 1 ? "company" : "companies")."
+    }
+
+    /// The switch names the language it switches to.
+    static func otherLanguageName(_ language: Language) -> String {
+        language == .ko ? "English" : "한국어"
+    }
+
+    static func languageSwitchLabel(_ language: Language) -> String {
+        language == .ko ? "영어로 보기" : "Show in Korean"
     }
 }
