@@ -484,3 +484,17 @@ Open issues: the search screen and transport/validation error messages remain
 Korean-only; `CompanyDirectoryTests.ordering()` already fails on `main` because
 `localizedStandardCompare` ordering depends on the simulator locale. Next step:
 decide whether search needs its own language control.
+
+## Filing family alignment · 2026-10-01
+
+- What changed:
+  - The walkthrough gains a "Works with Filing Agent" section and shared text steps (D53, #25).
+  - The English screens branch merged (#27).
+  - iOS numbers follow Filing Agent's rules, the search screen has its own KO/EN toggle that carries into the digest, and `contracts/family-glossary.json` is shared with Filing Agent (D54, #26).
+- Decisions and why: The approved revamp report covers the reasons. The language choice isn't persisted, so UI tests and each launch start in Korean.
+- Open issues:
+  - Transport and validation error text is still Korean-only.
+  - The glossary file must change together with Filing Agent's `slice/web/src/glossary.json`.
+  - Links from Digest citations to Agent's Ledger wait on Filing Agent's deploy.
+  - This file is past ~200 lines and should be condensed.
+- Next step: Deploy Filing Agent, then add the citation deep links.
