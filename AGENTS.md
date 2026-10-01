@@ -58,3 +58,10 @@ xcodebuild test -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
 - Update `docs/DECISIONS.md` for significant technical/product decisions,
   `docs/ROADMAP.md` for material roadmap changes, and `docs/PROJECT_HANDOFF.md`
   only for material high-level state or architecture changes; omit routine details.
+
+## Agent handoff
+
+- At session start, read `docs/PROJECT_HANDOFF.md`.
+- Before ending a session where you made decisions, changed architecture, or left work unfinished, append a dated entry: what changed, decisions and why, open issues, next step. Keep it brief and append-only.
+- When the file exceeds ~200 lines, condense the oldest entries into a short dated summary. Never delete unresolved open issues.
+- Durable rules belong in AGENTS.md, not in the handoff file.
