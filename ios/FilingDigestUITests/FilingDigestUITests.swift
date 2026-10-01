@@ -51,6 +51,22 @@ final class FilingDigestUITests: XCTestCase {
         XCTAssertTrue(app.buttons["View in the original filing"].exists)
     }
 
+    func testSearchLanguageCarriesIntoDigest() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing"]
+        app.launch()
+
+        let toggle = app.buttons["영어로 보기"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        toggle.tap()
+        XCTAssertTrue(app.textFields["Company or ticker"].waitForExistence(timeout: 2))
+
+        let company = app.buttons["company-005930"].firstMatch
+        XCTAssertTrue(company.waitForExistence(timeout: 5))
+        company.tap()
+        XCTAssertTrue(app.staticTexts["Stock code 005930 / KOSPI"].waitForExistence(timeout: 5))
+    }
+
     func testAccessibilityOfReaderAndAnswer() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing"]
@@ -96,7 +112,7 @@ final class FilingDigestUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["전년 대비 0%"].exists)
         XCTAssertFalse(app.staticTexts["↑ 전년 대비 0%"].exists)
         XCTAssertTrue(app.staticTexts["+4.1%"].exists)
-        XCTAssertTrue(app.staticTexts["-2.4%"].exists)
+        XCTAssertTrue(app.staticTexts["\u{2212}2.4%"].exists)
         XCTAssertTrue(app.staticTexts["전년 비교 자료 없음"].exists)
         attachScreenshot(named: "digest-polish-ko-metrics")
 

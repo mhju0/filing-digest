@@ -1,0 +1,28 @@
+{
+  "about": "Filing family glossary, [Korean, English]. Keep identical in filing-agent slice/web/src/glossary.json and filing-digest contracts/family-glossary.json.",
+  "version": 1,
+  "metrics": {
+    "revenue": ["매출액", "Revenue"],
+    "operating_income": ["영업이익", "Operating income"],
+    "net_income": ["당기순이익", "Net income"],
+    "net_income_attributable": ["지배기업 소유주지분 순이익", "Net income (attributable)"],
+    "eps": ["주당순이익(EPS)", "EPS"],
+    "eps_diluted": ["희석주당순이익", "Diluted EPS"],
+    "operating_margin": ["영업이익률", "Operating margin"],
+    "research_and_development": ["연구개발비", "R&D"]
+  },
+  "companies": {
+    "005930": ["삼성전자", "Samsung Electronics"],
+    "035420": ["네이버", "NAVER"],
+    "AAPL": ["애플", "Apple"],
+    "MSFT": ["마이크로소프트", "Microsoft"],
+    "NVDA": ["엔비디아", "NVIDIA"],
+    "TSLA": ["테슬라", "Tesla"]
+  },
+  "company_aliases": {
+    "Samsung": "005930",
+    "삼성전자": "005930",
+    "NAVER": "035420",
+    "Microsoft": "MSFT"
+  }
+}

@@ -296,9 +296,9 @@ struct FigureDisplayTests {
     // (a) every known metric key -> KO and EN display name.
     @Test("known metric keys map to KO and EN names", arguments: [
         (ReportedMetric.revenue, "매출액", "Revenue"),
-        (ReportedMetric.operatingIncome, "영업이익", "Operating Income"),
-        (ReportedMetric.netIncome, "당기순이익", "Net Income"),
-        (ReportedMetric.netIncomeAttributable, "지배기업 소유주지분 순이익", "Net Income (Attributable)"),
+        (ReportedMetric.operatingIncome, "영업이익", "Operating income"),
+        (ReportedMetric.netIncome, "당기순이익", "Net income"),
+        (ReportedMetric.netIncomeAttributable, "지배기업 소유주지분 순이익", "Net income (attributable)"),
         (ReportedMetric.eps, "주당순이익(EPS)", "EPS"),
         (ReportedMetric.epsDiluted, "희석주당순이익", "Diluted EPS"),
     ])
@@ -309,12 +309,12 @@ struct FigureDisplayTests {
 
     @Test("digest metric keys map to compact KO and EN names", arguments: [
         (FinancialMetric.revenue, "매출액", "Revenue"),
-        (FinancialMetric.operatingIncome, "영업이익", "Operating Income"),
-        (FinancialMetric.netIncome, "당기순이익", "Net Income"),
-        (FinancialMetric.netIncomeAttributable, "지배기업 소유주지분 순이익", "Net Income (Attributable)"),
+        (FinancialMetric.operatingIncome, "영업이익", "Operating income"),
+        (FinancialMetric.netIncome, "당기순이익", "Net income"),
+        (FinancialMetric.netIncomeAttributable, "지배기업 소유주지분 순이익", "Net income (attributable)"),
         (FinancialMetric.eps, "주당순이익", "EPS"),
         (FinancialMetric.epsDiluted, "희석주당순이익", "Diluted EPS"),
-        (FinancialMetric.operatingMargin, "영업이익률", "Operating Margin"),
+        (FinancialMetric.operatingMargin, "영업이익률", "Operating margin"),
     ])
     func mapsDigestMetrics(metric: FinancialMetric, ko: String, en: String) {
         #expect(FigureDisplay.metricName(metric, language: .ko) == ko)
@@ -452,10 +452,26 @@ struct FigureDisplayFormattingTests {
             FigureDisplay.formattedValue(391_035_000_000, unit: "USD", language: .en)
                 == "391B USD"
         )
-        // Negative values keep their sign through the scaling.
+        // Negative values keep their sign through the scaling, as U+2212.
         #expect(
             FigureDisplay.formattedValue(-1_200_000_000_000, unit: "KRW", language: .ko)
-                == "-1.2조 원"
+                == "\u{2212}1.2조 원"
+        )
+        #expect(
+            FigureDisplay.formattedValue(-2_131, unit: "KRW", language: .ko) == "\u{2212}2,131원"
+        )
+        // Korean dollars read in whole 억 달러.
+        #expect(
+            FigureDisplay.formattedValue(391_035_000_000, unit: "USD", language: .ko)
+                == "3,910억 달러"
+        )
+        #expect(
+            FigureDisplay.formattedValue(2_451_000_000_000, unit: "USD", language: .ko)
+                == "24,510억 달러"
+        )
+        #expect(
+            FigureDisplay.formattedValue(-93_700_000, unit: "USD", language: .en)
+                == "\u{2212}93.7M USD"
         )
         // Per-share and small values stay exact.
         #expect(
@@ -465,6 +481,15 @@ struct FigureDisplayFormattingTests {
         #expect(
             FigureDisplay.formattedValue(2_131, unit: "KRW", language: .ko) == "2,131원"
         )
+    }
+
+    @Test("Exact won amounts restate in 조/억/만 units without rounding")
+    func koreanUnitReading() {
+        #expect(FigureDisplay.koreanUnitReading(258_935_494_000_000) == "258조 9,354억 9,400만 원")
+        #expect(FigureDisplay.koreanUnitReading(650_000_000_000) == "6,500억 원")
+        #expect(FigureDisplay.koreanUnitReading(1_000_000_000_123) == "1조 123 원")
+        #expect(FigureDisplay.koreanUnitReading(-1_200_000_000_000) == "\u{2212}1조 2,000억 원")
+        #expect(FigureDisplay.koreanUnitReading(0) == "0 원")
     }
 
     @Test("Formatted values expose aligned number and unit roles")
@@ -606,10 +631,10 @@ struct DigestLanguagePresentationTests {
 
     @Test("Positive, negative, zero, and missing YoY stay distinct", arguments: [
         (Language.ko, 3.2, "↑ 전년 대비 3.2%", "+3.2%"),
-        (Language.ko, -3.2, "↓ 전년 대비 -3.2%", "-3.2%"),
+        (Language.ko, -3.2, "↓ 전년 대비 \u{2212}3.2%", "\u{2212}3.2%"),
         (Language.ko, 0, "전년 대비 0%", "0%"),
         (Language.en, 3.2, "↑ YoY 3.2%", "+3.2%"),
-        (Language.en, -3.2, "↓ YoY -3.2%", "-3.2%"),
+        (Language.en, -3.2, "↓ YoY \u{2212}3.2%", "\u{2212}3.2%"),
         (Language.en, 0, "YoY 0%", "0%"),
     ])
     func localizedYearOverYear(

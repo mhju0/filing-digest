@@ -20,13 +20,14 @@ struct DigestView: View {
     let company: Company
 
     @StateObject private var state: DigestState
-    @State private var language: Language = .ko
+    @Binding var language: Language
     @State private var openFiling: OpenableFiling?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    init(client: APIClient, company: Company) {
+    init(client: APIClient, company: Company, language: Binding<Language>) {
         self.client = client
         self.company = company
+        _language = language
         _state = StateObject(wrappedValue: DigestState(fetchDigest: {
             try await client.fetchDigest(companyID: $0)
         }))
@@ -382,7 +383,9 @@ enum DigestCopy {
             return language == .ko ? "전년 비교 자료 없음" : "YoY unavailable"
         }
 
-        let formatted = delta.formatted(.number.precision(.fractionLength(0...1)))
+        let formatted = FigureDisplay.typographicSign(
+            delta.formatted(.number.precision(.fractionLength(0...1)))
+        )
         if compact {
             if delta > 0 { return "+\(formatted)%" }
             return "\(formatted)%"

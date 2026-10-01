@@ -41,14 +41,15 @@ enum FigureDisplay {
 
     // MARK: - Explicit-language lookups (pure, deterministic)
 
-    /// Humanized name for every canonical Reported Metric.
+    /// Humanized name for every canonical Reported Metric. Matches
+    /// contracts/family-glossary.json, shared with Filing Agent.
     static func metricName(_ metric: ReportedMetric, language: Language) -> String {
         let pair: (ko: String, en: String) = switch metric {
         case .revenue: ("매출액", "Revenue")
-        case .operatingIncome: ("영업이익", "Operating Income")
-        case .netIncome: ("당기순이익", "Net Income")
+        case .operatingIncome: ("영업이익", "Operating income")
+        case .netIncome: ("당기순이익", "Net income")
         case .netIncomeAttributable:
-            ("지배기업 소유주지분 순이익", "Net Income (Attributable)")
+            ("지배기업 소유주지분 순이익", "Net income (attributable)")
         case .eps: ("주당순이익(EPS)", "EPS")
         case .epsDiluted: ("희석주당순이익", "Diluted EPS")
         }
@@ -63,7 +64,7 @@ enum FigureDisplay {
         case .reported(let metric):
             return metricName(metric, language: language)
         case .derived(.operatingMargin):
-            return language == .ko ? "영업이익률" : "Operating Margin"
+            return language == .ko ? "영업이익률" : "Operating margin"
         }
     }
 
@@ -90,6 +91,16 @@ enum FigureDisplay {
         return period
     }
 
+    // MARK: - Signs
+
+    /// U+2212, the typographic minus shared with Filing Agent.
+    static let minus = "\u{2212}"
+
+    /// Swaps a formatted number's leading hyphen-minus for the true minus.
+    static func typographicSign(_ formatted: String) -> String {
+        formatted.hasPrefix("-") ? minus + formatted.dropFirst() : formatted
+    }
+
     // MARK: - Value abbreviation
 
     /// Display string for a structured-API value: large KRW/USD amounts are
@@ -111,7 +122,7 @@ enum FigureDisplay {
 
         func scaled(_ divisor: Double, _ suffix: String) -> FormattedFigureValue {
             let n = (value / divisor).formatted(.number.precision(.fractionLength(0...1)))
-            return FormattedFigureValue(number: n, unit: suffix, separator: "")
+            return FormattedFigureValue(number: typographicSign(n), unit: suffix, separator: "")
         }
 
         switch unit {
@@ -124,19 +135,52 @@ enum FigureDisplay {
                 if magnitude >= 1e9 { return scaled(1e9, "B KRW") }
             }
         case "USD":
-            if magnitude >= 1e12 { return scaled(1e12, language == .ko ? "조 달러" : "T USD") }
-            if magnitude >= 1e9 { return scaled(1e9, language == .ko ? "B 달러" : "B USD") }
-            if magnitude >= 1e6 { return scaled(1e6, language == .ko ? "M 달러" : "M USD") }
+            if language == .ko {
+                // Korean readers count dollars in whole 억 달러, as Filing Agent does.
+                if magnitude >= 1e8 {
+                    let n = (value / 1e8).rounded().formatted(.number.precision(.fractionLength(0)))
+                    return FormattedFigureValue(number: typographicSign(n), unit: "억 달러", separator: "")
+                }
+            } else {
+                if magnitude >= 1e12 { return scaled(1e12, "T USD") }
+                if magnitude >= 1e9 { return scaled(1e9, "B USD") }
+                if magnitude >= 1e6 { return scaled(1e6, "M USD") }
+            }
         default:
             break
         }
 
-        let number = value.formatted(.number.precision(.fractionLength(0...2)))
+        let number = typographicSign(value.formatted(.number.precision(.fractionLength(0...2))))
         let unitText = unitName(unit, language: language)
         return FormattedFigureValue(
             number: number,
             unit: unit.isEmpty ? "" : unitText,
             separator: unit.isEmpty || language == .ko ? "" : " "
         )
+    }
+
+    // MARK: - Korean unit reading
+
+    /// The exact won amount restated in 조/억/만 units, nothing rounded:
+    /// 258,935,494,000,000 -> "258조 9,354억 9,400만 원". Korean readers check
+    /// large won amounts this way. Fractions are not restated.
+    static func koreanUnitReading(_ value: Decimal) -> String {
+        var source = value < 0 ? -value : value
+        var whole = Decimal()
+        NSDecimalRound(&whole, &source, 0, .down)
+        let digits = NSDecimalNumber(decimal: whole).stringValue
+        guard let amount = Int64(digits) else { return digits + " 원" }
+
+        let grouped = { (n: Int64) in n.formatted(.number.grouping(.automatic)) }
+        let jo = amount / 1_000_000_000_000
+        let eok = amount % 1_000_000_000_000 / 100_000_000
+        let man = amount % 100_000_000 / 10_000
+        let rest = amount % 10_000
+        var parts: [String] = []
+        if jo > 0 { parts.append(grouped(jo) + "조") }
+        if eok > 0 { parts.append(grouped(eok) + "억") }
+        if man > 0 { parts.append(grouped(man) + "만") }
+        if rest > 0 || parts.isEmpty { parts.append(grouped(rest)) }
+        return (value < 0 ? minus : "") + parts.joined(separator: " ") + " 원"
     }
 }

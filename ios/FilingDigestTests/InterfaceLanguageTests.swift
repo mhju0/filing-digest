@@ -115,12 +115,12 @@ struct InterfaceLanguageTests {
         #expect(
             AnswerCopy.figurePeriod(
                 title: "사업보고서 2025", isInstant: false, fiscalYear: 2025, quarter: nil, language: .ko
-            ) == "사업보고서 2025 · 기간 · 회계연도 2025"
+            ) == "사업보고서 2025 · 기간 · 2025 회계연도"
         )
         #expect(
             AnswerCopy.figurePeriod(
                 title: "2026년 1분기", isInstant: true, fiscalYear: 2026, quarter: 1, language: .ko
-            ) == "2026년 1분기 · 기준일 · 회계연도 2026 · 1분기"
+            ) == "2026년 1분기 · 기준일 · 2026 회계연도 · 1분기"
         )
         #expect(
             AnswerCopy.figurePeriod(
@@ -158,5 +158,26 @@ struct InterfaceLanguageTests {
             "주요 리스크 요인은 무엇인가요",
             "연구개발 조직은 어떻게 구성되어 있나요",
         ])
+    }
+
+    @Test("Search screen copy has no Korean in English")
+    func searchCopy() {
+        let english = [
+            SearchCopy.corpusLabel(count: nil, language: .en),
+            SearchCopy.corpusLabel(count: 12, language: .en),
+            SearchCopy.headline(.en),
+            SearchCopy.subhead(.en),
+            SearchCopy.fieldPrompt(.en),
+            SearchCopy.noMatchTitle(query: "Apple", language: .en),
+            SearchCopy.noMatchDetail(count: 12, language: .en),
+            SearchCopy.otherLanguageName(.ko),
+            SearchCopy.languageSwitchLabel(.en),
+        ]
+        for text in english {
+            #expect(!containsHangul(text), "\(text)")
+        }
+        #expect(SearchCopy.corpusLabel(count: 1, language: .en) == "Collected filings / 1 company")
+        #expect(SearchCopy.corpusLabel(count: 12, language: .ko) == "수집된 공시 / 회사 12곳")
+        #expect(SearchCopy.headline(.ko) == "공시를,\n읽을 수 있게.")
     }
 }

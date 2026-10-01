@@ -571,7 +571,7 @@ enum AnswerCopy {
         let kind = language == .ko
             ? (isInstant ? "기준일" : "기간")
             : (isInstant ? "As of" : "Period")
-        let year = language == .ko ? "회계연도 \(fiscalYear)" : "FY\(fiscalYear)"
+        let year = language == .ko ? "\(fiscalYear) 회계연도" : "FY\(fiscalYear)"
         guard let quarter else { return "\(title) · \(kind) · \(year)" }
         return "\(title) · \(kind) · \(year) · " + (language == .ko ? "\(quarter)분기" : "Q\(quarter)")
     }
@@ -783,6 +783,13 @@ private struct FigureRow: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
+                if let reading = koreanReading {
+                    Text(reading)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.inkMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
             }
         }
         .padding(.vertical, 10)
@@ -812,9 +819,9 @@ private struct FigureRow: View {
     /// abbreviation whenever abbreviating actually dropped digits — the
     /// authoritative track stays fully inspectable.
     private var exactText: String? {
-        let exact = figure.value.formatted(
+        let exact = FigureDisplay.typographicSign(figure.value.formatted(
             .number.precision(.fractionLength(0...4)).grouping(.automatic)
-        )
+        ))
         // Same join as FigureDisplay.formattedValue (no space in KO), so an
         // unabbreviated value compares equal and the duplicate line hides.
         let unitText = figure.unit.isEmpty
@@ -823,5 +830,12 @@ private struct FigureRow: View {
         let separator = figure.unit.isEmpty || language == .ko ? "" : " "
         let full = "\(exact)\(separator)\(unitText)"
         return full == abbreviatedText ? nil : full
+    }
+
+    /// The exact won amount restated in 조/억 units for Korean readers,
+    /// shown only when the abbreviation dropped digits.
+    private var koreanReading: String? {
+        guard language == .ko, figure.unit == "KRW", exactText != nil else { return nil }
+        return FigureDisplay.koreanUnitReading(figure.value)
     }
 }
