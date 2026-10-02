@@ -498,3 +498,12 @@ decide whether search needs its own language control.
   - Links from Digest citations to Agent's Ledger wait on Filing Agent's deploy.
   - This file is past ~200 lines and should be condensed.
 - Next step: Deploy Filing Agent, then add the citation deep links.
+
+## README refresh · 2026-10-02
+
+- What changed: README rewritten around the walkthrough (326 → 81 lines) with a current screenshot (`docs/screenshots/digest-apple-en.png`). Setup, ingestion, tests, device builds and the API table moved word for word to `docs/DEVELOPMENT.md`. The README-only `strip_core.png` and `strip_more.png` were removed.
+- Decisions and why: The owner approved the before/after report. The tagline "Every claim carries a citation" was dropped because it overstated the guards. The `**Status:** v0.5.1` line stays because `test_release_version.py` requires it. Facts were re-checked: 460 offline tests passed on Oct 2, and the latest full golden-set run (Aug 27) is 24/24.
+- Open issues:
+  - Agreed follow-up: recapture the walkthrough's phone screens and GIFs, which still show the July and early-September design.
+  - This file is past ~200 lines and should be condensed.
+- Next step: Recapture the walkthrough screens.
