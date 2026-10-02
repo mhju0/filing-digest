@@ -52,7 +52,7 @@ struct AnswerView: View {
             .toolbarBackground(Theme.paper, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .sheet(item: $selectedEvidence) { selection in
-                EvidenceSheet(selection: selection, language: language)
+                EvidenceSheet(selection: selection, ticker: company.ticker, language: language)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
                     .presentationBackground(Theme.paper)
@@ -645,6 +645,7 @@ private struct EvidenceSelection: Identifiable {
 
 private struct EvidenceSheet: View {
     let selection: EvidenceSelection
+    let ticker: String?
     let language: Language
 
     @Environment(\.dismiss) private var dismiss
@@ -690,6 +691,8 @@ private struct EvidenceSheet: View {
                         }
                     }
                     .buttonStyle(.ledgerFilled)
+
+                    AgentLedgerLink(ticker: ticker, language: language)
                 }
                 .padding(.horizontal, Theme.pageInset)
                 .padding(.top, 16)

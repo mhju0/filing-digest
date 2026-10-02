@@ -234,6 +234,7 @@ struct DigestView: View {
                         .fill(Theme.hairline)
                         .frame(height: 1)
                 }
+                AgentLedgerLink(ticker: company.ticker, language: language)
             }
         }
     }

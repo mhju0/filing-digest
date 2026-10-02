@@ -1,5 +1,5 @@
 {
-  "about": "Filing family glossary, [Korean, English]. Keep identical in filing-agent slice/web/src/glossary.json and filing-digest contracts/family-glossary.json.",
+  "about": "Filing family glossary, [Korean, English]. ledger_years lists the fiscal years in Filing Agent's ledger, linked at #ledger/ledger-<ticker>. Keep identical in filing-agent slice/web/src/glossary.json and filing-digest contracts/family-glossary.json.",
   "version": 1,
   "metrics": {
     "revenue": ["매출액", "Revenue"],
@@ -18,6 +18,11 @@
     "MSFT": ["마이크로소프트", "Microsoft"],
     "NVDA": ["엔비디아", "NVIDIA"],
     "TSLA": ["테슬라", "Tesla"]
+  },
+  "ledger_years": {
+    "005930": ["2022", "2023"],
+    "035420": ["2023"],
+    "MSFT": ["2023", "2024"]
   },
   "company_aliases": {
     "Samsung": "005930",

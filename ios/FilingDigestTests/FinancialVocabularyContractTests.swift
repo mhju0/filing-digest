@@ -64,4 +64,34 @@ struct FinancialVocabularyContractTests {
             #expect(company.displayName(.en) == names[1], "\(ticker)")
         }
     }
+
+    private struct LedgerCoverage: Decodable {
+        let ledger_years: [String: [String]]
+    }
+
+    @Test("Ledger links cover exactly the companies and years in Filing Agent's ledger")
+    func ledgerLinksMatchFamilyGlossary() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let data = try Data(contentsOf: repositoryRoot
+            .appendingPathComponent("contracts")
+            .appendingPathComponent("family-glossary.json"))
+        let coverage = try JSONDecoder().decode(LedgerCoverage.self, from: data)
+
+        #expect(AgentLedger.years == coverage.ledger_years)
+    }
+
+    @Test("Ledger links open the company's section in the reader's language")
+    func ledgerLinkURLs() {
+        #expect(AgentLedger.url(ticker: "msft", language: .en)?.absoluteString
+            == "https://filing-agent.vercel.app/?lang=en#ledger/ledger-MSFT")
+        #expect(AgentLedger.url(ticker: "005930", language: .ko)?.absoluteString
+            == "https://filing-agent.vercel.app/?lang=ko#ledger/ledger-005930")
+        #expect(AgentLedger.url(ticker: "AAPL", language: .en) == nil)
+        #expect(AgentLedger.url(ticker: nil, language: .ko) == nil)
+        #expect(AgentLedger.detail(ticker: "005930", language: .ko) == "2022–2023 회계연도 검증 수치와 계산")
+        #expect(AgentLedger.detail(ticker: "035420", language: .en) == "Verified FY2023 figures and calculations")
+    }
 }
