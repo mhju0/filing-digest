@@ -7,318 +7,73 @@
 
 # Filing Digest
 
-**Every claim carries a citation**
+Explore key figures from Korean and US company filings, with the original sources.
 
-A bilingual iOS reader for Korean DART and US SEC filings, backed by a
-citation-grounded FastAPI retrieval pipeline.
+**[Open the walkthrough](https://mhju0.github.io/filing-digest/)** · [한국어](https://mhju0.github.io/filing-digest/?lang=ko) · [English](https://mhju0.github.io/filing-digest/?lang=en)
 
-[Recorded walkthrough](https://mhju0.github.io/filing-digest/) · [Coverage](docs/COVERAGE.md) · [Release qualification](docs/RELEASE_READINESS.md) · [Sister project: Filing Agent](https://github.com/mhju0/filing-agent)
+[Sister project: Filing Agent](https://github.com/mhju0/filing-agent)
 
 [![CI](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml/badge.svg)](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml)
 ![Python 3.11](https://img.shields.io/badge/Python-3.11-3776ab.svg)
 ![iOS 17+](https://img.shields.io/badge/iOS-17%2B-black.svg)
 
-</div>
+<br>
 
-> **Status:** v0.5.1 with release-readiness fixes and an expanded local corpus.
-> API v0.4 and database schema v0.3 remain unchanged.
-> [Open the recorded, read-only walkthrough](https://mhju0.github.io/filing-digest/).
-> Available in [한국어](https://mhju0.github.io/filing-digest/?lang=ko) and
-> [English](https://mhju0.github.io/filing-digest/?lang=en).
-> It makes no live API calls. The local app requires your own DART and Upstage
-> credentials; no production data or API keys are included.
->
-> [Latest local qualification](docs/COVERAGE.md): 18 companies across DART and
-> SEC as of September 9, 2026.
-> [Release qualification and remaining limits](docs/RELEASE_READINESS.md).
-
-Filing Digest separates financial figures from generated prose. Structured
-DART/SEC facts supply displayed reported financial values, and backend code
-derives displayed comparisons and ratios from those facts. KURE-v1 retrieval
-selects source passages, Solar writes narrative only, and deterministic guards
-reject missing/invalid citations and recognized financial expressions in
-generated text. They do not prove that every sentence is supported by its cited
-passage.
-
-**Sister project: [Filing Agent](https://github.com/mhju0/filing-agent).**
-Digest owns filing ingestion, retrieval and the iOS reader. Agent adds local
-conversational investigations over a separately verified snapshot, with a
-[recorded public replay](https://filing-agent.vercel.app). It does not call
-Digest's live API or Solar service during a question.
-
-## Product
-
-- Browse and filter companies already ingested from Korean and US filings.
-- Read bilingual company digests with filing-linked metric cards and YoY changes.
-- Ask cross-lingual questions and inspect claim-level excerpts plus the original
-  filing source.
-- Open the regulator's original disclosure in the app from any metric card,
-  citation, or source row, without losing your place.
-- Preserve exact financial values on the authoritative figures track even when
-  the narrative is blocked or no relevant passage is found.
-- Ingest the latest DART annual report or SEC 10-K from one CLI command.
-
-<div align="center">
-
-<img src="docs/screenshots/strip_core.png" alt="Browse, digest, cited answer, and guarded figures screens">
-
-<img src="docs/screenshots/strip_more.png" alt="SEC digest, a Korean question answered from a US 10-K, no results, and dark mode">
-
-<img src="docs/screenshots/walkthrough.gif" alt="Filing Digest end-to-end walkthrough: browse, filter, digest, ask, cited answer"> &nbsp; <img src="docs/screenshots/answer_states.gif" alt="Answer states: ok, blocked, and no results">
+<img src="docs/screenshots/digest-apple-en.png" width="300" alt="Apple's FY2025 digest in English: revenue of 416.2B USD, up 6.4% year over year, with operating income, net income, EPS and a summary">
 
 </div>
 
-## Architecture
+Filing Digest is an iPhone app for reading Korean (DART) and US (SEC) annual filings. Key figures and AI explanations sit side by side, and any figure, citation or source row opens the regulator's original document.
 
-```text
-SwiftUI (iOS 17) -> FastAPI (Python 3.11) -> PostgreSQL 16 + pgvector
-                              |-> DART OpenAPI / SEC EDGAR
-                              |-> KURE-v1 embeddings
-                              `-> Upstage Solar narrative generation
-```
+The walkthrough is a recorded, read-only tour of the app. It makes no API calls.
 
-The ingestion path parses filing prose, removes tables, chunks text, embeds it
-with normalized 1024-dimensional KURE-v1 vectors, and writes an HNSW-indexed
-pgvector corpus. DART and SEC structured facts are stored separately in
-`financials` as `numeric(24,4)` values. Filing identity stays on the enclosing
-Corporate Filing; source-neutral chunks carry only a typed Filing Chunk
-Location. The persistence adapter is the only layer that serializes that
-location to JSONB.
+**Status:** v0.5.1 · API v0.4 · database schema v0.3
 
-The answer path has two independent tracks, followed by source resolution:
+## How it works
 
-1. Filing-scoped Financial Facts become exact, source-bearing figures without
-   passing through an LLM.
-2. Retrieved filing chunks are sent to Solar under positional labels. The
-   response is schema-validated, labels are mapped back to real chunk IDs, and
-   citation, evidence-integrity, and number guards run before any prose reaches
-   the client.
-3. Citations resolve to bounded Filing Chunk excerpts; deduplicated Filing
-   Sources provide stable, openable regulator documents.
+- Figures come from structured DART and SEC data and never pass through the model. Backend code calculates comparisons and ratios.
+- KURE-v1 embeddings and pgvector find relevant passages. Upstage Solar writes the explanation using numbered labels that are mapped back to real passages.
+- Guards check the citations and financial expressions in generated text before it reaches the app. If a check fails, the explanation is withheld and the figures still show. The guards do not prove that every sentence is supported by its cited passage.
+- Questions that fall below a calibrated similarity threshold (0.42) never reach the model.
 
-The digest path selects its current Reporting Period from fiscal year, fiscal
-scope, and available end date rather than sorting display labels. Prior-year
-comparability additionally checks period kind and available source date ranges.
-The backend owns digest metric eligibility and authoritative values; iOS owns
-bilingual display labels and derives them from the transported metric key.
+## Key facts
 
-| Document | Contents |
+| | |
 |---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Component boundaries, schema decisions, API contract |
-| [CONTEXT.md](CONTEXT.md) | Domain glossary: the vocabulary the code is named after |
-| [docs/adr/](docs/adr/) | Architecture decisions and the alternatives they replaced |
-| [docs/design/DESIGN.md](docs/design/DESIGN.md) | The implemented visual system and its accessibility floor |
-| [docs/dart-api-notes.md](docs/dart-api-notes.md) | Non-obvious OpenDART response behaviors |
+| Stack | FastAPI · PostgreSQL 16 + pgvector · KURE-v1 · Upstage Solar · SwiftUI (no third-party packages) · Docker Compose |
+| Coverage | 18 companies (9 DART, 9 SEC) and 23 annual filings in the owner's [local qualification](docs/COVERAGE.md) of Sept 9, 2026. The database is not distributed; a fresh checkout starts empty |
+| Tests | 460 offline tests passed on Oct 2, 2026. CI also runs the PostgreSQL suites and the iOS unit and UI tests |
+| Evaluation | A 24-case golden set run against the live API passed 24/24 on Aug 27, 2026 (retrieval Hit@1 0.900, Hit@3 1.000, MRR 0.950). That corpus predates the 18-company expansion |
 
-## Stack
+## Run locally
 
-- **Backend:** FastAPI, Pydantic v2, SQLAlchemy 2.x, psycopg 3, httpx
-- **Storage:** PostgreSQL 16, pgvector, HNSW cosine index
-- **Retrieval:** `nlpai-lab/KURE-v1`, 1024-dimensional normalized embeddings
-- **Generation:** Upstage Solar through an OpenAI-compatible HTTP adapter
-- **iOS:** SwiftUI, URLSession, Codable, Swift Testing; no third-party packages
-- **Quality:** pytest, Ruff, GitHub Actions
-
-## Local setup
-
-Prerequisites: Python 3.11, Docker with Compose, and Xcode 16 or newer for the
-iOS client.
+Requires Python 3.11, Docker with Compose, Xcode 16 or newer, and your own DART and Upstage keys. No production data or API keys are included.
 
 ```bash
 python3.11 -m venv .venv
 .venv/bin/pip install -r backend/requirements.lock
-.venv/bin/pip install ruff==0.15.21
-cp backend/.env.example backend/.env
+cp backend/.env.example backend/.env    # add your keys
 docker compose up -d db
-cd backend
-../.venv/bin/python -m uvicorn app.main:app --reload --port 8001
+cd backend && ../.venv/bin/python -m uvicorn app.main:app --reload --port 8001
 ```
 
-On Linux, preinstall the CPU build with
-`.venv/bin/pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu`
-before installing requirements, as CI and the Docker image do. This avoids
-unused CUDA libraries; see [PyTorch CPU installation](https://pytorch.org/get-started/locally/).
+[DEVELOPMENT.md](docs/DEVELOPMENT.md) covers environment variables, ingestion, database upgrades, tests, the API and running on a device.
 
-Fill in `backend/.env` before using DART, SEC ingestion, or generated narrative.
-The file is ignored by Git. The embedding model is downloaded from Hugging Face
-on first use; set `EMBEDDING_WARMUP_ENABLED=false` when you only need lightweight
-API or health checks.
+## Limits
 
-| Variable | Required | Purpose |
-|---|---:|---|
-| `DART_API_KEY` | DART ingestion | OpenDART credential |
-| `DART_BASE_URL` | No | Defaults to `https://opendart.fss.or.kr/api` |
-| `SOLAR_API_KEY` | Narrative | Upstage credential |
-| `SOLAR_BASE_URL` | No | Defaults to `https://api.upstage.ai/v1` |
-| `SOLAR_MODEL` | No | Defaults to `solar-pro3` |
-| `SEC_BASE_URL` | No | Defaults to `https://data.sec.gov` |
-| `SEC_USER_AGENT` | SEC ingestion | Must contain real contact information |
-| `DATABASE_URL` | No | Local default targets PostgreSQL on port 5433 |
-| `ALLOWED_HOSTS` | No | JSON array of accepted HTTP host names; defaults to localhost and loopback |
-| `EMBEDDING_MODEL` | No | Defaults to `nlpai-lab/KURE-v1` |
-| `EMBEDDING_OFFLINE_FIRST` | No | Prefer a cached model snapshot |
-| `EMBEDDING_WARMUP_ENABLED` | No | Load the model during API startup |
+- Annual filings only: DART 사업보고서 and SEC 10-K.
+- It is a local, single-user service with no authentication. Do not expose it to the public internet.
+- Generated wording varies between runs; figures do not.
 
-The Compose backend is optional and isolated behind the `container` profile. It
-reads the same gitignored `backend/.env` as native uvicorn and persists the
-Hugging Face model cache in a named volume:
+## Documentation
 
-```bash
-docker compose --profile container up -d --build backend
-```
-
-Host API and database ports bind to `127.0.0.1`. Physical-device testing over
-LAN requires an explicit API bind and adding the Mac's address to
-`ALLOWED_HOSTS`. Use a trusted private network and restore loopback afterward;
-the API has no authentication. Do not expose PostgreSQL for device testing.
-
-### Upgrade an existing local database
-
-Fresh databases receive the v0.3 schema from `backend/db/init.sql`. Before
-running the current application against an older persistent volume, back it up
-and apply the versioned migration from the repository root:
-
-```bash
-docker compose exec -T db sh -c \
-  'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > filing-digest-pre-v0.3.sql
-docker compose exec -T db sh -c \
-  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" "$POSTGRES_DB"' \
-  < backend/db/migrations/0001_normalized_filing_snapshots.sql
-cd backend
-../.venv/bin/python -m app.embeddings.backfill
-```
-
-Use PostgreSQL 16 `pg_dump` and `pg_restore` with this PostgreSQL 16 database.
-Check both client versions first; do not use a newer default client blindly.
-Restore the backup into a disposable database and verify rows before migration.
-Keep dumps outside Git. The legacy v0.2 migration and restore path are covered
-by `make test-db`; null filing identities fail and roll back rather than being invented.
-
-The migration never invents historical Reporting Period dates. Re-ingest a
-filing to enrich exact dates when its regulator provides them. The final
-backfill command publishes `indexed_at` only after every chunk in each filing is
-ready, so partially indexed filings stay out of search.
-
-### Ingest data
-
-From `backend/` with the database running:
-
-```bash
-../.venv/bin/python -m app.ingest --source dart --ticker 000660
-../.venv/bin/python -m app.ingest --source sec --ticker NVDA
-```
-
-The reference portfolio corpus used for the screenshots contains four DART
-companies (Samsung Electronics, SK Hynix, NAVER, Hyundai Motor) and four SEC
-companies (Apple, Microsoft, NVIDIA, Tesla). That database is local and is not
-distributed with the repository; a fresh checkout starts empty. As of September
-9, 2026, the owner's qualified local corpus adds ten companies beyond that
-screenshot set; see [coverage](docs/COVERAGE.md).
-
-### Validate
-
-From the repository root:
-
-```bash
-make check                                      # Ruff, offline tests, Compose
-make test TESTS='tests/test_search.py -k health'  # targeted test
-make test-db                                    # fresh database, smoke + persistence
-```
-
-`make test-db` creates a unique temporary database on the server configured by
-`DATABASE_URL`, applies the checked-in schema and seed, runs the PostgreSQL
-suites, and removes that database even when a test fails. It never resets the
-application database. The PostgreSQL role needs `CREATEDB` and permission to
-install pgvector. When the application role lacks those privileges, supply a
-separate test connection; for local Homebrew PostgreSQL:
-
-```bash
-TEST_DATABASE_ADMIN_URL=postgresql:///postgres make test-db
-```
-
-`PYTHON` and `RUFF` can point to an existing environment when working in another
-checkout, for example `make check PYTHON=/path/to/.venv/bin/python
-RUFF=/path/to/.venv/bin/ruff`. No additional worktree configuration is required.
-
-Build the iOS client from the repository root:
-
-```bash
-xcodebuild -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
-  -destination 'generic/platform=iOS Simulator' build
-```
-
-GitHub Actions lints with Ruff, validates the Compose file, applies
-`backend/db/init.sql` and the smoke-test seed to a fresh pgvector/PostgreSQL 16
-service, runs offline, smoke, and persistence tests through the same Make targets,
-then builds the app and runs unit tests plus the core XCUITest flow on a macOS iOS Simulator. The
-live evaluation harness remains manual because it requires an ingested corpus
-and a configured Solar account. Retrieval cases compare canonical filing periods
-returned by the API, so regenerated database UUIDs do not require an eval-map
-update; see [`backend/evals/README.md`](backend/evals/README.md).
-
-### Run on a device
-
-The Simulator shares the host's network stack, so a fresh checkout needs no
-configuration: `APIClient` falls back to `http://127.0.0.1:8001`. On a real
-device that address is the phone itself, so the build has to be told where the
-Mac is. Create `ios/Local.xcconfig`. It is gitignored because a signing
-identity and a LAN address belong to one machine, not to the repository:
-
-```text
-DEVELOPMENT_TEAM = YOURTEAMID
-FD_SLASH = /
-FD_BACKEND_URL = http:$(FD_SLASH)$(FD_SLASH)your-mac.local:8001
-```
-
-`//` opens a comment in an xcconfig, so a literal URL silently truncates to
-`http:`; routing the slashes through `FD_SLASH` avoids it. The value reaches the
-app as `FDBackendURL` in `ios/FilingDigest-Info.plist`, and an unset or
-malformed value falls back to loopback rather than failing the build.
-
-```bash
-xcodebuild -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
-  -xcconfig ios/Local.xcconfig -destination 'id=<device-udid>' \
-  -allowProvisioningUpdates build
-```
-
-Serve on the LAN with `--host 0.0.0.0`, and note that this exposes an
-unauthenticated API to everyone on the same Wi-Fi. macOS also blocks incoming
-connections to the venv Python binary by default; allow it in System Settings →
-Network → Firewall. App Transport Security permits the plain-HTTP dev server
-through `NSAllowsLocalNetworking`, which covers `.local` and unqualified
-hostnames only, not arbitrary internet loads.
-
-## API
-
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/health` | Process liveness and version |
-| `GET` | `/companies?q=` | Company browse/filter data |
-| `GET` | `/companies/{company_id}/digest?lang=ko\|en` | Metrics, summaries, and Filing Sources |
-| `POST` | `/search` | Bounded semantic search over filing chunks |
-| `POST` | `/answer` | Guarded narrative, figures, Citations, and Filing Sources |
-
-Ingestion is intentionally CLI-only. The application does not expose a remote
-write endpoint.
-
-Digest metric cards transport `key`, `value`, `unit`, `yoy_delta_pct`, `source`,
-and `filing_source_id`. Presentation labels are deliberately absent from the
-wire contract and are resolved by the iOS `FigureDisplay` module.
-
-## Limitations and security scope
-
-- Annual filings only: DART 사업보고서 and SEC 10-K. DART xforms documents and
-  attachments are detected but not parsed.
-- The similarity threshold is a single calibrated cutoff, not a separate
-  semantic-groundedness classifier.
-- Generated wording is nondeterministic, so an out-of-corpus numeric question
-  may produce `blocked` or `no_results`; figures remain deterministic.
-- This is a local, single-user demonstration service. It has no authentication,
-  authorization, rate limiting, or multi-tenant isolation and should not be
-  exposed directly to the public internet.
-- `backend/db/init.sql` initializes an empty database. Versioned SQL migrations
-  under `backend/db/migrations/` upgrade existing local volumes; back up the
-  database before applying them.
+| Document | Contents |
+|---|---|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Component boundaries, schema decisions, API contract |
+| [CONTEXT.md](CONTEXT.md) | Domain glossary: the vocabulary the code is named after |
+| [docs/adr/](docs/adr/) | Architecture decisions and the alternatives they replaced |
+| [DESIGN.md](docs/design/DESIGN.md) | The implemented visual system and its accessibility floor |
+| [RELEASE_READINESS.md](docs/RELEASE_READINESS.md) | Release qualification and remaining limits |
 
 ## License
 
