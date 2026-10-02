@@ -543,6 +543,22 @@ sentence that the search screen has no toggle and stays Korean.
   A contract test checks `FigureDisplay` and `Company` against it. English
   metric names move to sentence case (`Operating income`) to match.
 
+## D55 — Links into Filing Agent's ledger — `ACCEPTED`
+
+2026-10-02. G2 from the Filing family revamp report.
+
+- When a company is covered by Filing Agent's public ledger, the digest's
+  Filing Sources section and the answer evidence sheet show a "Filing Agent
+  수치 장부 / ledger" row. It opens `https://filing-agent.vercel.app/?lang=<ko|en>#ledger/ledger-<ticker>`
+  in Safari, in the reader's current language.
+- The ledger holds earlier fiscal years (2022–2024) than Digest's latest
+  annual filings, so the row names the years it covers instead of claiming
+  the same figure. Citations are text passages, so the link goes to the
+  company's ledger section, not to a single row.
+- `ledger_years` in `contracts/family-glossary.json` lists the covered
+  companies and years. Filing Agent's test derives it from its ledger;
+  Digest's contract test checks `AgentLedger.years` against it.
+
 ## Standing non-goals — `EXPLICITLY REJECTED`
 
 Each was considered and declined on the record, not merely skipped:
