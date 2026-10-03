@@ -135,3 +135,10 @@ the dated entries that followed. Git history has the full text.
   - The local `backend/.env` still has unused `SOLAR_BASE_URL` and `SOLAR_MODEL` lines; they are ignored.
   - The walkthrough recapture is unblocked but not yet done.
 - Next step: Recapture the walkthrough screens and GIFs.
+
+## Walkthrough recaptured · 2026-10-03
+
+- What changed: All eight walkthrough screens, both GIFs and both posters were recaptured from the current app against the real backend and the 18-company corpus, with Gemini Flash-Lite writing the explanations. The core GIF now ends on the evidence sheet. The capture note, captions and alt text in `docs/index.html` and `docs/walkthrough.js` match.
+- Decisions and why: The second GIF is labelled "Cited → filing figures → no results". The number guard blocked the probe question once over the API but not during capture, so no blocked screen is shown and the caption no longer claims one.
+- Open issues: Captures come from `XCUIScreen` screenshots, which don't draw the Dynamic Island that the old images had. Filing Agent's `slice/README.md` and `release/pages.py`, and the owner's portfolio README, still say "Solar".
+- Next step: Decide whether to update the remaining "Solar" mentions outside this repo.
