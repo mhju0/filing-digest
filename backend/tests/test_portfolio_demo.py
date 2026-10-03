@@ -31,8 +31,7 @@ def test_demo_is_a_disclosed_static_product_walkthrough() -> None:
 
     assert "read-only portfolio demo" in html.lower()
     assert "no live api calls" in html.lower()
-    assert "original eight-company reference corpus" in html.lower()
-    assert "reached 18 companies on september 9, 2026" in html.lower()
+    assert "captured october 3, 2026 with the current 18-company corpus" in html.lower()
     assert "https://filing-agent.vercel.app" in html
     assert "main-content" in parser.element_ids
     assert "screenshots/walkthrough_poster.png" in parser.image_sources
