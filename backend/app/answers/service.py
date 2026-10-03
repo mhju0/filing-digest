@@ -10,10 +10,10 @@ from app.db.models import Filing as FilingModel
 from app.evidence import EvidenceIntegrityError, resolve_evidence
 from app.figures.service import build_figures, fetch_financials
 from app.llm.base import LLMClient
+from app.llm.chat_completions import LLMApiError, LLMClientError
 from app.llm.citation_guard import CitationError
 from app.llm.narrative import NarrativeError, generate_narrative
 from app.llm.number_guard import NumberInNarrativeError
-from app.llm.solar import SolarApiError, SolarClientError
 from app.schemas import (
     AnswerRequest,
     AnswerResponse,
@@ -81,7 +81,7 @@ async def build_answer_response(
             NarrativeStatus.blocked,
             NarrativeBlockedReason.number_guard,
         )
-    except (SolarApiError, SolarClientError, httpx.HTTPError) as exc:
+    except (LLMApiError, LLMClientError, httpx.HTTPError) as exc:
         logger.warning(
             "narrative service unavailable for company_id=%s (%s); "
             "returning figures only",

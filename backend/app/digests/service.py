@@ -16,7 +16,7 @@ from app.evidence import EvidenceIntegrityError, filing_source_from_filing
 from app.figures.service import fetch_financials
 from app.financials.calculations import compute_yoy_deltas, select_reporting_periods
 from app.llm.base import LLMClient
-from app.llm.solar import SolarApiError, SolarClientError
+from app.llm.chat_completions import LLMApiError, LLMClientError
 from app.schemas import CompanyDigest, FilingSource, MetricCard
 
 logger = logging.getLogger(__name__)
@@ -118,8 +118,8 @@ async def build_company_digest(
             )
         except (
             DigestNarrativeError,
-            SolarApiError,
-            SolarClientError,
+            LLMApiError,
+            LLMClientError,
             httpx.HTTPError,
         ) as exc:
             logger.warning(

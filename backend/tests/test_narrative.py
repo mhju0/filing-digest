@@ -1,8 +1,8 @@
 """Offline tests for the prose-only narrative orchestrator.
 
-No network: a ``SolarClient`` backed by an ``httpx.MockTransport`` stands in for
+No network: a ``ChatCompletionsClient`` backed by an ``httpx.MockTransport`` stands in for
 the LLM, so the full path (format -> complete -> parse -> remap -> guard) runs
-against a canned Solar-style chat/completions body. We assert the happy path,
+against a canned OpenAI-style chat/completions body. We assert the happy path,
 the fabricated-label failure, both empty-citation paths, and two prompt
 invariants: response_format is passed through and no raw UUID reaches the prompt.
 """
@@ -18,12 +18,12 @@ from pydantic import SecretStr
 
 from app.config import Settings
 from app.llm.answer import build_answer_json_schema
+from app.llm.chat_completions import ChatCompletionsClient
 from app.llm.citation_guard import CitationError
 from app.llm.narrative import NarrativeError, generate_narrative
 from app.llm.number_guard import NumberInNarrativeError
-from app.llm.solar import SolarClient
 
-_FAKE_SETTINGS = Settings(solar_api_key=SecretStr("SOLARKEY123"))
+_FAKE_SETTINGS = Settings(llm_api_key=SecretStr("LLMKEY123"))
 
 # Two chunks with real UUID ids -- distinctive so a leak into the prompt is
 # trivial to catch, and so remapped citations are checkable exactly.
@@ -45,10 +45,10 @@ _CHUNKS = [
 ]
 
 
-def _solar_body(answer_obj: dict) -> dict:
-    """Wrap an Answer-shaped dict as the assistant message of a Solar response."""
+def _completion_body(answer_obj: dict) -> dict:
+    """Wrap an Answer-shaped dict as the assistant message of a chat-completions response."""
     return {
-        "model": "solar-pro3",
+        "model": "gemini-3.5-flash-lite",
         "choices": [
             {
                 "index": 0,
@@ -69,11 +69,11 @@ def _run(
     def handler(request: httpx.Request) -> httpx.Response:
         if capture is not None:
             capture["body"] = json.loads(request.content)
-        return httpx.Response(200, json=_solar_body(answer_obj))
+        return httpx.Response(200, json=_completion_body(answer_obj))
 
     async def _go():
         http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        client = SolarClient(settings=_FAKE_SETTINGS, client=http)
+        client = ChatCompletionsClient(settings=_FAKE_SETTINGS, client=http)
         try:
             return await generate_narrative(
                 client,

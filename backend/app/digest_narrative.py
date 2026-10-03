@@ -10,7 +10,7 @@ FIXED, query-less business-overview summary for a company's filing:
   stable, company-level artifact.
 - ONE LLM CALL returning a flat ``{summary_ko, summary_en}`` JSON. The schema is
   hand-authored (no ``$ref``/``$defs``, one level of nesting) for the same
-  reason as :func:`app.llm.answer.build_answer_json_schema`: Solar rejects
+  reason as :func:`app.llm.answer.build_answer_json_schema`: some OpenAI-compatible providers reject
   ref/recursive schemas.
 - NUMBER POLICY: generated summaries must be fully qualitative in both
   languages. NFKC normalization followed by a digit scan rejects financial
@@ -84,10 +84,10 @@ class DigestSummary(BaseModel):
 
 
 def build_digest_json_schema() -> dict[str, Any]:
-    """Build the Solar ``response_format`` dict for :class:`DigestSummary`.
+    """Build the ``response_format`` dict for :class:`DigestSummary`.
 
     Hand-written (not ``DigestSummary.model_json_schema()``) for the same reason
-    as :func:`app.llm.answer.build_answer_json_schema`: Solar rejects
+    as :func:`app.llm.answer.build_answer_json_schema`: some OpenAI-compatible providers reject
     ``$ref``/``$defs`` schemas. This one is flat -- a single object with two
     string fields, one level of nesting.
     """
@@ -177,7 +177,7 @@ def _assert_summary_number_free(summary: DigestSummary) -> None:
 async def _call_and_guard(
     client: LLMClient, messages: list[ChatMessage]
 ) -> DigestSummary:
-    """One Solar call -> parse -> number-guard both summaries.
+    """One LLM call -> parse -> number-guard both summaries.
 
     Raises :class:`DigestNarrativeError` on an unparseable body and
     :class:`app.llm.number_guard.NumberInNarrativeError` when the guard trips.
@@ -243,7 +243,7 @@ async def build_company_summary(
     happens to rank first. ``None`` (e.g. no financials rows to derive a filing
     from) falls back to the prior company-wide retrieval.
 
-    May raise :class:`DigestNarrativeError` (unparseable body) or Solar/httpx
+    May raise :class:`DigestNarrativeError` (unparseable body) or LLM/httpx
     transport errors -- the digest service catches those and falls back to null
     summaries so a summary failure never breaks the figures response. Retrieval
     (``search_chunks``) errors are NOT swallowed here (shared infra, same as

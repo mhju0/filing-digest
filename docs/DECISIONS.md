@@ -559,6 +559,26 @@ sentence that the search screen has no toggle and stays Korean.
   companies and years. Filing Agent's test derives it from its ledger;
   Digest's contract test checks `AgentLedger.years` against it.
 
+## D56 — Gemini Flash-Lite replaces Upstage Solar — `ACCEPTED`
+
+2026-10-03. The Upstage free credit ran out and every Solar call returned 403.
+
+- The narrative model is now `gemini-3.5-flash-lite` through Gemini's
+  OpenAI-compatible endpoint. The adapter was already provider-neutral in
+  behavior, so it was renamed to match: `app/llm/chat_completions.py`,
+  `ChatCompletionsClient`, and `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`.
+  Prompts, schemas and guards are unchanged.
+- Flash-Lite was chosen over the full Flash models because of the free limits
+  shown in AI Studio that day: Flash allowed 5 requests a minute and 20 a day,
+  Flash-Lite 15 a minute and 500 a day.
+- The 24-case golden set passed 24/24 on Flash-Lite, with all 14 full cases
+  returning a cited narrative.
+- The eval harness now fails any case blocked with `narrative_unavailable`,
+  and takes `--delay` to pace full cases. Before this, a rate-limited call
+  could pass as a safe `blocked` state.
+- Earlier entries and reports that name Solar describe runs made on Solar and
+  are left as written.
+
 ## Standing non-goals — `EXPLICITLY REJECTED`
 
 Each was considered and declined on the record, not merely skipped:

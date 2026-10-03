@@ -1,7 +1,8 @@
 """FastAPI dependency for the LLM provider seam.
 
 Mirrors :func:`app.db.session.get_db_session`: a thin, request-scoped factory
-usable as a ``fastapi.Depends`` argument. Builds a :class:`app.llm.solar.SolarClient`
+usable as a ``fastapi.Depends`` argument. Builds a
+:class:`app.llm.chat_completions.ChatCompletionsClient`
 from cached :class:`~app.config.Settings` and closes the httpx client it owns when
 the request ends. Callers depend on the :class:`app.llm.base.LLMClient` Protocol,
 not on the concrete provider.
@@ -14,7 +15,7 @@ from collections.abc import AsyncIterator
 
 from app.config import get_settings
 from app.llm.base import LLMClient
-from app.llm.solar import SolarClient
+from app.llm.chat_completions import ChatCompletionsClient
 
 
 async def get_llm_client() -> AsyncIterator[LLMClient]:
@@ -23,10 +24,10 @@ async def get_llm_client() -> AsyncIterator[LLMClient]:
         @router.post("/answer")
         async def answer(client: LLMClient = Depends(get_llm_client)): ...
 
-    ``SolarClient`` lazily creates (and thus owns) its ``httpx.AsyncClient``, so it
+    ``ChatCompletionsClient`` lazily creates (and thus owns) its ``httpx.AsyncClient``, so it
     is closed here once the request finishes.
     """
-    client = SolarClient(get_settings())
+    client = ChatCompletionsClient(get_settings())
     try:
         yield client
     finally:

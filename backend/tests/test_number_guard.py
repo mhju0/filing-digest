@@ -1,6 +1,6 @@
 """Offline tests for the deterministic number-in-narrative guard.
 
-Pure unit tests: no Solar, no network, no DB. Answer objects are assembled
+Pure unit tests: no LLM, no network, no DB. Answer objects are assembled
 directly. Exercises find_number_violations/assert_number_free against the
 suffix-anchored financial-number blocklist described in
 :mod:`app.llm.number_guard`.

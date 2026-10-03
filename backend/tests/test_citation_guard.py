@@ -1,7 +1,7 @@
 """Offline tests for the citation contract and its deterministic guard.
 
-Pure unit tests: no Solar, no network, no DB. Exercises the Answer/AnswerSegment
-schema, its Solar json_schema builder, and check_citations/assert_citations.
+Pure unit tests: no LLM, no network, no DB. Exercises the Answer/AnswerSegment
+schema, its json_schema builder, and check_citations/assert_citations.
 """
 
 import pytest

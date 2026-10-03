@@ -312,3 +312,25 @@ def test_retrieval_rank_miss_is_not_mislabeled_as_missing_period() -> None:
     assert result["passed"] is False
     assert result["status"] == "FAIL"
     assert result["expected_rank"] == 4
+
+
+def test_full_case_fails_when_the_narrative_service_was_unavailable() -> None:
+    case = {
+        "id": "provider-down",
+        "tier": "full",
+        "company_slug": "apple",
+        "query": "What was Apple's 2019 revenue?",
+        "allowed_states": ["ok", "blocked"],
+        "expect_absent_figure": {"metric": "revenue", "period": "2019-annual"},
+    }
+    payload = {
+        "narrative_status": "blocked",
+        "blocked_reason": "narrative_unavailable",
+        "figures": [],
+    }
+
+    with _client_returning(payload) as client:
+        result = run_full_case(client, "http://eval.test", case, "company-1")
+
+    assert result["passed"] is False
+    assert "narrative_unavailable" in result["reason"]

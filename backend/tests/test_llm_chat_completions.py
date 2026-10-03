@@ -1,6 +1,6 @@
-"""Offline tests for the Solar (Upstage) LLM adapter.
+"""Offline tests for the OpenAI-compatible LLM adapter.
 
-No network: an ``httpx.MockTransport`` stands in for the Solar endpoint so we can
+No network: an ``httpx.MockTransport`` stands in for the LLM endpoint so we can
 assert the outgoing request shape and the response->LLMResult parsing without a
 live call or a real key. One test proves the API key never reaches a log record
 (the key lives only in the Authorization header, which we never log).
@@ -15,12 +15,12 @@ from pydantic import SecretStr
 
 from app.config import Settings
 from app.llm.base import ChatMessage, LLMResult
-from app.llm.solar import SolarApiError, SolarClient, SolarClientError
+from app.llm.chat_completions import ChatCompletionsClient, LLMApiError, LLMClientError
 
 # A fake key so the offline path builds the Authorization header without a real
 # secret. Distinctive so a leak is trivial to assert on.
-_FAKE_KEY = "SOLARKEY123"
-_FAKE_SETTINGS = Settings(solar_api_key=SecretStr(_FAKE_KEY))
+_FAKE_KEY = "LLMKEY123"
+_FAKE_SETTINGS = Settings(llm_api_key=SecretStr(_FAKE_KEY))
 
 _MESSAGES: list[ChatMessage] = [
     {"role": "system", "content": "You write only prose."},
@@ -30,7 +30,7 @@ _MESSAGES: list[ChatMessage] = [
 # A minimal but well-formed chat-completions response body (OpenAI shape).
 _OK_RESPONSE = {
     "id": "chatcmpl-xyz",
-    "model": "solar-pro3",
+    "model": "gemini-3.5-flash-lite",
     "choices": [
         {
             "index": 0,
@@ -56,13 +56,13 @@ _JSON_SCHEMA_FORMAT = {
 
 
 def _run_complete(handler, *, response_format=None, settings=_FAKE_SETTINGS):
-    """Drive SolarClient.complete against a MockTransport handler, offline."""
+    """Drive ChatCompletionsClient.complete against a MockTransport handler, offline."""
 
     async def _run() -> LLMResult:
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        solar = SolarClient(settings=settings, client=client)
+        llm = ChatCompletionsClient(settings=settings, client=client)
         try:
-            return await solar.complete(_MESSAGES, response_format=response_format)
+            return await llm.complete(_MESSAGES, response_format=response_format)
         finally:
             await client.aclose()
 
@@ -86,7 +86,7 @@ def test_request_shape_has_auth_header_and_json_body_without_response_format() -
     # Secret rides ONLY in the Authorization header (never the URL).
     assert captured["auth"] == f"Bearer {_FAKE_KEY}"
     body = captured["json"]
-    assert body["model"] == "solar-pro3"
+    assert body["model"] == "gemini-3.5-flash-lite"
     assert body["messages"] == _MESSAGES
     assert body["temperature"] == 0.2
     assert body["max_tokens"] == 1024
@@ -114,7 +114,7 @@ def test_response_parses_into_llm_result() -> None:
     result = _run_complete(handler)
     assert isinstance(result, LLMResult)
     assert result.text == "A concise summary."
-    assert result.model == "solar-pro3"
+    assert result.model == "gemini-3.5-flash-lite"
     assert result.finish_reason == "stop"
     assert result.input_tokens == 42
     assert result.output_tokens == 7
@@ -123,7 +123,7 @@ def test_response_parses_into_llm_result() -> None:
 
 def test_missing_usage_yields_none_token_counts() -> None:
     body = {
-        "model": "solar-pro3",
+        "model": "gemini-3.5-flash-lite",
         "choices": [
             {"message": {"role": "assistant", "content": "hi"}, "finish_reason": "stop"}
         ],
@@ -138,11 +138,11 @@ def test_missing_usage_yields_none_token_counts() -> None:
     assert result.output_tokens is None
 
 
-def test_non_2xx_raises_solar_api_error_without_key_leak() -> None:
+def test_non_2xx_raises_llm_api_error_without_key_leak() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(401, json={"error": {"message": "invalid api key"}})
 
-    with pytest.raises(SolarApiError) as exc:
+    with pytest.raises(LLMApiError) as exc:
         _run_complete(handler)
     assert exc.value.status_code == 401
     msg = str(exc.value)
@@ -154,8 +154,8 @@ def test_missing_api_key_raises_client_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:  # never reached
         return httpx.Response(200, json=_OK_RESPONSE)
 
-    with pytest.raises(SolarClientError):
-        _run_complete(handler, settings=Settings(solar_api_key=None))
+    with pytest.raises(LLMClientError):
+        _run_complete(handler, settings=Settings(llm_api_key=None))
 
 
 def test_api_key_never_appears_in_log_records(caplog) -> None:

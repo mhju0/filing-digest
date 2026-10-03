@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Backend settings loaded from environment / .env file.
 
-    API secrets (``DART_API_KEY`` and ``SOLAR_API_KEY``) use ``SecretStr`` and
+    API secrets (``DART_API_KEY`` and ``LLM_API_KEY``) use ``SecretStr`` and
     must never be logged.
     """
 
@@ -29,15 +29,15 @@ class Settings(BaseSettings):
     dart_api_key: SecretStr | None = None
     dart_base_url: str = "https://opendart.fss.or.kr/api"
 
-    # Solar (Upstage) -- OpenAI-compatible chat completions. The LLM writes only
+    # LLM provider (Gemini by default) -- OpenAI-compatible chat completions. The LLM writes only
     # narrative (numbers come from the structured filing API); this is the one
-    # provider seam (see app.llm). solar_api_key is a secret -- never log it; it
+    # provider seam (see app.llm). llm_api_key is a secret -- never log it; it
     # travels only in the Authorization header. base_url is the OpenAI-compatible
     # root (adapter appends /chat/completions); model is configurable -- the exact
-    # Solar model name may change independently of this default.
-    solar_api_key: SecretStr | None = None
-    solar_base_url: str = "https://api.upstage.ai/v1"
-    solar_model: str = "solar-pro3"
+    # model name may change independently of this default.
+    llm_api_key: SecretStr | None = None
+    llm_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    llm_model: str = "gemini-3.5-flash-lite"
 
     # SEC EDGAR -- requires a User-Agent with contact info (name + email).
     sec_base_url: str = "https://data.sec.gov"

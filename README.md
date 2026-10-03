@@ -32,7 +32,7 @@ The walkthrough is a recorded, read-only tour of the app. It makes no API calls.
 ## How it works
 
 - Figures come from structured DART and SEC data and never pass through the model. Backend code calculates comparisons and ratios.
-- KURE-v1 embeddings and pgvector find relevant passages. Upstage Solar writes the explanation using numbered labels that are mapped back to real passages.
+- KURE-v1 embeddings and pgvector find relevant passages. Gemini Flash-Lite writes the explanation using numbered labels that are mapped back to real passages.
 - Guards check the citations and financial expressions in generated text before it reaches the app. If a check fails, the explanation is withheld and the figures still show. The guards do not prove that every sentence is supported by its cited passage.
 - Questions that fall below a calibrated similarity threshold (0.42) never reach the model.
 
@@ -40,14 +40,14 @@ The walkthrough is a recorded, read-only tour of the app. It makes no API calls.
 
 | | |
 |---|---|
-| Stack | FastAPI · PostgreSQL 16 + pgvector · KURE-v1 · Upstage Solar · SwiftUI (no third-party packages) · Docker Compose |
+| Stack | FastAPI · PostgreSQL 16 + pgvector · KURE-v1 · Gemini Flash-Lite · SwiftUI (no third-party packages) · Docker Compose |
 | Coverage | 18 companies (9 DART, 9 SEC) and 23 annual filings in the owner's [local qualification](docs/COVERAGE.md) of Sept 9, 2026. The database is not distributed; a fresh checkout starts empty |
 | Tests | 460 offline tests passed on Oct 2, 2026. CI also runs the PostgreSQL suites and the iOS unit and UI tests |
-| Evaluation | A 24-case golden set run against the live API passed 24/24 on Aug 27, 2026 (retrieval Hit@1 0.900, Hit@3 1.000, MRR 0.950). That corpus predates the 18-company expansion |
+| Evaluation | A 24-case golden set run against the live API passed 24/24 on Oct 3, 2026 with Gemini Flash-Lite on the 18-company corpus (retrieval Hit@1 0.900, Hit@3 1.000, MRR 0.950) |
 
 ## Run locally
 
-Requires Python 3.11, Docker with Compose, Xcode 16 or newer, and your own DART and Upstage keys. No production data or API keys are included.
+Requires Python 3.11, Docker with Compose, Xcode 16 or newer, and your own DART and Gemini keys. No production data or API keys are included.
 
 ```bash
 python3.11 -m venv .venv
