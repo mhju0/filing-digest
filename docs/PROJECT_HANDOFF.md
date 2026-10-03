@@ -101,7 +101,7 @@ the dated entries that followed. Git history has the full text.
 - `CompanyDirectoryTests.ordering()` was reported failing on 2026-09-29 because
   `localizedStandardCompare` depends on the simulator locale. It passed in the
   2026-10-02 unit run on an iPhone 17 Pro simulator; watch it on other locales.
-- The full golden set has not been re-run on the 18-company corpus.
+- The full golden set was re-run on the 18-company corpus on 2026-10-03 (24/24). Its questions still cover only Apple, Microsoft and Samsung Electronics.
 
 ## README refresh · 2026-10-02
 
@@ -142,3 +142,10 @@ the dated entries that followed. Git history has the full text.
 - Decisions and why: The second GIF is labelled "Cited → filing figures → no results". The number guard blocked the probe question once over the API but not during capture, so no blocked screen is shown and the caption no longer claims one.
 - Open issues: Captures come from `XCUIScreen` screenshots, which don't draw the Dynamic Island that the old images had. Filing Agent's `slice/README.md` and `release/pages.py`, and the owner's portfolio README, still say "Solar".
 - Next step: Decide whether to update the remaining "Solar" mentions outside this repo.
+
+## Solar wording closed out · 2026-10-03
+
+- What changed: Filing Agent's pages and `slice/README.md` no longer name Solar (Filing Agent PR #18, deployed). The owner's portfolio README had no Solar mention. The carried-forward golden-set issue above was updated.
+- Decisions and why: Older dated audit records in Filing Agent keep "Solar" because they describe what was true then.
+- Open issues: None from the provider change.
+- Next step: None.
