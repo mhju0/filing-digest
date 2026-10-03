@@ -132,7 +132,7 @@ the dated entries that followed. Git history has the full text.
 - Decisions and why: The Upstage free credit ran out (balance $0.00 in the console), which caused the 403s. The owner chose Gemini's free tier. Full Flash models allow only 20 requests a day on the free tier, so Flash-Lite (15 a minute, 500 a day) is the default.
 - Open issues:
   - Google can change free limits without notice; check AI Studio's rate-limit page if calls start returning 429.
-  - The local `backend/.env` still has unused `SOLAR_BASE_URL` and `SOLAR_MODEL` lines; they are ignored.
+  - The local `backend/.env` had unused `SOLAR_BASE_URL` and `SOLAR_MODEL` lines; they were removed later on 2026-10-03.
   - The walkthrough recapture is unblocked but not yet done.
 - Next step: Recapture the walkthrough screens and GIFs.
 
