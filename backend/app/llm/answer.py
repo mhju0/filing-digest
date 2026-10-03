@@ -1,7 +1,7 @@
 """Citation-bearing answer contract for LLM chat completions.
 
 Every claim the LLM produces must carry a citation back to a retrieved chunk.
-This module is pure data + schema-building: no HTTP, no Solar call, no guard logic (see
+This module is pure data + schema-building: no HTTP, no LLM call, no guard logic (see
 :mod:`app.llm.citation_guard` for the validation side).
 
 Nesting is kept to exactly 3 levels -- root -> segment -> citations array --
@@ -27,10 +27,10 @@ class Answer(BaseModel):
 
 
 def build_answer_json_schema() -> dict[str, Any]:
-    """Build the Solar ``response_format`` dict for :class:`Answer`.
+    """Build the ``response_format`` dict for :class:`Answer`.
 
     Hand-written (not ``Answer.model_json_schema()``) because Pydantic emits
-    ``$defs``/``$ref`` for nested models, and Solar rejects recursive/ref
+    ``$defs``/``$ref`` for nested models, and some OpenAI-compatible providers reject recursive/ref
     schemas -- every level here is inlined instead.
     """
     segment_schema: dict[str, Any] = {

@@ -17,7 +17,7 @@ contracts, and PostgreSQL plus iOS CI gates.
                               v                                                v
                  ┌────────────────────────┐                        ┌────────────────────┐
                  │ PostgreSQL 16          │                        │ External services  │
-                 │ pgvector / HNSW cosine │                        │ DART, SEC, Solar   │
+                 │ pgvector / HNSW cosine │                        │ DART, SEC, Gemini  │
                  └────────────────────────┘                        └────────────────────┘
 ```
 
@@ -64,7 +64,7 @@ filings whose current snapshot is not fully indexed.
 
 - `fetch_financials` returns authoritative structured values. The LLM never sees
   or calculates them.
-- Retrieved chunks are labelled positionally before being sent to Solar. The
+- Retrieved chunks are labelled positionally before being sent to the LLM. The
   response must match a JSON schema. Labels are then mapped back to real chunk
   identities.
 - A Citation identifies one supporting Filing Chunk and carries a bounded
@@ -141,7 +141,7 @@ which this project does not plan to publish.
 [Filing Agent](https://github.com/mhju0/filing-agent) is the implemented sister
 project for conversational investigations. It uses a separately qualified,
 pinned snapshot of Digest facts plus regulator supplements. It does not call
-these endpoints, KURE or Solar during a question. Digest owns ingestion and the
+these endpoints, KURE or Digest's LLM provider during a question. Digest owns ingestion and the
 iOS reader; Agent owns its local model runtime, investigations and static replay.
 The contract freeze stands independently of Agent's implementation.
 
@@ -204,6 +204,6 @@ when the regulator provides honest dates.
 - DART 사업보고서 and SEC 10-K only.
 - DART xforms documents and attachments are not parsed.
 - Retrieval uses one similarity threshold; it is not a full groundedness model.
-- Solar wording is nondeterministic, while guards and structured figures are
+- LLM wording is nondeterministic, while guards and structured figures are
   deterministic.
-- Request-scoped Solar clients favor explicit ownership over connection reuse.
+- Request-scoped LLM clients favor explicit ownership over connection reuse.

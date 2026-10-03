@@ -2,7 +2,7 @@
 
 The eval harness calls the running HTTP API; it does not import service
 functions. It is a manual quality check, not a CI gate, because full-tier cases
-use the configured Solar account and retrieval cases require an ingested corpus.
+call the configured LLM provider and retrieval cases require an ingested corpus.
 
 From `backend/`, after starting PostgreSQL and uvicorn:
 
@@ -12,7 +12,12 @@ From `backend/`, after starting PostgreSQL and uvicorn:
 ../.venv/bin/python evals/run_eval.py --tier full
 ../.venv/bin/python evals/run_eval.py --only ok-apple-business-en
 ../.venv/bin/python evals/run_eval.py --base-url http://127.0.0.1:8001
+../.venv/bin/python evals/run_eval.py --delay 5
 ```
+
+`--delay` waits that many seconds after each full case. Use it to stay under a
+provider's per-minute limit; Gemini's free tier allowed 15 requests a minute
+for Flash-Lite on Oct 3, 2026.
 
 The command prints a summary and writes the full response set to the ignored
 `evals/reports/` directory. It exits nonzero when a case fails.
@@ -31,6 +36,8 @@ The command prints a summary and writes the full response set to the ignored
 - An `ok` response must contain narrative text whose segment citations resolve
   through the response citations to Filing Sources. Cases may additionally pin
   the expected regulator and source filing identifier.
+- A response blocked with `narrative_unavailable` (provider outage or rate
+  limit) always fails, even when `blocked` is an allowed state.
 - Wrong-year cases assert that the unavailable metric/period is absent from
   `figures`; numeric cases assert that the expected metric/period is present.
 

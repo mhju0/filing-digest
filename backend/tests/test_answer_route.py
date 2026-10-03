@@ -5,7 +5,7 @@ Patches the impure boundaries the endpoint calls -- ``search_chunks`` (KURE embe
 FastAPI's dependency override, so :func:`app.answers.build_answer_response` runs
 end-to-end with no external dependency. Focus of this step: the empty-retrieval
 branch must NOT call the LLM (project rule: no narrative over zero sources), and
-``AnswerResponse`` must serialize with the figures track intact. The real Solar
+``AnswerResponse`` must serialize with the figures track intact. The real LLM
 round-trip is a later live step.
 """
 
@@ -23,10 +23,10 @@ from app.db.session import get_db_session
 from app.filings import FilingChunkLocation
 from app.llm.answer import Answer
 from app.llm.base import LLMResult
+from app.llm.chat_completions import LLMApiError, LLMClientError
 from app.llm.citation_guard import CitationError, CitationViolation
 from app.llm.deps import get_llm_client
 from app.llm.number_guard import NumberInNarrativeError
-from app.llm.solar import SolarApiError, SolarClientError
 from app.main import app
 
 _COMPANY_ID = uuid.UUID("33333333-3333-3333-3333-333333333333")
@@ -338,8 +338,8 @@ def test_answer_number_guard_blocked_returns_figures_only(api_client, monkeypatc
 @pytest.mark.parametrize(
     "error",
     [
-        SolarClientError("SOLAR_API_KEY is not configured"),
-        SolarApiError(429, "rate limited"),
+        LLMClientError("LLM_API_KEY is not configured"),
+        LLMApiError(429, "rate limited"),
         httpx.ConnectError("network unavailable"),
     ],
     ids=["configuration", "api", "network"],

@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -237,6 +238,11 @@ def run_full_case(
         passed = actual_state in allowed_states
         reason = f"state={actual_state!r}; allowed_states={allowed_states!r}"
 
+    # A provider outage or rate limit is not a guard decision; never count it as a pass.
+    if data.get("blocked_reason") == "narrative_unavailable":
+        passed = False
+        reason += "; blocked_reason='narrative_unavailable'"
+
     if actual_state == "ok":
         segments = (data.get("answer") or {}).get("answer_segments", [])
         narrative_text = "".join(seg["text"] for seg in segments).strip()
@@ -362,6 +368,12 @@ def main() -> int:
     parser.add_argument("--tier", choices=["retrieval", "full", "all"], default="all")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument("--only", default=None, help="run a single case id")
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.0,
+        help="seconds to wait after each full case (stay under a provider rate limit)",
+    )
     args = parser.parse_args()
 
     cases = load_golden_set(GOLDEN_SET_PATH)
@@ -392,6 +404,7 @@ def main() -> int:
                 result = run_retrieval_case(client, args.base_url, case, company_id)
             else:
                 result = run_full_case(client, args.base_url, case, company_id)
+                time.sleep(args.delay)
             results.append(result)
 
     print_summary_table(results)

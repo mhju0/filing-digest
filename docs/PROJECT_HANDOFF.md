@@ -15,10 +15,10 @@ the dated entries that followed. Git history has the full text.
 ### What it is
 
 - An iPhone app (SwiftUI, iOS 17+, no third-party packages) over a local
-  FastAPI backend, PostgreSQL 16 + pgvector, KURE-v1 embeddings and Upstage
-  Solar. Korean DART 사업보고서 and US SEC 10-K annual filings only.
+  FastAPI backend, PostgreSQL 16 + pgvector, KURE-v1 embeddings and an LLM
+  (Gemini Flash-Lite since D56; Upstage Solar before). Korean DART 사업보고서 and US SEC 10-K annual filings only.
 - Figures come from structured DART/SEC facts and never pass through the
-  model. Solar writes narrative only, under positional citation labels; the
+  model. The LLM writes narrative only, under positional citation labels; the
   citation, number and evidence-integrity guards decide whether prose reaches
   the client. Figures survive blocked and no-result answers.
 - Local, single-user portfolio project. No authentication, rate limiting or
@@ -32,7 +32,7 @@ the dated entries that followed. Git history has the full text.
 
 - 2026-08-27: v0.5.1 released. Latest full golden-set run (24/24, Hit@1 0.900,
   Hit@3 1.000, MRR 0.950) was recorded on 2026-08-27; reports are in
-  `backend/evals/reports/`. The harness is manual because it spends Solar credit.
+  `backend/evals/reports/`. The harness is manual because it calls the paid or rate-limited LLM.
 - 2026-09-05: Clean-slate Codex takeover (D47). `AGENTS.md` replaced
   `CLAUDE.md`; behavior and architecture were preserved.
 - 2026-09-09: D48–D50 release remediation. `make test-db` runs the PostgreSQL
@@ -90,7 +90,7 @@ the dated entries that followed. Git history has the full text.
 - `backend/app/clients/dart.py` (about 1,200 lines) concentrates encoding,
   format detection and three narrow DSD malformation repairs, each with a
   regression test.
-- Solar clients are request-scoped by choice. `FD_SLASH` in
+- LLM clients are request-scoped by choice. `FD_SLASH` in
   `ios/Local.xcconfig` works around `//` starting an xcconfig comment.
 - The GitHub Issues workflow in `docs/agents/issue-tracker.md` is configured
   but has never been used.
@@ -121,3 +121,17 @@ the dated entries that followed. Git history has the full text.
   - The walkthrough recapture is blocked. Upstage Solar returned `403 Forbidden` for every call on 2026-10-02, so the backend served figures only and no real cited answer or digest summary could be captured. Frames that don't need Solar were captured to the session scratchpad only and are not committed.
   - The owner needs to check the Upstage key or credit in `backend/.env`.
 - Next step: Once Solar responds, recapture all eight screens, both GIFs and both posters with the temporary UI-test method (real backend, no `-ui-testing`). Update the capture-date disclosure in `docs/index.html` (both languages).
+
+## Gemini replaces Solar · 2026-10-03
+
+- What changed:
+  - The narrative model is `gemini-3.5-flash-lite` through Gemini's OpenAI-compatible endpoint (D56).
+  - Settings are now `LLM_API_KEY`, `LLM_BASE_URL` and `LLM_MODEL`; the adapter is `app/llm/chat_completions.py`.
+  - The eval harness fails `narrative_unavailable` responses and takes `--delay`.
+  - Golden set: 24/24 on the 18-company corpus, all 14 full cases with a cited narrative.
+- Decisions and why: The Upstage free credit ran out (balance $0.00 in the console), which caused the 403s. The owner chose Gemini's free tier. Full Flash models allow only 20 requests a day on the free tier, so Flash-Lite (15 a minute, 500 a day) is the default.
+- Open issues:
+  - Google can change free limits without notice; check AI Studio's rate-limit page if calls start returning 429.
+  - The local `backend/.env` still has unused `SOLAR_BASE_URL` and `SOLAR_MODEL` lines; they are ignored.
+  - The walkthrough recapture is unblocked but not yet done.
+- Next step: Recapture the walkthrough screens and GIFs.

@@ -1,9 +1,9 @@
 """Provider-agnostic LLM abstraction.
 
 A thin, swappable seam between the app and whichever chat-completion provider
-backs it (Solar Pro today; another OpenAI-compatible provider tomorrow). This
+backs it (any OpenAI-compatible provider; Gemini by default). This
 module is intentionally *pure interface + data*: no HTTP, no citation logic, no
-output guards. Concrete adapters live alongside it (see :mod:`app.llm.solar`).
+output guards. Concrete adapters live alongside it (see :mod:`app.llm.chat_completions`).
 
 Design notes:
 - :class:`ChatMessage` mirrors the OpenAI chat message shape (``role``/``content``)

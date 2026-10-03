@@ -1,1 +1,1 @@
-"""LLM provider abstraction (swappable) + adapters (Solar Pro)."""
+"""LLM provider abstraction (swappable) + an OpenAI-compatible adapter."""

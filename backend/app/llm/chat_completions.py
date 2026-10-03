@@ -1,11 +1,12 @@
-"""Solar (Upstage) adapter for the LLM provider seam.
+"""OpenAI-compatible chat-completions adapter for the LLM provider seam.
 
-Solar exposes an OpenAI-compatible REST surface, so this adapter is a thin
-``httpx.AsyncClient`` POST to ``{solar_base_url}/chat/completions`` -- deliberately
-no ``openai`` SDK dependency. It implements :class:`app.llm.base.LLMClient`.
+The configured provider (Gemini by default) exposes an OpenAI-compatible REST
+surface, so this adapter is a thin ``httpx.AsyncClient`` POST to
+``{llm_base_url}/chat/completions`` -- deliberately no ``openai`` SDK
+dependency. It implements :class:`app.llm.base.LLMClient`.
 
 SECURITY:
-- ``SOLAR_API_KEY`` lives in ``settings.solar_api_key`` as a SecretStr. It travels
+- ``LLM_API_KEY`` lives in ``settings.llm_api_key`` as a SecretStr. It travels
   ONLY in the ``Authorization: Bearer ...`` request header -- never in the URL,
   never in a log line, never in an exception message. Mirrors the DART client's
   secret discipline (app/clients/dart.py).
@@ -29,12 +30,12 @@ logger = logging.getLogger(__name__)
 _TIMEOUT = httpx.Timeout(120.0, connect=10.0)
 
 
-class SolarClientError(RuntimeError):
+class LLMClientError(RuntimeError):
     """Raised for client-side misconfiguration (e.g. missing API key)."""
 
 
-class SolarApiError(RuntimeError):
-    """Raised when the Solar API returns a non-2xx response.
+class LLMApiError(RuntimeError):
+    """Raised when the LLM API returns a non-2xx response.
 
     Carries the HTTP status and a (truncated) response body for diagnosis. The
     API key is never referenced -- it lives only in the Authorization header.
@@ -43,7 +44,7 @@ class SolarApiError(RuntimeError):
     def __init__(self, status_code: int, body: str) -> None:
         self.status_code = status_code
         self.body = body
-        super().__init__(f"Solar API returned HTTP {status_code}: {body}")
+        super().__init__(f"LLM API returned HTTP {status_code}: {body}")
 
 
 # Response bodies can be large (or an HTML error page); cap what we put in an
@@ -51,12 +52,12 @@ class SolarApiError(RuntimeError):
 _MAX_ERROR_BODY = 500
 
 
-class SolarClient:
-    """Adapter calling Solar's OpenAI-compatible ``/chat/completions`` (LLMClient).
+class ChatCompletionsClient:
+    """Adapter calling an OpenAI-compatible ``/chat/completions`` (LLMClient).
 
     Settings are injected; an ``httpx.AsyncClient`` may be injected for testing
-    (e.g. an ``httpx.MockTransport``). The model defaults to ``settings.solar_model``
-    but can be overridden per-instance -- the exact Solar model name is configurable.
+    (e.g. an ``httpx.MockTransport``). The model defaults to ``settings.llm_model``
+    but can be overridden per-instance -- the exact model name is configurable.
     """
 
     def __init__(
@@ -66,8 +67,8 @@ class SolarClient:
         model: str | None = None,
     ) -> None:
         self._settings = settings
-        self._base_url = settings.solar_base_url.rstrip("/")
-        self._model = model or settings.solar_model
+        self._base_url = settings.llm_base_url.rstrip("/")
+        self._model = model or settings.llm_model
         self._client = client
         self._owns_client = client is None
 
@@ -79,11 +80,11 @@ class SolarClient:
         temperature: float = 0.2,
         max_tokens: int = 1024,
     ) -> LLMResult:
-        """POST one chat completion to Solar and normalize it into an LLMResult.
+        """POST one chat completion and normalize it into an LLMResult.
 
         ``response_format`` (OpenAI-style, e.g. ``{"type": "json_schema", ...}``) is
         included in the body only when provided -- passed through untouched. Raises
-        :class:`SolarApiError` on any non-2xx response (key never leaked).
+        :class:`LLMApiError` on any non-2xx response (key never leaked).
         """
         body: dict[str, Any] = {
             "model": self._model,
@@ -111,7 +112,7 @@ class SolarClient:
         )
         if resp.status_code // 100 != 2:
             # Never surface the key; truncate the body so the message stays sane.
-            raise SolarApiError(resp.status_code, resp.text[:_MAX_ERROR_BODY])
+            raise LLMApiError(resp.status_code, resp.text[:_MAX_ERROR_BODY])
         return self._parse_response(resp.json())
 
     def _parse_response(self, payload: Any) -> LLMResult:
@@ -122,7 +123,7 @@ class SolarClient:
         fields rather than raising, and ``raw`` always keeps the full payload.
         """
         if not isinstance(payload, dict):
-            raise SolarApiError(200, "chat/completions: response is not a JSON object")
+            raise LLMApiError(200, "chat/completions: response is not a JSON object")
 
         choices = payload.get("choices")
         choice = choices[0] if isinstance(choices, list) and choices else {}
@@ -150,11 +151,11 @@ class SolarClient:
         )
 
     def _api_key(self) -> str:
-        secret = self._settings.solar_api_key
+        secret = self._settings.llm_api_key
         value = secret.get_secret_value() if secret is not None else ""
         if not value:
-            raise SolarClientError(
-                "SOLAR_API_KEY is not configured (set it in the environment/.env)"
+            raise LLMClientError(
+                "LLM_API_KEY is not configured (set it in the environment/.env)"
             )
         return value
 

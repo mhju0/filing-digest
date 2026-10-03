@@ -31,9 +31,9 @@ API or health checks.
 |---|---:|---|
 | `DART_API_KEY` | DART ingestion | OpenDART credential |
 | `DART_BASE_URL` | No | Defaults to `https://opendart.fss.or.kr/api` |
-| `SOLAR_API_KEY` | Narrative | Upstage credential |
-| `SOLAR_BASE_URL` | No | Defaults to `https://api.upstage.ai/v1` |
-| `SOLAR_MODEL` | No | Defaults to `solar-pro3` |
+| `LLM_API_KEY` | Narrative | Gemini API key (or another OpenAI-compatible provider's) |
+| `LLM_BASE_URL` | No | Defaults to `https://generativelanguage.googleapis.com/v1beta/openai` |
+| `LLM_MODEL` | No | Defaults to `gemini-3.5-flash-lite` |
 | `SEC_BASE_URL` | No | Defaults to `https://data.sec.gov` |
 | `SEC_USER_AGENT` | SEC ingestion | Must contain real contact information |
 | `DATABASE_URL` | No | Local default targets PostgreSQL on port 5433 |
@@ -135,7 +135,7 @@ GitHub Actions lints with Ruff, validates the Compose file, applies
 service, runs offline, smoke, and persistence tests through the same Make targets,
 then builds the app and runs unit tests plus the core XCUITest flow on a macOS iOS Simulator. The
 live evaluation harness remains manual because it requires an ingested corpus
-and a configured Solar account. Retrieval cases compare canonical filing periods
+and a configured LLM key. Retrieval cases compare canonical filing periods
 returned by the API, so regenerated database UUIDs do not require an eval-map
 update; see [`backend/evals/README.md`](../backend/evals/README.md).
 
