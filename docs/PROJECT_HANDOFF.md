@@ -163,3 +163,11 @@ the dated entries that followed. Git history has the full text.
 - Verification: Required backend and iOS CI passed. Root reviewed live English desktop and both languages at 390px; contact links and the footer anchor are correct, mobile document bounds match, and no console errors were observed.
 - Open issues: Physical-device and full VoiceOver checks remain outside this bounded release. Instagram preparation stays deferred.
 - Next step: Continue the broader launch checklist; the contact/privacy and citation-copy release is complete. This deployment evidence entry is local.
+
+## Separate contact page · 2026-10-06
+
+- What changed: Contact and privacy details moved unchanged into `contact.html`, with the main page retaining compact footer links and a hero details link. Existing `#contact` bookmarks land on the footer link. The new page has bilingual support/privacy text, language/theme controls, and a keyboard-accessible return to the walkthrough.
+- Decisions and why: The owner requested a separate page to keep the main walkthrough focused. Links carry the selected language in both directions; the existing browser preference storage carries theme. Shared preferences tolerate pages without the walkthrough's scope and architecture sections.
+- Verification: Two static walkthrough contract tests, Ruff, three JavaScript syntax checks, and diff whitespace checks passed. Root reviewed Korean desktop dark, Korean 390px dark, and English 390px light; no overflow or console errors, and footer navigation plus keyboard return retained language/theme.
+- Open issues: Physical-device and full VoiceOver checks remain outside this bounded change.
+- Next step: Publish through the protected PR/CI/Pages flow, then verify the served page.

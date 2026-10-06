@@ -23,14 +23,19 @@ export function setup(onLanguage) {
     document.querySelectorAll('[data-lang]').forEach(button => {
       button.setAttribute('aria-pressed', button.dataset.lang === language);
     });
+    document.querySelectorAll('a[href^="contact.html"], a[href^="index.html"]').forEach(link => {
+      const url = new URL(link.getAttribute('href'), location.href);
+      url.searchParams.set('lang', language);
+      link.setAttribute('href', `${url.pathname.split('/').at(-1)}${url.search}${url.hash}`);
+    });
     const dark = document.body.dataset.theme === 'dark';
     document.querySelector('.theme-control').textContent = dark ? pair('밝게', 'Light') : pair('어둡게', 'Dark');
     document.querySelector('.theme-control').setAttribute('aria-label', dark ? pair('밝은 테마로 전환', 'Switch to light theme') : pair('어두운 테마로 전환', 'Switch to dark theme'));
     header.querySelector('.brand').setAttribute('aria-label', pair('Filing Digest 처음으로', 'Filing Digest home'));
     header.querySelector('nav').setAttribute('aria-label', pair('주요 메뉴', 'Primary navigation'));
     document.querySelector('.language-switch').setAttribute('aria-label', pair('언어', 'Language'));
-    document.querySelector('#scope').setAttribute('aria-label', pair('제품 범위', 'Product scope'));
-    document.querySelector('.architecture').setAttribute('aria-label', pair('시스템 구조', 'System architecture'));
+    document.querySelector('#scope')?.setAttribute('aria-label', pair('제품 범위', 'Product scope'));
+    document.querySelector('.architecture')?.setAttribute('aria-label', pair('시스템 구조', 'System architecture'));
   }
   document.querySelectorAll('[data-lang]').forEach(button => {
     button.addEventListener('click', () => {
