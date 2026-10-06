@@ -680,8 +680,21 @@ h3 {
   margin-top: 34px;
 }
 
-.contact h3 {
+.contact-page {
+  max-width: 760px;
+  margin-inline: auto;
+  padding-block: 48px 64px;
+}
+
+.contact-page h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.2;
+}
+
+.contact-page h2 {
   margin-top: 32px;
+  font-size: 1.4rem;
+  line-height: 1.4;
 }
 
 .contact p {

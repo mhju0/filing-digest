@@ -42,3 +42,24 @@ def test_demo_is_a_disclosed_static_product_walkthrough() -> None:
     for source in parser.image_sources + parser.animated_sources:
         assert not source.startswith(("http://", "https://"))
         assert (DOCS_DIR / source).is_file()
+
+
+def test_contact_details_live_on_a_separate_static_page() -> None:
+    index = INDEX_PATH.read_text()
+    contact = (DOCS_DIR / "contact.html").read_text()
+    parser = DemoHTMLParser()
+    parser.feed(index)
+
+    assert 'id="contact" href="contact.html"' in index
+    assert 'class="section contact"' not in index
+    assert 'href="#contact"' not in index
+    assert 'href="contact.html"' in index
+    assert 'id="contact-title"' in contact
+    assert 'href="index.html#walkthrough"' in contact
+    assert 'src="contact.js" type="module"' in contact
+    assert "no live API calls" in contact
+    assert "mailto:mj.apps.support@gmail.com" in contact
+    assert "https://github.com/mhju0/filing-digest/issues" in contact
+    assert "browser's storage" in contact
+    assert "GitHub General Privacy Statement" in contact
+    assert "Gmail" in contact
