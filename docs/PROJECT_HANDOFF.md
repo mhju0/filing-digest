@@ -171,3 +171,18 @@ the dated entries that followed. Git history has the full text.
 - Verification: Two static walkthrough contract tests, Ruff, three JavaScript syntax checks, and diff whitespace checks passed. Root reviewed Korean desktop dark, Korean 390px dark, and English 390px light; no overflow or console errors, and footer navigation plus keyboard return retained language/theme.
 - Open issues: Physical-device and full VoiceOver checks remain outside this bounded change.
 - Next step: Publish through the protected PR/CI/Pages flow, then verify the served page.
+
+## Separate contact page published · 2026-10-06
+
+- What changed: PR #36 merged as c97ed99 and GitHub Pages built that commit. Contact/privacy content moved off the main walkthrough to contact.html; footer and disclosure links retain the language query, with #contact compatibility on the footer link.
+- Verification: Two static tests, Ruff, JavaScript checks, local desktop/mobile language/theme navigation, and required backend/iOS CI passed. Six served files match reviewed SHA-256 hashes. Root observed the live main page without the large section and with the correct Korean destination link.
+- Open issues: Final live contact-page navigation review could not finish because two browser-control calls timed out. Local navigation and production hash checks provide the substitute evidence.
+- Next step: No implementation work remains for this refinement; recheck live contact-page navigation when browser control is available.
+
+
+## Maintenance closeout · 2026-10-06
+
+- What changed: Owner authorized v0.5.2 patch release and feature closure. Narrowed API citation wording, added evaluation/extraction limits, maintenance policy and version consistency; API v0.4/schema v0.3 unchanged. Preserved the previous contact-page publication entry.
+- Decisions and why: Keep the local single-user application and recorded public walkthrough as the portfolio baseline. New feature/coverage work requires reopening; bounded fixes and requalification remain allowed.
+- Open issues: Fresh live-provider/cold-start rehearsal, independent semantic review and physical-device/full accessibility remain preparation opportunities, not completed qualification. External profile/credential cleanup is outside this repository release.
+- Next step: Complete protected CI, main integration, Pages verification and the v0.5.2 release. Private interview material is archived in recruiting.

@@ -27,7 +27,9 @@ Filing Digest is an iPhone app for reading Korean (DART) and US (SEC) annual fil
 
 The walkthrough is a recorded, read-only tour of the app. It makes no API calls.
 
-**Status:** v0.5.1 · API v0.4 · database schema v0.3
+**Status:** v0.5.2 · Maintenance · API v0.4 · database schema v0.3
+
+[Maintenance policy and release limits](docs/MAINTENANCE.md)
 
 ## How it works
 
@@ -43,7 +45,7 @@ The walkthrough is a recorded, read-only tour of the app. It makes no API calls.
 | Stack | FastAPI · PostgreSQL 16 + pgvector · KURE-v1 · Gemini Flash-Lite · SwiftUI (no third-party packages) · Docker Compose |
 | Coverage | 18 companies (9 DART, 9 SEC) and 23 annual filings in the owner's [local qualification](docs/COVERAGE.md) of Sept 9, 2026. The database is not distributed; a fresh checkout starts empty |
 | Tests | 460 offline tests passed on Oct 2, 2026. CI also runs the PostgreSQL suites and the iOS unit and UI tests |
-| Evaluation | A 24-case golden set run against the live API passed 24/24 on Oct 3, 2026 with Gemini Flash-Lite on the 18-company corpus (retrieval Hit@1 0.900, Hit@3 1.000, MRR 0.950) |
+| Evaluation | A 24-case golden set run against the live API passed 24/24 on Oct 3, 2026 with Gemini Flash-Lite on the 18-company corpus (retrieval Hit@1 0.900, Hit@3 1.000, MRR 0.950). Questions cover only Apple, Microsoft and Samsung Electronics: 14 full-answer and 10 retrieval cases |
 
 ## Run locally
 
@@ -61,7 +63,7 @@ cd backend && ../.venv/bin/python -m uvicorn app.main:app --reload --port 8001
 
 ## Limits
 
-- Annual filings only: DART 사업보고서 and SEC 10-K.
+- Annual filings only: supported DART DSD prose and selected SEC 10-K Item 1 and Item 7 sections. This is not whole-document retrieval.
 - It is a local, single-user service with no authentication. Do not expose it to the public internet.
 - Generated wording varies between runs; figures do not.
 
@@ -69,6 +71,7 @@ cd backend && ../.venv/bin/python -m uvicorn app.main:app --reload --port 8001
 
 | Document | Contents |
 |---|---|
+| [MAINTENANCE.md](docs/MAINTENANCE.md) | Frozen baseline, permitted fixes and interview operating checks |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Component boundaries, schema decisions, API contract |
 | [CONTEXT.md](CONTEXT.md) | Domain glossary: the vocabulary the code is named after |
 | [docs/adr/](docs/adr/) | Architecture decisions and the alternatives they replaced |
