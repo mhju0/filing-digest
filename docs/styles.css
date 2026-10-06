@@ -680,10 +680,33 @@ h3 {
   margin-top: 34px;
 }
 
+.contact h3 {
+  margin-top: 32px;
+}
+
+.contact p {
+  max-width: 760px;
+  overflow-wrap: anywhere;
+}
+
+.contact a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+footer a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
 footer {
   min-height: 96px;
   padding: 24px max(var(--gutter), calc((100% - var(--page-max)) / 2));
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 24px;

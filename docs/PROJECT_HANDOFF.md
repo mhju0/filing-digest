@@ -149,3 +149,10 @@ the dated entries that followed. Git history has the full text.
 - Decisions and why: Older dated audit records in Filing Agent keep "Solar" because they describe what was true then.
 - Open issues: None from the provider change.
 - Next step: None.
+
+## Walkthrough contact and privacy · 2026-10-06
+
+- What changed: The static walkthrough now has KO/EN email support, public GitHub Issues links, and a privacy disclosure covering browser preferences, GitHub Pages requests, and voluntary support messages. Hero, family copy, and the Open Graph title no longer promise citations for every claim or sentence.
+- Decisions and why: Email is the primary channel for private/general questions, privacy questions, and deletion requests, without a GitHub account requirement. The disclosure applies to the recorded walkthrough, not the local iOS app or backend; it makes no response-time or retention guarantees.
+- Open issues: Root browser review confirmed both languages fit at a 390px viewport in light theme, the English contact section fits in dark theme, and no console errors were observed. The English hero's nonbreaking space caused mobile overflow; replacing it with a normal space passed the recheck. Production verification remains pending; no push or deployment has been made.
+- Next step: Present the local candidate to the owner. The static walkthrough test, JavaScript syntax check, and diff whitespace check pass.
