@@ -156,3 +156,10 @@ the dated entries that followed. Git history has the full text.
 - Decisions and why: Email is the primary channel for private/general questions, privacy questions, and deletion requests, without a GitHub account requirement. The disclosure applies to the recorded walkthrough, not the local iOS app or backend; it makes no response-time or retention guarantees.
 - Open issues: Root browser review confirmed both languages fit at a 390px viewport in light theme, the English contact section fits in dark theme, and no console errors were observed. The English hero's nonbreaking space caused mobile overflow; replacing it with a normal space passed the recheck. Production verification remains pending; no push or deployment has been made.
 - Next step: Present the local candidate to the owner. The static walkthrough test, JavaScript syntax check, and diff whitespace check pass.
+
+## Contact release verified · 2026-10-06
+
+- What changed: Owner approved publication; PR #35 merged as 7947c17. GitHub Pages built that commit successfully. The three changed served files match local SHA-256 hashes.
+- Verification: Required backend and iOS CI passed. Root reviewed live English desktop and both languages at 390px; contact links and the footer anchor are correct, mobile document bounds match, and no console errors were observed.
+- Open issues: Physical-device and full VoiceOver checks remain outside this bounded release. Instagram preparation stays deferred.
+- Next step: Continue the broader launch checklist; the contact/privacy and citation-copy release is complete. This deployment evidence entry is local.
