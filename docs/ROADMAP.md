@@ -1,6 +1,8 @@
 # Roadmap
 
-Current release qualification: [2026-09-09 remediation](RELEASE_READINESS.md).
+Current baseline: v0.5.2 maintenance closeout (2026-10-06).
+See [maintenance policy](MAINTENANCE.md) and the historical
+[2026-09-09 remediation](RELEASE_READINESS.md).
 The approved fixes and ten-company expansion are implemented (D50). API v0.4
 and schema v0.3 remain unchanged; the public walkthrough remains recorded.
 
@@ -16,31 +18,32 @@ Definitions used here:
 
 ## NOW
 
-Complete release delivery and verify required CI checks. The local corpus has
-18 qualified companies; see [coverage and limitations](COVERAGE.md).
+Feature development is closed. Maintain the tagged portfolio baseline with
+reproducible defect/security fixes and documentation/link corrections. The local
+corpus has 18 qualified companies; see [coverage and limitations](COVERAGE.md).
 
 ## NEXT
 
-Maintain dependency, link and regression checks. Re-run live quality evaluation
+Requalify necessary dependency changes; keep link and regression checks. Re-run live quality evaluation
 before a live demonstration or after retrieval/generation changes. The targeted
 expansion checks do not supersede the historical 24-case evaluation.
 
 Filing Agent owns its separately verified snapshot. Arbitrary-company discovery,
 in-app ingestion and automatic Agent coverage expansion remain out of scope.
 
-## LATER
+## DEFERRED · owner reopening required
 
 Reserved for work that only becomes real if the project leaves maintenance mode.
-Currently the sole entry:
+The scale-dependent idea remains deferred:
 
 - **Revisit HNSW build parameters** if the corpus grows by an order of
   magnitude. `m=16, ef_construction=64` are defaults chosen for ~1,200 chunks
   and the index comment in `backend/db/init.sql` says to leave them alone until
   the scale changes.
 
-## BLOCKED
+## DEFERRED DEPENDENCY QUALIFICATION
 
-No active work is blocked. The following constraint applies to a future upgrade:
+No feature work is active. The following constraint applies to a future upgrade:
 
 - **`sentence-transformers` 6.x** — cannot be validated by the automation that
   exists. CI never loads the embedding model

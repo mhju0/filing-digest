@@ -51,8 +51,9 @@ app = FastAPI(
     version=__version__,
     description=(
         "DART/SEC filing digest API. Numbers come only from "
-        "structured DART/SEC data; the LLM narrates only; every claim "
-        "carries a citation."
+        "structured DART/SEC data; the LLM generates narrative. "
+        "Checks validate citation integrity and recognized financial "
+        "expressions, not sentence-level semantic support."
     ),
     lifespan=lifespan,
 )

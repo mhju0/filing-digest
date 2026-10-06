@@ -1,5 +1,7 @@
 # Filing Digest
 
+Current phase: v0.5.2 maintenance. Read `docs/MAINTENANCE.md` before new work.
+
 Evidence order: current source/tests → current Git state/history →
 `docs/DECISIONS.md` → `docs/ROADMAP.md` → `docs/PROJECT_HANDOFF.md` → historical
 Claude material only when additional context is needed.

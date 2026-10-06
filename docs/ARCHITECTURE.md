@@ -1,6 +1,6 @@
 # Filing Digest Architecture
 
-This document describes the v0.5.1 portfolio architecture. The API contract is
+This document describes the v0.5.2 portfolio architecture. The API contract is
 v0.4 and the database schema remains at v0.3. The current architecture includes
 the Ledger client, deep domain/service ownership, strict live evaluation
 contracts, and PostgreSQL plus iOS CI gates.

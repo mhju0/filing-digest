@@ -579,6 +579,16 @@ sentence that the search screen has no toggle and stays Korean.
 - Earlier entries and reports that name Solar describe runs made on Solar and
   are left as written.
 
+## D57 · Close the portfolio baseline for maintenance · 2026-10-06
+
+The owner approved finishing both Filing projects and moving to interview study.
+v0.5.2 is a claim-accuracy/documentation patch release. API v0.4 and schema v0.3
+remain frozen. The local single-user backend remains private; GitHub Pages keeps
+the recorded walkthrough. Maintenance fixes/security/documentation remain allowed;
+new features or wider coverage need owner reopening. Independent semantic review,
+fresh live rehearsal and physical-device/full accessibility are explicitly deferred,
+not release claims. Current API description and README now match the bounded checks.
+
 ## Standing non-goals — `EXPLICITLY REJECTED`
 
 Each was considered and declined on the record, not merely skipped:
