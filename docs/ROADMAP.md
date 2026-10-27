@@ -7,10 +7,10 @@ The approved fixes and ten-company expansion are implemented (D50). API v0.4
 and schema v0.3 remain unchanged; the public walkthrough remains recorded.
 
 Definitions used here:
-- **Maintenance** — security patches, dependency vulnerability fixes,
+- **Maintenance**: security patches, dependency vulnerability fixes,
   documentation corrections, dead-link repairs. D48 additionally authorizes
   the current cleanup and verification pass.
-- **Frozen contract** — the v0.4 API shape in
+- **Frozen contract**: the v0.4 API shape in
   [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) stays fixed under the maintenance
   policy, independently of Filing Agent's separate snapshot-based runtime.
 
@@ -45,7 +45,7 @@ The scale-dependent idea remains deferred:
 
 No feature work is active. The following constraint applies to a future upgrade:
 
-- **`sentence-transformers` 6.x** — cannot be validated by the automation that
+- **`sentence-transformers` 6.x**: cannot be validated by the automation that
   exists. CI never loads the embedding model
   (`EMBEDDING_WARMUP_ENABLED: "false"`) and runs against a seeded SQL corpus, so
   a green CI run would prove nothing about a loader upgrade. Real validation
@@ -69,26 +69,26 @@ Recorded so they are not rediscovered as if new. None of these is planned.
 Declined on the record. Re-proposing any of these should require a reason that
 did not exist when it was rejected.
 
-- **Authentication, rate limiting, multi-tenancy** — single-user local demo;
+- **Authentication, rate limiting, multi-tenancy**: single-user local demo;
   adding them would be theater rather than engineering.
-- **Production deployment / Kubernetes** — a hosted instance costs money, and an
+- **Production deployment / Kubernetes**: a hosted instance costs money, and an
   unauthenticated public API over a personal DART key is not something to ship.
   The [GitHub Pages walkthrough](https://mhju0.github.io/filing-digest/) is the
   answer instead, and it discloses that it is not live (D34).
-- **Alembic, or any migration framework** — `backend/db/init.sql` is the single
+- **Alembic, or any migration framework**: `backend/db/init.sql` is the single
   schema source; existing databases move by reviewed versioned SQL after a
   `pg_dump` (D4, D26).
-- **DART `xforms` parsing and attachment ingestion** — detected and skipped
+- **DART `xforms` parsing and attachment ingestion**: detected and skipped
   deliberately; a different kind of parser project.
-- **Financial and holding companies in the corpus** — IFRS financial-sector
+- **Financial and holding companies in the corpus**: IFRS financial-sector
   account mapping is its own project, not a robustness improvement here (D15).
-- **An in-app conversational chat surface** — the fake `/chat` endpoint and Chat
+- **An in-app conversational chat surface**: the fake `/chat` endpoint and Chat
   tab were deleted once `/answer` was real, and the app has had no tab bar
   since (D8).
-- **Routine Dependabot version bumps** — `open-pull-requests-limit: 0` for both
+- **Routine Dependabot version bumps**: `open-pull-requests-limit: 0` for both
   ecosystems. Routine bumps are outside the maintenance policy; the policy was
   not widened to match the bot (D41). **Security updates remain enabled.**
-- **Re-adding a license** — removed 2026-07-31; the repository is public for
+- **Re-adding a license**: removed 2026-07-31; the repository is public for
   portfolio review only (D12).
 
 ## COMPLETED RECENTLY

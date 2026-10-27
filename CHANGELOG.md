@@ -4,7 +4,7 @@ All notable changes to Filing Digest, reconstructed from the tagged git
 history. The project is feature-complete and in maintenance mode as of v0.5.1;
 see the Status block in [README.md](README.md) for what maintenance covers.
 
-## v0.5.1 — 2026-08-27
+## v0.5.1 · 2026-08-27
 
 Release-closing pass. No feature work.
 
@@ -33,7 +33,7 @@ Release-closing pass. No feature work.
 - Synchronized the architecture document with the shipped contract and
   ownership boundaries.
 
-## v0.5.0 — 2026-08-22
+## v0.5.0 · 2026-08-22
 
 **Added**
 - The Ledger editorial design system across the iOS client: presentation
@@ -58,7 +58,7 @@ Release-closing pass. No feature work.
 **Performance**
 - Cached digests reuse generated summaries after retrieval validates the chunk snapshot.
 
-## v0.4.0 — 2026-07-25
+## v0.4.0 · 2026-07-25
 
 **Added**
 - Filing sources open inside the app instead of leaving it.
@@ -74,11 +74,11 @@ Release-closing pass. No feature work.
 - Surfaced the domain glossary and the ADR set; untracked local agent tooling.
 - Recaptured the screenshot gallery and social preview against the v0.4 client.
 
-## v0.3.0 — 2026-07-14
+## v0.3.0 · 2026-07-14
 
 **Added**
 - A browse-first home screen: the corpus list with type-to-filter search.
-- The citation-bracket brand identity — app icon, lockup, and tagline.
+- The citation-bracket brand identity: app icon, lockup, and tagline.
 
 **Changed**
 - Deepened the filing evidence architecture.
@@ -90,7 +90,7 @@ Release-closing pass. No feature work.
 - Aligned the narrative prompt with the number guard's actual scope.
 - Hardened containerized backend reliability.
 
-## v0.2.0 — 2026-07-12
+## v0.2.0 · 2026-07-12
 
 Initial development, from an empty scaffold to an eight-company demo corpus.
 

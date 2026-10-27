@@ -39,14 +39,14 @@ All four directions keep the same non-negotiable product model:
 
 | Concept | Product thesis | Primary entry | Information density | Best fit | Main tradeoff |
 |---|---|---|---|---|---|
-| A — Ledger Focus | Reading a filing should feel like reading a precise edited brief | Bounded company index | Medium | Safest refinement of the existing product | Discovery remains list-led |
-| B — Research Desk | The app is an analyst workspace with evidence always adjacent | Search/command field | High | Repeated comparison and source inspection | Densest learning curve |
-| C — Signal Brief | Users want the few changes worth reading before the whole filing | Latest briefing feed | Low–medium | Fast scanning and return visits | Requires a defensible “what changed” model |
-| D — Evidence Thread | The shortest path to value is asking, then traversing the proof | Question composer | Medium | Demonstrating citation integrity | Company browsing becomes secondary |
+| A · Ledger Focus | Reading a filing should feel like reading a precise edited brief | Bounded company index | Medium | Safest refinement of the existing product | Discovery remains list-led |
+| B · Research Desk | The app is an analyst workspace with evidence always adjacent | Search/command field | High | Repeated comparison and source inspection | Densest learning curve |
+| C · Signal Brief | Users want the few changes worth reading before the whole filing | Latest briefing feed | Low–medium | Fast scanning and return visits | Requires a defensible “what changed” model |
+| D · Evidence Thread | The shortest path to value is asking, then traversing the proof | Question composer | Medium | Demonstrating citation integrity | Company browsing becomes secondary |
 
 ## New flows
 
-### A — Ledger Focus
+### A · Ledger Focus
 
 `Index → company folio → metric or question → inline citation → source drawer → regulator filing`
 
@@ -56,7 +56,7 @@ All four directions keep the same non-negotiable product model:
 - The answer keeps prose linear and opens evidence in a bottom drawer so the
   reader does not lose the claim being checked.
 
-### B — Research Desk
+### B · Research Desk
 
 `Command search → workspace → select figure/claim → persistent evidence pane → filing`
 
@@ -65,7 +65,7 @@ All four directions keep the same non-negotiable product model:
 - Regular width becomes a `NavigationSplitView`: company list, working document,
   and persistent evidence inspector. Selection state is shared across columns.
 
-### C — Signal Brief
+### C · Signal Brief
 
 `Latest changes → company briefing → explain a signal → evidence sheet → filing`
 
@@ -76,7 +76,7 @@ All four directions keep the same non-negotiable product model:
 - Suggested questions are contextual actions attached to a signal, reducing the
   chance of an unsupported first question.
 
-### D — Evidence Thread
+### D · Evidence Thread
 
 `Choose company + ask → answer claims → evidence thread → source map → filing`
 
@@ -89,7 +89,7 @@ All four directions keep the same non-negotiable product model:
 
 ## Adaptive layout logic
 
-| Width class | A — Ledger Focus | B — Research Desk | C — Signal Brief | D — Evidence Thread |
+| Width class | A · Ledger Focus | B · Research Desk | C · Signal Brief | D · Evidence Thread |
 |---|---|---|---|---|
 | Compact | Single reading column; evidence as bottom sheet | Three workspace tabs; inspector as sheet | Feed + bottom navigation | Composer/answer stack; source map as sheet |
 | Regular | Centered reading column with index rail | Three-column split view | Two-column feed and company rail | Answer canvas plus pinned evidence rail |
@@ -108,6 +108,6 @@ All four directions keep the same non-negotiable product model:
 
 ## Files
 
-- `index.html` — semantic structure and all twelve mock screens
-- `styles.css` — shared layout plus four isolated visual systems
-- `app.js` — concept switching and keyboard-accessible tab state
+- `index.html`: semantic structure and all twelve mock screens
+- `styles.css`: shared layout plus four isolated visual systems
+- `app.js`: concept switching and keyboard-accessible tab state
