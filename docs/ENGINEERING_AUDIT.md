@@ -1,4 +1,4 @@
-# Engineering audit — 2026-09-05
+# Engineering audit · 2026-09-05
 
 Scope: owner-authorized cleanup (D48), starting at `d752423`. API v0.4, schema
 v0.3, model selection, financial precision, and deployment scope are preserved.

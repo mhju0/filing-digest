@@ -49,7 +49,7 @@ The app uses system fonts only:
 - **Ledger card:** paper background, one-point border, two-point corner radius,
   no shadow or gradient.
 - **Ledger button:** the same square, outlined vocabulary as everything else.
-  Replaces the system bordered capsule, which appeared only on error screens —
+  Replaces the system bordered capsule, which appeared only on error screens,
   the worst place to look like a different app.
 - **Citation marker:** green square with a high-contrast numeric label and an
   explicit accessibility label. Tapping one scrolls to the Filing Source it
