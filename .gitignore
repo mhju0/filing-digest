@@ -66,3 +66,7 @@ docs/agents/
 
 # Private takeover inventory; keep local rather than publishing environment details.
 docs/CLAUDE_ENV_INVENTORY.md
+
+# Private agent memory and write locks (shared by Claude and Codex)
+.memory/
+.locks/

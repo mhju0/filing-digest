@@ -3,7 +3,7 @@
 Current phase: v0.5.2 maintenance. Read `docs/MAINTENANCE.md` before new work.
 
 Evidence order: current source/tests → current Git state/history →
-`docs/DECISIONS.md` → `docs/ROADMAP.md` → `docs/PROJECT_HANDOFF.md` → historical
+`docs/DECISIONS.md` → `docs/ROADMAP.md` → `.memory/handoff.md` → historical
 Claude material only when additional context is needed.
 
 Python is exactly 3.11; the virtualenv lives at the repository root. Backend
@@ -57,13 +57,11 @@ xcodebuild test -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
 - Backend metric vocabulary and the Swift enums must match
   `contracts/financial-vocabulary.json`; iOS `FigureDisplay` owns KO/EN labels.
 - DART XML uses `defusedxml`; preserve `crtfc_key` redaction in `logging_config.py`.
-- Update `docs/DECISIONS.md` for significant technical/product decisions,
-  `docs/ROADMAP.md` for material roadmap changes, and `docs/PROJECT_HANDOFF.md`
-  only for material high-level state or architecture changes; omit routine details.
+- Update `docs/DECISIONS.md` for significant technical/product decisions and
+  `docs/ROADMAP.md` for material roadmap changes; omit routine details.
 
-## Agent handoff
+## Agent memory
 
-- At session start, read `docs/PROJECT_HANDOFF.md`.
-- Before ending a session where you made decisions, changed architecture, or left work unfinished, append a dated entry: what changed, decisions and why, open issues, next step. Keep it brief and append-only.
-- When the file exceeds ~200 lines, condense the oldest entries into a short dated summary. Never delete unresolved open issues.
-- Durable rules belong in AGENTS.md, not in the handoff file.
+- At session start, read `.memory/README.md` (private, git-ignored).
+- Before ending a session that changed something or left work unfinished, update `.memory/handoff.md`.
+- Product and engineering decisions go in `docs/DECISIONS.md` (and `docs/adr/`); the owner's preferences about agent work go in `.memory/decisions.md`.
