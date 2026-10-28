@@ -48,7 +48,6 @@ scratchpad/
 .ruff_cache/
 
 # Local assistant and editor workspace config.
-CLAUDE.md
 GEMINI.md
 docs/agents/
 .claude/

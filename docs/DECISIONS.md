@@ -400,6 +400,7 @@ rules should be stated once. Those numbers are preserved in this file's D24 and
 in git history, which is where dated facts belong.
 
 ### D47 · Clean-slate Codex takeover and retirement of `CLAUDE.md` (`ACTIVE`)
+*Partly superseded by D50 (handoff location and `CLAUDE.md`).*
 Owner-approved on 2026-09-05 after independent source, Git, test, database, and
 GitHub inspection. Retire `CLAUDE.md` and remove its redundant release-version
 assertion; the existing package, README, architecture, SEC user-agent, and iOS
@@ -455,6 +456,14 @@ their portfolio value, cost and maintenance burden before approval. Resolve
 critical/high defects and core-workflow failures before handoff; explicitly
 accept or resolve medium findings and keep minor polish from extending the
 project indefinitely. Record unavailable checks as unverified.
+
+### D50 · Agent handoff in private memory; `CLAUDE.md` tracked (`ACTIVE`)
+Owner decision on 2026-10-28, applied to every repository. `docs/PROJECT_HANDOFF.md`
+moved to the private, git-ignored `.memory/` folder shared by Claude Code and Codex;
+current state and the next step live in `.memory/handoff.md`. The evidence order is
+current source/tests, current Git state/history, this ledger, ROADMAP, then
+`.memory/handoff.md`. `CLAUDE.md` is tracked again as a single `@AGENTS.md` import so
+both tools read the same rules; `AGENTS.md` stays the only source.
 
 ## D50 · Release remediation and ten-company expansion (`ACCEPTED`)
 
