@@ -307,7 +307,10 @@ def parse_dart_decimal(raw: str | None) -> Decimal | None:
     # per-share value cannot silently corrupt the parse.
     cleaned = text.replace(",", "")
     try:
-        return Decimal(cleaned)
+        value = Decimal(cleaned)
+        if not value.is_finite():
+            raise ValueError("nonfinite decimal")
+        return value
     except (InvalidOperation, ValueError):
         # Non-numeric (letters, doubled sign, ...) -> do not fabricate a number.
         logger.warning(
@@ -862,14 +865,9 @@ class DartClient:
         return await self.refresh_corp_codes()
 
     async def _fetch_corpcode_zip(self) -> bytes:
-        client = self._get_client()
         # crtfc_key is masked in the log; never emit its value.
         logger.info("fetching %s/corpCode.xml (crtfc_key=***)", self._base_url)
-        resp = await client.get(
-            f"{self._base_url}/corpCode.xml",
-            params={"crtfc_key": self._api_key()},
-        )
-        resp.raise_for_status()
+        resp = await self._get("corpCode.xml", {"crtfc_key": self._api_key()})
         return resp.content
 
     # -- cache --------------------------------------------------------------
@@ -913,6 +911,27 @@ class DartClient:
             self._client = httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True)
         return self._client
 
+    async def _get(self, endpoint: str, params: dict[str, str | int]) -> httpx.Response:
+        """Keep DART query credentials out of HTTP failure diagnostics."""
+        url = f"{self._base_url}/{endpoint}"
+        try:
+            response = await self._get_client().get(url, params=params)
+            response.raise_for_status()
+            return response
+        except httpx.HTTPStatusError as exc:
+            safe_request = httpx.Request("GET", url, params={**params, "crtfc_key": "***"})
+            safe_response = httpx.Response(exc.response.status_code, request=safe_request)
+            raise httpx.HTTPStatusError(
+                f"DART {endpoint} returned HTTP {exc.response.status_code}",
+                request=safe_request,
+                response=safe_response,
+            ) from None
+        except httpx.RequestError as exc:
+            safe_request = httpx.Request("GET", url, params={**params, "crtfc_key": "***"})
+            raise type(exc)(
+                f"DART {endpoint} request failed ({type(exc).__name__})", request=safe_request
+            ) from None
+
     # -- API endpoints -------------------------------------------------------
     async def list_filings(
         self,
@@ -951,7 +970,6 @@ class DartClient:
         if pblntf_ty:
             params["pblntf_ty"] = pblntf_ty
 
-        client = self._get_client()
         # crtfc_key is masked; log only the non-secret query shape.
         logger.info(
             "fetching %s/list.json (crtfc_key=***, corp_code=%s, bgn_de=%s, "
@@ -963,8 +981,7 @@ class DartClient:
             pblntf_ty or "-",
             page_no,
         )
-        resp = await client.get(f"{self._base_url}/list.json", params=params)
-        resp.raise_for_status()
+        resp = await self._get("list.json", params)
         payload = resp.json()
         return self._parse_list_payload(payload)
 
@@ -1047,7 +1064,6 @@ class DartClient:
             "reprt_code": reprt_code,
             "fs_div": fs_div,
         }
-        client = self._get_client()
         # crtfc_key is masked; log only the non-secret query shape.
         logger.info(
             "fetching %s/fnlttSinglAcntAll.json (crtfc_key=***, corp_code=%s, "
@@ -1058,10 +1074,7 @@ class DartClient:
             reprt_code,
             fs_div,
         )
-        resp = await client.get(
-            f"{self._base_url}/fnlttSinglAcntAll.json", params=params
-        )
-        resp.raise_for_status()
+        resp = await self._get("fnlttSinglAcntAll.json", params)
         payload = resp.json()
         return self._parse_financials_payload(payload)
 
@@ -1122,15 +1135,13 @@ class DartClient:
             "crtfc_key": self._api_key(),
             "corp_code": corp_code,
         }
-        client = self._get_client()
         # crtfc_key is masked; log only the non-secret query shape.
         logger.info(
             "fetching %s/company.json (crtfc_key=***, corp_code=%s)",
             self._base_url,
             corp_code,
         )
-        resp = await client.get(f"{self._base_url}/company.json", params=params)
-        resp.raise_for_status()
+        resp = await self._get("company.json", params)
         return self._parse_company_eng_name(resp.json())
 
     @staticmethod
@@ -1192,18 +1203,15 @@ class DartClient:
         )
 
     async def _fetch_document_zip(self, rcept_no: str) -> bytes:
-        client = self._get_client()
         # crtfc_key is masked; log only the non-secret query shape.
         logger.info(
             "fetching %s/document.xml (crtfc_key=***, rcept_no=%s)",
             self._base_url,
             rcept_no,
         )
-        resp = await client.get(
-            f"{self._base_url}/document.xml",
-            params={"crtfc_key": self._api_key(), "rcept_no": rcept_no},
+        resp = await self._get(
+            "document.xml", {"crtfc_key": self._api_key(), "rcept_no": rcept_no}
         )
-        resp.raise_for_status()
         return resp.content
 
     async def aclose(self) -> None:

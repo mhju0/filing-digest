@@ -101,6 +101,11 @@ def test_parse_dart_decimal_no_binary_float_rounding() -> None:
     assert parse_dart_decimal("123.45") == Decimal("123.45")
 
 
+@pytest.mark.parametrize("raw", ["NaN", "sNaN", "Infinity", "-Infinity"])
+def test_parse_dart_decimal_rejects_nonfinite_values(raw) -> None:
+    assert parse_dart_decimal(raw) is None
+
+
 # -- account_id -> metric mapping (docs §3 [Verified]) -----------------------
 
 

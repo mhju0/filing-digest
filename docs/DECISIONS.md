@@ -611,3 +611,18 @@ Each was considered and declined on the record, not merely skipped:
 | Financial and holding companies in the corpus | D15: IFRS financial-sector account mapping is its own project |
 | An in-app conversational chat surface | D8: removed once `/answer` was real, and never reinstated |
 | Device-locale localization | D19: the in-app KO/EN toggle is the bilingual mechanism (extended to chrome by D52) |
+
+## D58 · Same-end SEC durations and maintenance qualification · 2026-11-04
+
+SEC 10-K company facts can include annual and quarterly durations ending on the
+same date. For one accession/metric/end, prefer the earliest valid known start
+before the existing tag preference. This prevents quarterly input order from
+silently winning over an available annual fact. Keep existing comparative-year
+selection and missing-date fallback; this does not certify quarter-only data as
+annual or invent dates. No corpus re-ingestion, schema migration or API change.
+
+The authorized maintenance audit also hardens provider/evidence failure paths,
+finite Financial Facts and DART exception redaction, qualifies four security
+pins, and improves the recorded site's accessibility, truthful scope copy and
+lossless font delivery. The local single-user boundary and deferred semantic
+qualification remain. See [audit evidence](audits/2026-11-04-product-audit.md).

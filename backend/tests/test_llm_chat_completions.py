@@ -150,6 +150,17 @@ def test_non_2xx_raises_llm_api_error_without_key_leak() -> None:
     assert _FAKE_KEY not in msg  # the key value is never surfaced
 
 
+@pytest.mark.parametrize("body", [b"<html>upstream problem</html>", b'{"choices":', b"\xff"])
+def test_non_json_success_is_an_llm_api_error(body) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=body)
+
+    with pytest.raises(LLMApiError, match="response is not valid JSON") as exc:
+        _run_complete(handler)
+    assert exc.value.status_code == 200
+    assert body.decode("utf-8", errors="replace") not in str(exc.value)
+
+
 def test_missing_api_key_raises_client_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:  # never reached
         return httpx.Response(200, json=_OK_RESPONSE)

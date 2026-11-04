@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.evidence import EvidenceIntegrityError, resolve_evidence
+from app.evidence import EvidenceIntegrityError, filing_source_from_filing, resolve_evidence
 from app.filings import FilingChunkLocation
 from app.llm.answer import Answer, AnswerSegment
 
@@ -180,3 +180,30 @@ def test_resolve_evidence_rejects_an_unresolvable_filing_source(
 
     with pytest.raises(EvidenceIntegrityError, match=message):
         resolve_evidence(answer, [chunk], filings)
+
+
+@pytest.mark.parametrize("url", [
+    "https://[invalid",
+    "https://:443/report",
+    "https://example.com:bad/report",
+    "https://example.com:65536/report",
+    "https://exam ple.com/report",
+])
+def test_filing_source_rejects_malformed_http_urls(url) -> None:
+    filing = _filing(
+        _FILING_SEC, "sec", "0000320193-24-000123", title="10-K", url=url
+    )
+    with pytest.raises(EvidenceIntegrityError, match="no openable URL"):
+        filing_source_from_filing(filing)
+
+
+@pytest.mark.parametrize("url", [
+    "https://www.sec.gov:443/Archives/report.htm?document=1#section",
+    "http://localhost:8001/report",
+    "https://[::1]:8443/report",
+])
+def test_filing_source_accepts_http_urls_with_valid_authorities(url) -> None:
+    filing = _filing(
+        _FILING_SEC, "sec", "0000320193-24-000123", title="10-K", url=url
+    )
+    assert filing_source_from_filing(filing).url == url

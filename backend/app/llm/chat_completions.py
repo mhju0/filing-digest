@@ -113,7 +113,13 @@ class ChatCompletionsClient:
         if resp.status_code // 100 != 2:
             # Never surface the key; truncate the body so the message stays sane.
             raise LLMApiError(resp.status_code, resp.text[:_MAX_ERROR_BODY])
-        return self._parse_response(resp.json())
+        try:
+            payload = resp.json()
+        except ValueError:
+            raise LLMApiError(
+                resp.status_code, "chat/completions: response is not valid JSON"
+            ) from None
+        return self._parse_response(payload)
 
     def _parse_response(self, payload: Any) -> LLMResult:
         """Turn a chat-completions response body into a normalized LLMResult.

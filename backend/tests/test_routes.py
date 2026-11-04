@@ -9,14 +9,17 @@ import decimal
 import uuid
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.api.routes import escape_ilike_literal
+from app.config import Settings
 from app.db.session import get_db_session
 from app.digests import service as digests
 from app.financials.calculations import compute_yoy_deltas, select_reporting_periods
+from app.llm.chat_completions import ChatCompletionsClient
 from app.llm.deps import get_llm_client
 from app.main import app
 from app.schemas import AnswerRequest, SearchRequest
@@ -269,7 +272,8 @@ def test_compute_yoy_deltas_single_period_company_yields_all_none() -> None:
     assert deltas == {"revenue": None, "net_income": None}
 
 
-def test_digest_metrics_reference_explicit_filing_sources(monkeypatch) -> None:
+@pytest.mark.parametrize("malformed_provider", [False, True])
+def test_digest_metrics_reference_explicit_filing_sources(monkeypatch, malformed_provider) -> None:
     company_id = uuid.UUID("44444444-4444-4444-4444-444444444444")
     filing_id = uuid.UUID("55555555-5555-5555-5555-555555555555")
     company = SimpleNamespace(id=company_id, name="삼성전자")
@@ -315,12 +319,22 @@ def test_digest_metrics_reference_explicit_filing_sources(monkeypatch) -> None:
     async def _financials(*args, **kwargs):
         return [financial]
 
-    async def _summary(*args, **kwargs):
+    async def _summary(session, client, *args, **kwargs):
+        if malformed_provider:
+            await client.complete([])
         return (None, None)
+
+    async def _client():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda _: httpx.Response(200, text="<html>upstream problem</html>")
+        )) as transport:
+            yield ChatCompletionsClient(
+                Settings(_env_file=None, llm_api_key="synthetic-key"), client=transport
+            )
 
     digest_session = _DigestSession()
     app.dependency_overrides[get_db_session] = lambda: digest_session
-    app.dependency_overrides[get_llm_client] = lambda: object()
+    app.dependency_overrides[get_llm_client] = _client
     monkeypatch.setattr(digests, "fetch_financials", _financials)
     monkeypatch.setattr(digests, "build_company_summary", _summary)
     try:
@@ -331,6 +345,9 @@ def test_digest_metrics_reference_explicit_filing_sources(monkeypatch) -> None:
 
     assert response.status_code == 200
     body = response.json()
+    assert body["metrics"][0]["value"] == 1000
+    assert body["summary_ko"] is None
+    assert body["summary_en"] is None
     assert body["metrics"][0]["filing_source_id"] == "dart:20240312000736"
     assert "citation_id" not in body["metrics"][0]
     assert body["filing_sources"] == [
@@ -350,7 +367,8 @@ def test_digest_metrics_reference_explicit_filing_sources(monkeypatch) -> None:
     assert "filings.id DESC" in filing_sql
 
 
-def test_digest_omits_a_metric_without_an_openable_filing_source(monkeypatch) -> None:
+@pytest.mark.parametrize("url", [None, "https://[invalid", "https://:443/report"])
+def test_digest_omits_a_metric_without_an_openable_filing_source(monkeypatch, url) -> None:
     company_id = uuid.UUID("66666666-6666-6666-6666-666666666666")
     filing_id = uuid.UUID("77777777-7777-7777-7777-777777777777")
     company = SimpleNamespace(id=company_id, name="Source-less company")
@@ -360,7 +378,7 @@ def test_digest_omits_a_metric_without_an_openable_filing_source(monkeypatch) ->
         rcept_no=None,
         sec_accession_no="0000320193-24-000123",
         title="10-K",
-        url=None,
+        url=url,
         filed_at=datetime.date(2024, 10, 31),
     )
     financial = SimpleNamespace(
