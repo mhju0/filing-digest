@@ -23,6 +23,7 @@ main { overflow: visible; }
 main section[id] { scroll-margin-top: 80px; }
 .page-line { display: block; }
 .facts div { align-items: center; text-align: center; }
+.family .section-heading p:last-child, .closing > p:not(.eyebrow), .track-grid article > p:not(.track-label) { text-wrap: balance; }
 .site-header {
   position: sticky;
   top: 0;
@@ -84,7 +85,6 @@ body[data-theme=dark] .brand img { content:url('design/logos/mark_dark.png'); }
 body[data-theme=dark] .button-primary { background:#ece9e3; color:#171714; }
 body[data-theme=dark] .button-primary:hover { background:#b6dfc9; }
 body[data-theme=dark] .button-secondary:hover { color:#171714; }
-body[data-theme=dark] .motion-control:hover,
 body[data-theme=dark] .motion-control[aria-pressed=true] { color:#171714; }
 body[data-theme=dark] .device-frame { --chassis:#252622; --chassis-edge:#767369; }
 @media(max-width:750px) {
