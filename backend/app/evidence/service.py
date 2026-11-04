@@ -70,8 +70,16 @@ def _filing_identity(filing: EvidenceFiling) -> FilingIdentity:
 
 
 def _is_openable_url(value: str) -> bool:
-    parsed = urlsplit(value)
-    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+    try:
+        parsed = urlsplit(value)
+        return (
+            parsed.scheme in {"http", "https"}
+            and bool(parsed.hostname)
+            and not any(character.isspace() for character in value)
+            and (parsed.port is None or 0 <= parsed.port <= 65535)
+        )
+    except ValueError:
+        return False
 
 
 def filing_source_from_filing(filing: EvidenceFiling) -> FilingSource:

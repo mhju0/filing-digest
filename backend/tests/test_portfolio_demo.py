@@ -63,3 +63,15 @@ def test_contact_details_live_on_a_separate_static_page() -> None:
     assert "browser's storage" in contact
     assert "GitHub General Privacy Statement" in contact
     assert "Gmail" in contact
+
+
+def test_evidence_copy_describes_scope_and_guard_limits_in_both_languages() -> None:
+    index = INDEX_PATH.read_text()
+    korean = (DOCS_DIR / "walkthrough.js").read_text()
+
+    assert "do not establish sentence-level semantic support" in index
+    assert "selected sections of supported filings" in index
+    assert "문장별 의미가 근거와 일치하는지 확인하지는 않습니다" in korean
+    assert "지원하는 공시의 일부 구간" in korean
+    assert "reads a filing as a whole" not in index
+    assert "공시 한 건을 통째로 읽고" not in korean

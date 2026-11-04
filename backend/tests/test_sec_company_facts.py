@@ -89,6 +89,11 @@ def test_parse_sec_decimal_no_binary_float_artifact() -> None:
     assert parse_sec_decimal(6.13) == Decimal("6.13")
     assert str(parse_sec_decimal(6.13)) == "6.13"
 
+
+@pytest.mark.parametrize("raw", ["NaN", "sNaN", "Infinity", "-Infinity", float("nan"), float("inf")])
+def test_parse_sec_decimal_rejects_nonfinite_values(raw) -> None:
+    assert parse_sec_decimal(raw) is None
+
 # -- parse_companyfacts_payload: full parse + status-like branching ----------
 
 # Trimmed, real-shaped companyfacts payload (Apple Inc. FY2022 10-K). Revenues
@@ -348,6 +353,54 @@ def test_parse_companyfacts_missing_us_gaap_returns_empty() -> None:
 def test_parse_companyfacts_non_dict_raises() -> None:
     with pytest.raises(SecApiError):
         parse_companyfacts_payload(["not", "a", "dict"])
+
+
+@pytest.mark.parametrize("annual_first", [False, True])
+def test_companyfacts_same_end_prefers_annual_eps_over_quarter(annual_first) -> None:
+    # Reconstructed API shape, not a downloaded companyfacts response. Apple's
+    # FY2017 10-K reports annual diluted EPS 9.21 and Q4 EPS 2.07 (Note 12):
+    # https://www.sec.gov/Archives/edgar/data/320193/000032019317000070/a10-k20179302017.htm
+    common = dict(accn="0000320193-17-000070", fy=2017, fp="FY", form="10-K", end="2017-09-30")
+    annual = dict(common, start="2016-09-25", val="9.21")
+    quarter = dict(common, start="2017-07-02", val="2.07")
+    entries = [annual, quarter] if annual_first else [quarter, annual]
+    payload = {"facts": {"us-gaap": {"EarningsPerShareDiluted": {"units": {"USD/shares": entries}}}}}
+    [fact] = parse_companyfacts_payload(payload)
+    assert fact.value == Decimal("9.21")
+    assert isinstance(fact.value, Decimal)
+    assert fact.period_start.isoformat() == "2016-09-25"
+    assert fact.period_end.isoformat() == "2017-09-30"
+
+
+@pytest.mark.parametrize("legacy_annual", [False, True])
+def test_companyfacts_duration_precedes_revenue_tag_preference(legacy_annual) -> None:
+    common = dict(accn="test", fy=2024, fp="FY", form="10-K", end="2024-12-31")
+    annual = dict(common, start="2024-01-01", val=100)
+    quarter = dict(common, start="2024-10-01", val=25)
+    payload = {"facts": {"us-gaap": {
+        "Revenues": {"units": {"USD": [annual if legacy_annual else quarter]}},
+        "RevenueFromContractWithCustomerExcludingAssessedTax": {
+            "units": {"USD": [quarter if legacy_annual else annual]}
+        },
+    }}}
+    [fact] = parse_companyfacts_payload(payload)
+    assert fact.value == 100
+    assert fact.period_start.isoformat() == "2024-01-01"
+
+
+@pytest.mark.parametrize("starts,expected", [
+    ([None, "2024-01-01"], 1),
+    (["2024-01-01", None], 0),
+    ([None, None], 0),
+    (["2024-01-01", "2024-01-01"], 0),
+    (["2025-01-01", "2024-01-01"], 1),
+])
+def test_companyfacts_equal_end_duration_fallback_is_deterministic(starts, expected) -> None:
+    common = dict(accn="test", fy=2024, fp="FY", form="10-K", end="2024-12-31")
+    entries = [dict(common, start=start, val=100 + i) for i, start in enumerate(starts)]
+    payload = {"facts": {"us-gaap": {"Revenues": {"units": {"USD": entries}}}}}
+    [fact] = parse_companyfacts_payload(payload)
+    assert fact.value == 100 + expected
 
 
 def test_parse_companyfacts_entry_missing_fy_is_skipped() -> None:

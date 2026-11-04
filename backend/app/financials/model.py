@@ -54,6 +54,8 @@ class FinancialFact:
             raise TypeError("Financial Fact value must not be a float")
         if not isinstance(self.value, Decimal):
             object.__setattr__(self, "value", Decimal(self.value))
+        if not self.value.is_finite():
+            raise ValueError("Financial Fact value must be finite")
         if not self.unit.strip():
             raise ValueError("Financial Fact unit must not be blank")
         if self.scale < 1:

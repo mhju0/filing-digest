@@ -19,11 +19,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.answers import service as answers
+from app.config import Settings
 from app.db.session import get_db_session
 from app.filings import FilingChunkLocation
 from app.llm.answer import Answer
 from app.llm.base import LLMResult
-from app.llm.chat_completions import LLMApiError, LLMClientError
+from app.llm.chat_completions import ChatCompletionsClient, LLMApiError, LLMClientError
 from app.llm.citation_guard import CitationError, CitationViolation
 from app.llm.deps import get_llm_client
 from app.llm.number_guard import NumberInNarrativeError
@@ -153,6 +154,35 @@ def test_answer_empty_chunks_skips_llm_and_still_returns_figures(api_client, mon
     assert body["figures"][0]["filing_id"] == str(_FILING_ID)
 
 
+def test_answer_non_json_provider_response_preserves_exact_figures(api_client, monkeypatch):
+    async def _client():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda _: httpx.Response(200, text="<html>upstream problem</html>")
+        )) as transport:
+            yield ChatCompletionsClient(
+                Settings(_env_file=None, llm_api_key="synthetic-key"), client=transport
+            )
+
+    async def _chunks(*args, **kwargs):
+        return [SimpleNamespace(chunk_id=_CHUNK_ID, text="Revenue grew.", score=0.9)]
+
+    async def _financials(*args, **kwargs):
+        return [_financial_row()]
+
+    app.dependency_overrides[get_llm_client] = _client
+    monkeypatch.setattr(answers, "search_chunks", _chunks)
+    monkeypatch.setattr(answers, "fetch_financials", _financials)
+    response = api_client.post(
+        "/answer", json={"query": "How did revenue do?", "company_id": str(_COMPANY_ID)}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["narrative_status"] == "blocked"
+    assert body["blocked_reason"] == "narrative_unavailable"
+    assert body["answer"] is None
+    assert body["figures"][0]["value"] == "279600000000000.0000"
+
+
 def test_answer_low_score_chunk_returns_no_results(api_client, monkeypatch):
     # Non-empty retrieval whose best (only) chunk scores below
     # SIMILARITY_THRESHOLD (the answer module's no_results gate also checks
@@ -256,12 +286,13 @@ def test_answer_with_chunks_narrates_and_serializes(api_client, monkeypatch):
     assert body["blocked_reason"] is None
 
 
-def test_answer_unopenable_filing_source_blocks_narrative(api_client, monkeypatch):
+@pytest.mark.parametrize("url", [None, "https://[invalid", "https://:443/report"])
+def test_answer_unopenable_filing_source_blocks_narrative(api_client, monkeypatch, url):
     app.dependency_overrides[get_llm_client] = lambda: _StubClient(
         '{"answer_segments": [{"text": "Revenue rose.", "citations": ["[1]"]}]}'
     )
     app.dependency_overrides[get_db_session] = lambda: _FakeFilingSession(
-        [_filing_row(url=None)]
+        [_filing_row(url=url)]
     )
 
     async def _one_chunk(*args, **kwargs):

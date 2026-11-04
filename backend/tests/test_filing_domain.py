@@ -91,3 +91,15 @@ def test_filing_chunk_location_rejects_negative_coordinates() -> None:
 
     with pytest.raises(ValueError, match="part index"):
         FilingChunkLocation(part_index=-1)
+
+
+@pytest.mark.parametrize("value", [Decimal("NaN"), Decimal("sNaN"), Decimal("Infinity"), Decimal("-Infinity"), "NaN"])
+def test_financial_fact_rejects_nonfinite_values(value) -> None:
+    with pytest.raises(ValueError, match="must be finite"):
+        FinancialFact(
+            metric=ReportedMetric.revenue,
+            period=ReportingPeriod("2025-annual", PeriodKind.duration),
+            value=value,
+            unit="USD",
+            currency="USD",
+        )

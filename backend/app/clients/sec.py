@@ -259,7 +259,10 @@ def parse_sec_decimal(raw: Any) -> Decimal | None:
     if not text:
         return None
     try:
-        return Decimal(text)
+        value = Decimal(text)
+        if not value.is_finite():
+            raise ValueError("nonfinite decimal")
+        return value
     except (InvalidOperation, ValueError):
         logger.warning("companyfacts: unparseable decimal value %r; storing None", raw)
         return None
@@ -307,9 +310,10 @@ def _dedup_keep_latest_period(items: list[SecFinancialItem]) -> list[SecFinancia
     A 10-K's companyfacts entries repeat prior-year comparative figures under
     the same ``accn`` (see :class:`SecFinancialItem`); only the latest
     ``period_end`` is the filing's own-period figure, so every earlier
-    comparative duplicate is dropped here. When two distinct tags map to the
-    same metric (the two "revenue" tags) and tie on ``period_end``, the
-    first-seen tag wins -- iteration order follows :data:`_US_GAAP_TO_METRIC`,
+    comparative duplicate is dropped here. Annual and quarterly facts can share
+    that end date even in a 10-K; prefer the earliest valid known start then.
+    When duration dates also tie, the first-seen tag wins -- iteration order follows
+    :data:`_US_GAAP_TO_METRIC`,
     so "Revenues" wins over "RevenueFromContractWithCustomerExcludingAssessedTax"
     (see that dict's ordering comment). Pure -> unit-tested.
     """
@@ -323,6 +327,18 @@ def _dedup_keep_latest_period(items: list[SecFinancialItem]) -> list[SecFinancia
             continue
         if it.period_end is not None and (
             current.period_end is None or it.period_end > current.period_end
+        ):
+            best[key] = it
+        elif (
+            it.period_end is not None
+            and it.period_end == current.period_end
+            and it.period_start is not None
+            and it.period_start <= it.period_end
+            and (
+                current.period_start is None
+                or current.period_start > it.period_end
+                or it.period_start < current.period_start
+            )
         ):
             best[key] = it
         dropped += 1
