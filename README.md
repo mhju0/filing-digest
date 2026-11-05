@@ -27,7 +27,7 @@ Filing Digest is an iPhone app for reading Korean (DART) and US (SEC) annual fil
 
 The walkthrough is a recorded, read-only tour of the app. It makes no API calls.
 
-**Status:** v0.5.2 · Maintenance · API v0.4 · database schema v0.3
+**Status:** v0.5.2 plus Nov 4, 2026 maintenance fixes on `main` · Maintenance · API v0.4 · database schema v0.3
 
 [Maintenance policy and release limits](docs/MAINTENANCE.md)
 
@@ -44,7 +44,7 @@ The walkthrough is a recorded, read-only tour of the app. It makes no API calls.
 |---|---|
 | Stack | FastAPI · PostgreSQL 16 + pgvector · KURE-v1 · Gemini Flash-Lite · SwiftUI (no third-party packages) · Docker Compose |
 | Coverage | 18 companies (9 DART, 9 SEC) and 23 annual filings in the owner's [local qualification](docs/COVERAGE.md) of Sept 9, 2026. The database is not distributed; a fresh checkout starts empty |
-| Tests | 460 offline tests passed on Oct 2, 2026. CI also runs the PostgreSQL suites and the iOS unit and UI tests |
+| Tests | In the [Nov 4, 2026 audit](docs/audits/2026-11-04-product-audit.md): 519 offline tests passed (21 skipped), plus 6 + 13 + 2 PostgreSQL tests and 52 iOS unit and 6 UI tests. CI runs the PostgreSQL suites and the iOS tests too |
 | Evaluation | A 24-case golden set run against the live API passed 24/24 on Oct 3, 2026 with Gemini Flash-Lite on the 18-company corpus (retrieval Hit@1 0.900, Hit@3 1.000, MRR 0.950). Questions cover only Apple, Microsoft and Samsung Electronics: 14 full-answer and 10 retrieval cases |
 
 ## Run locally
