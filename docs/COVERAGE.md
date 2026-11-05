@@ -6,8 +6,9 @@ this database is not distributed. Search filters the ingested roster. It does
 not discover or ingest arbitrary companies from the app.
 
 The original eight are Samsung Electronics, SK Hynix, NAVER, Hyundai Motor,
-Apple, Microsoft, NVIDIA and Tesla. Screenshots and the public walkthrough were
-recorded with that earlier corpus. Ten companies were added after isolated
+Apple, Microsoft, NVIDIA and Tesla. The README screenshots were recorded with
+that earlier corpus; the public walkthrough was recaptured on October 3, 2026
+with the 18-company corpus. Ten companies were added after isolated
 qualification:
 
 | Company | Ticker | Annual filing identity | Financial records | Indexed chunks |
