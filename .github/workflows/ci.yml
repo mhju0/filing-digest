@@ -5,9 +5,14 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -42,9 +47,15 @@ jobs:
         run: scripts/check.sh --part backend
 
   ios:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      # Pin to the newest installed Xcode 26.x so the image cannot silently move to Xcode 27.
+      - name: Select Xcode 26
+        run: |
+          # shellcheck disable=SC2012
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_26.*.app | sort -V | tail -1)"
+          xcodebuild -version
       - name: Gate (ios)
         run: scripts/check.sh --part ios
