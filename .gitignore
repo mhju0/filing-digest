@@ -50,7 +50,8 @@ scratchpad/
 # Local assistant and editor workspace config.
 GEMINI.md
 docs/agents/
-.claude/
+.claude/*
+!.claude/settings.json
 .codex/
 .cursor/
 .aider*
