@@ -59,6 +59,11 @@ xcodebuild test -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
 - Backend metric vocabulary and the Swift enums must match
   `contracts/financial-vocabulary.json`; iOS `FigureDisplay` owns KO/EN labels.
 - DART XML uses `defusedxml`; preserve `crtfc_key` redaction in `logging_config.py`.
+- New DB writes are idempotent (`UNIQUE` / `ON CONFLICT`); every financials row carries `filing_id`.
+- No Alembic; schema changes are SQL files in `backend/db/migrations/`.
+- Money and precise figures never pass through `float`; parse, compute and serialize as `Decimal`.
+- Parsing and mapping are pure functions with offline unit tests (no network, no DB).
+- Changes to live DART calls, DB writes or real-filing parsing are done only after verify-live: live measured values and a second run proving idempotency.
 - Update `docs/DECISIONS.md` for significant technical/product decisions and
   `docs/ROADMAP.md` for material roadmap changes; omit routine details.
 
