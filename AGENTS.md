@@ -23,6 +23,8 @@ make check
 make test-db
 ```
 
+Done means `scripts/check.sh` prints GATE: PASS; paste the last lines.
+
 `make check` keeps live DART and database tests disabled. `make test-db` creates
 and removes a unique `*_test` database; its role needs `CREATEDB` and pgvector
 privileges. Set `TEST_DATABASE_ADMIN_URL` to a separate test connection when

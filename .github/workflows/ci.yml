@@ -38,31 +38,13 @@ jobs:
           pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -r backend/requirements.lock
           pip install ruff==0.15.21
-      - name: Lint, offline tests, and Compose validation
-        run: make check PYTHON=python RUFF=ruff
-      - name: PostgreSQL smoke and persistence tests
-        run: make test-db PYTHON=python
+      - name: Gate (backend)
+        run: scripts/check.sh --part backend
 
   ios:
     runs-on: macos-15
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      # Runner images do not always ship the same simulators, so resolve one that
-      # is actually installed instead of pinning a device name.
-      - name: Build app and run iOS tests
-        run: |
-          simulator=$(xcrun simctl list devices available -j | jq -r '
-            [.devices | to_entries[]
-              | select(.key | contains("iOS"))
-              | .value[]
-              | select(.name | startswith("iPhone"))][0].udid')
-          if [ -z "$simulator" ] || [ "$simulator" = "null" ]; then
-            echo "No iPhone simulator is available on this runner image." >&2
-            exit 1
-          fi
-          xcodebuild test \
-            -project ios/FilingDigest.xcodeproj \
-            -scheme FilingDigest \
-            -destination "platform=iOS Simulator,id=$simulator" \
-            CODE_SIGNING_ALLOWED=NO
+      - name: Gate (ios)
+        run: scripts/check.sh --part ios
