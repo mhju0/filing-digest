@@ -14,12 +14,18 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B"]
+select = ["E", "F", "W", "I", "UP", "B", "T20", "TID251"]
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI dependency injection uses call-in-default by design.
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"requests".msg = "Use httpx."
+
 [tool.ruff.lint.per-file-ignores]
 # Korean fixture strings exceed the line limit; app code must stay within it.
 "tests/*" = ["E501"]
+# Command-line scripts: printing is their output. App code logs instead (T201).
+"evals/run_eval.py" = ["T201"]
+"tests/run_postgres.py" = ["E501", "T201"]
