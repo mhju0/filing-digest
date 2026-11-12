@@ -61,7 +61,7 @@ xcodebuild test -project ios/FilingDigest.xcodeproj -scheme FilingDigest \
 - DART XML uses `defusedxml`; preserve `crtfc_key` redaction in `logging_config.py`.
 - New DB writes are idempotent (`UNIQUE` / `ON CONFLICT`); every financials row carries `filing_id`.
 - No Alembic; schema changes are SQL files in `backend/db/migrations/`.
-- Money and precise figures never pass through `float`; parse, compute and serialize as `Decimal`.
+- Money and precise figures never pass through `float`; parse, compute and serialize as `Decimal`, except the frozen digest metric JSON, which stays float (`docs/audits/2026-11-04-product-audit.md`).
 - Parsing and mapping are pure functions with offline unit tests (no network, no DB).
 - Changes to live DART calls, DB writes or real-filing parsing are done only after verify-live: live measured values and a second run proving idempotency.
 - Update `docs/DECISIONS.md` for significant technical/product decisions and
