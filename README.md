@@ -1,82 +1,40 @@
-<div align="center">
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/design/logos/mark_dark.png">
-  <img src="docs/design/logos/mark_light.png" width="130" alt="Filing Digest citation-bracket mark">
-</picture>
-
 # Filing Digest
 
-Explore key figures from Korean and US company filings, with the original sources.
+An iPhone app for exploring Korean and US company filings, with financial figures and links to the originals.
 
-**[Open the walkthrough](https://mhju0.github.io/filing-digest/)** · [한국어](https://mhju0.github.io/filing-digest/?lang=ko) · [English](https://mhju0.github.io/filing-digest/?lang=en)
+**[Recorded walkthrough](https://mhju0.github.io/filing-digest/)** · [한국어](https://mhju0.github.io/filing-digest/?lang=ko) · [English](https://mhju0.github.io/filing-digest/?lang=en) · [Filing Agent](https://github.com/mhju0/filing-agent)
 
-[Sister project: Filing Agent](https://github.com/mhju0/filing-agent)
+The walkthrough is a read-only recording with no API calls. The SwiftUI app and FastAPI backend run locally; this is a portfolio project, not an App Store release.
 
-[![CI](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml/badge.svg)](https://github.com/mhju0/filing-digest/actions/workflows/ci.yml)
-![Python 3.11](https://img.shields.io/badge/Python-3.11-3776ab.svg)
-![iOS 17+](https://img.shields.io/badge/iOS-17%2B-black.svg)
+<img src="docs/screenshots/digest-apple-en.png" width="300" alt="Apple filing digest with structured financial figures and source links">
 
-<br>
+## Engineering decisions
 
-<img src="docs/screenshots/digest-apple-en.png" width="300" alt="Apple's FY2025 digest in English: revenue of 416.2B USD, up 6.4% year over year, with operating income, net income, EPS and a summary">
+- Structured DART and SEC figures bypass the language model. Code checks reporting-period compatibility before calculating year-over-year changes.
+- KURE-v1 and pgvector retrieve filing passages. Citation and financial-expression guards can withhold generated prose while keeping available figures visible; they do not establish sentence-level factual support.
+- Filings become searchable only after indexing completes. Citations resolve through stored chunks to openable regulator sources.
 
-</div>
-
-Filing Digest is an iPhone app for reading Korean (DART) and US (SEC) annual filings. Key figures and AI explanations sit side by side, and any figure, citation or source row opens the regulator's original document.
-
-The walkthrough is a recorded, read-only tour of the app. It makes no API calls.
-
-**Status:** v0.5.2 plus Nov 4, 2026 maintenance fixes on `main` · Maintenance · API v0.4 · database schema v0.3
-
-[Maintenance policy and release limits](docs/MAINTENANCE.md)
-
-## How it works
-
-- Figures come from structured DART and SEC data and never pass through the model. Backend code calculates comparisons and ratios.
-- KURE-v1 embeddings and pgvector find relevant passages. Gemini Flash-Lite writes the explanation using numbered labels that are mapped back to real passages.
-- Guards check the citations and financial expressions in generated text before it reaches the app. If a check fails, the explanation is withheld and the figures still show. The guards do not prove that every sentence is supported by its cited passage.
-- Questions that fall below a calibrated similarity threshold (0.42) never reach the model.
-
-## Key facts
-
-| | |
-|---|---|
-| Stack | FastAPI · PostgreSQL 16 + pgvector · KURE-v1 · Gemini Flash-Lite · SwiftUI (no third-party packages) · Docker Compose |
-| Coverage | 18 companies (9 DART, 9 SEC) and 23 annual filings in the owner's [local qualification](docs/COVERAGE.md) of Sept 9, 2026. The database is not distributed; a fresh checkout starts empty |
-| Tests | In the [Nov 4, 2026 audit](docs/audits/2026-11-04-product-audit.md): 519 offline tests passed (21 skipped), plus 6 + 13 + 2 PostgreSQL tests and 52 iOS unit and 6 UI tests. CI runs the PostgreSQL suites and the iOS tests too |
-| Evaluation | A 24-case golden set run against the live API passed 24/24 on Oct 3, 2026 with Gemini Flash-Lite on the 18-company corpus (retrieval Hit@1 0.900, Hit@3 1.000, MRR 0.950). Questions cover only Apple, Microsoft and Samsung Electronics: 14 full-answer and 10 retrieval cases |
+SwiftUI · Python 3.11 · FastAPI · PostgreSQL + pgvector · KURE-v1 · Gemini Flash-Lite
 
 ## Run locally
 
-Requires Python 3.11, Docker with Compose, Xcode 16 or newer, and your own DART and Gemini keys. No production data or API keys are included.
+Requires Python 3.11 and Docker Compose; the iOS client also needs Xcode 16+. Configure your own DART/Gemini keys and SEC contact details in the ignored environment file.
 
 ```bash
 python3.11 -m venv .venv
 .venv/bin/pip install -r backend/requirements.lock
-cp backend/.env.example backend/.env    # add your keys
+cp backend/.env.example backend/.env
 docker compose up -d db
 cd backend && ../.venv/bin/python -m uvicorn app.main:app --reload --port 8001
 ```
 
-[DEVELOPMENT.md](docs/DEVELOPMENT.md) covers environment variables, ingestion, database upgrades, tests, the API and running on a device.
+A fresh database is empty. Follow the [development guide](docs/DEVELOPMENT.md) for ingestion, iOS setup and checks. The API has no authentication: keep it local.
 
-## Limits
+## Scope
 
-- Annual filings only: supported DART DSD prose and selected SEC 10-K Item 1 and Item 7 sections. This is not whole-document retrieval.
-- It is a local, single-user service with no authentication. Do not expose it to the public internet.
-- Generated wording varies between runs; figures do not.
+Annual filings only, with supported DART DSD prose and selected SEC 10-K Item 1/Item 7 sections. The [evaluation](backend/evals/README.md) covers a small project-authored question set for Apple, Microsoft and Samsung Electronics; it does not establish general financial accuracy.
 
-## Documentation
-
-| Document | Contents |
-|---|---|
-| [MAINTENANCE.md](docs/MAINTENANCE.md) | Frozen baseline, permitted fixes and interview operating checks |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Component boundaries, schema decisions, API contract |
-| [CONTEXT.md](CONTEXT.md) | Domain glossary: the vocabulary the code is named after |
-| [docs/adr/](docs/adr/) | Architecture decisions and the alternatives they replaced |
-| [DESIGN.md](docs/design/DESIGN.md) | The implemented visual system and its accessibility floor |
-| [RELEASE_READINESS.md](docs/RELEASE_READINESS.md) | Release qualification and remaining limits |
+**Status:** v0.5.2 maintenance. [Policy and limits](docs/MAINTENANCE.md) · [Architecture](docs/ARCHITECTURE.md) · [Coverage](docs/COVERAGE.md) · [Release history](https://github.com/mhju0/filing-digest/releases)
 
 ## License
 
